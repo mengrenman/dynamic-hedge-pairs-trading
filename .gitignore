@@ -26,3 +26,18 @@ notebooks/cache/
 *.pkl
 *.parquet
 .DS_Store
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+
+# Packaging/build artifacts
+*.egg-info/
+build/
+dist/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
