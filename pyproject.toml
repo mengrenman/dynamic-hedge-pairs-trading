@@ -33,3 +33,14 @@ include = ["pairs*"]
 # include your packaged ticker lists
 [tool.setuptools.package-data]
 pairs = ["universes/tickers/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+norecursedirs = ["pairs", "notebooks", "figures", ".git", "__pycache__", "*.egg-info"]
+# The production function test_spread_stationarity() in pairs.stats.stationarity
+# causes a false-positive fixture error because pytest inspects imported names starting
+# with "test_". The error is harmless (it's not a test), so we treat it as expected.
+addopts = ["--ignore=pairs"]

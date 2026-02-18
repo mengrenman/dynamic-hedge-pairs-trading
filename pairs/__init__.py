@@ -7,10 +7,12 @@ Public entry points (lazy-loaded):
 - Universe:     load_universe(), list_universes()
 - Plotting:     plot_single_price_with_shading(), plot_pair_legs_with_trades()
 - Statistics:   find_cointegrated_pairs_executor(), find_cointegrated_pairs_dualgate(),
+                benjamini_hochberg_fdr(),
                 estimate_halflife(), test_spread_stationarity(),
                 summarize_spread_stationarity_joblib()
 - Strategies:   estimate_halflife_window(), zscore_from_spread(),
                 generate_pair_signals(), evaluate_pair_signals()
+- Validation:   walk_forward_splits(), walk_forward_backtest()
 - Models (opt): fit_kalman_hedge(), filter_kf_on_new(),
                 continue_kalman_on_window(), continue_kalman_for_pairs_joblib()
 """
@@ -31,7 +33,8 @@ __all__ = [
     # plotting
     "plot_single_price_with_shading",
     "plot_pair_legs_with_trades",
-    # statistics (cointegration)
+    # statistics (cointegration + FDR)
+    "benjamini_hochberg_fdr",
     "find_cointegrated_pairs_executor",
     "find_cointegrated_pairs_dualgate",
     # statistics (stationarity)
@@ -43,6 +46,10 @@ __all__ = [
     "zscore_from_spread",
     "generate_pair_signals",
     "evaluate_pair_signals",
+    "market_impact_bps",
+    # validation
+    "walk_forward_splits",
+    "walk_forward_backtest",
     # models (Kalman) appended conditionally below
 ]
 
@@ -70,7 +77,8 @@ _LAZY_MAP = {
     # plotting (modules may be added later; lazy import avoids hard dependency)
     "plot_single_price_with_shading": ("pairs.plotting.single_price", "plot_single_price_with_shading"),
     "plot_pair_legs_with_trades": ("pairs.plotting.pair_trades", "plot_pair_legs_with_trades"),
-    # statistics (cointegration)
+    # statistics (cointegration + FDR)
+    "benjamini_hochberg_fdr": ("pairs.stats.cointegration", "benjamini_hochberg_fdr"),
     "find_cointegrated_pairs_executor": ("pairs.stats.cointegration", "find_cointegrated_pairs_executor"),
     "find_cointegrated_pairs_dualgate": ("pairs.stats.cointegration", "find_cointegrated_pairs_dualgate"),
     # statistics (stationarity)
@@ -82,6 +90,10 @@ _LAZY_MAP = {
     "zscore_from_spread": ("pairs.strategies.signals", "zscore_from_spread"),
     "generate_pair_signals": ("pairs.strategies.signals", "generate_pair_signals"),
     "evaluate_pair_signals": ("pairs.strategies.evaluate", "evaluate_pair_signals"),
+    "market_impact_bps": ("pairs.strategies.evaluate", "market_impact_bps"),
+    # validation
+    "walk_forward_splits": ("pairs.validation.walk_forward", "walk_forward_splits"),
+    "walk_forward_backtest": ("pairs.validation.walk_forward", "walk_forward_backtest"),
 }
 
 # Optionally expose models if present without importing now.
@@ -125,6 +137,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .plotting.single_price import plot_single_price_with_shading
     from .plotting.pair_trades import plot_pair_legs_with_trades
     from .stats.cointegration import (
+        benjamini_hochberg_fdr,
         find_cointegrated_pairs_executor,
         find_cointegrated_pairs_dualgate,
     )
@@ -138,7 +151,8 @@ if TYPE_CHECKING:  # pragma: no cover
         zscore_from_spread,
         generate_pair_signals,
     )
-    from .strategies.evaluate import evaluate_pair_signals
+    from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
+    from .validation.walk_forward import walk_forward_splits, walk_forward_backtest
     try:
         from .models.kalman import (
             fit_kalman_hedge,

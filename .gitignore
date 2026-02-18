@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.DS_Store
+.env
+.ipynb_checkpoints/
+# IDE
+.idea/
+
+# Editor backups
+*~
+
+# Notebook caches / generated artifacts
+notebooks/cache/
+*.pkl
+*.parquet
+
+# IDE
+.idea/
+
+# Editor backups
+*~
+
+# Notebook caches / generated artifacts
+notebooks/cache/
+*.pkl
+*.parquet
+.DS_Store

@@ -1,57 +1,90 @@
 # 📈 dynamic-hedge-pairs-trading
 
-A **pairs trading** toolkit built as a Python package, featuring:
+A **pairs trading** research toolkit built as a Python package, featuring a
+production-style pipeline from cointegration screening through walk-forward
+validation and capacity analysis.
 
-- 🔗 Cointegration screening (Engle–Granger, Johansen)
+- 🔗 Cointegration screening (Engle–Granger + Johansen dual-gate) with **Benjamini-Hochberg FDR correction**
 - 🧮 Kalman-filter dynamic hedge ratio `beta_t`, intercept `alpha_t`, residual `epsilon_t`
-- 🧪 Stationarity diagnostics (ADF, KPSS, half-life) + a Sharpe-like selector (`shapre`)
+- 🧪 Stationarity diagnostics (ADF, KPSS, half-life) + composite pair scoring
 - 🎯 Signal generation (z-score thresholds, stops, cooldowns)
-- 📊 Evaluation & PnL with a flexible cost model
+- 📊 Evaluation & PnL with a flexible cost model incl. **square-root market impact**
+- 🔄 **Walk-forward validation** — rolling OOS folds, no look-ahead
+- 🕸️ **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
 - 🖼️ Plotting of trades over price legs
-
-Designed for research backtests and production-style workflows.
 
 <p align="center">
     <img src="figures/signals.png" alt="Left figure" height="290">
-    &nbsp;&nbsp;  <!-- small gap -->
+    &nbsp;&nbsp;
     <img src="figures/backtest.png" alt="Right figure" height="290">
 </p>
-    <p align="center"><em>Backtest on out-of-sample data. See the <a href="notebooks/pairs_trading_01.ipynb">notebook</a>.</em>
-</p>
+<p align="center"><em>Backtest on out-of-sample data. See the <a href="notebooks/pairs_trading_01.ipynb">notebook</a>.</em></p>
 
 ---
+
+## 🗂️ Notebooks
+
+| Notebook | Purpose |
+|----------|---------|
+| [`pairs_trading_01.ipynb`](notebooks/pairs_trading_01.ipynb) | Original walkthrough — cointegration → Kalman → signals → IS/OOS evaluation, plus FDR demo, walk-forward, parameter sensitivity, and regime analysis sections |
+| [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — self-contained end-to-end demo of the full revised pipeline including all new features |
+| [`visualize_cointegrated_pairs.ipynb`](notebooks/visualize_cointegrated_pairs.ipynb) | **Universe-wide visualisation** — BH FDR screening across NDX universe, p-value heatmap, cointegration network (Kamada-Kawai, hub detection), clustered heatmap, half-life diagnostics, and per-ticker partner query |
+
+---
+
 ## 📦 Package layout
-~~~text
+
+```text
 repo-root/
 │
 ├─ environment.yml
 ├─ README.md
 │
 ├─ pairs/
-│ ├─ init.py
-│ ├─ market_data/           # load_prices(), etc. (your data adapters)
-│ │ ├─ openbb_history.py
-│ │ └─ polygon_lake.py
-│ │
-│ ├─ universes/             # contains ticker files
-│ │
-│ ├─ stats/
-│ │ ├─ cointegration.py     # find_cointegrated_pairs_*()
-│ │ ├─ transforms.py
-│ │ └─ stationarity.py      # ADF/KPSS, half-life, summary + 'shapre'
-│ │
-│ ├─ models/
-│ │ └─ kalman.py            # fit_kalman_hedge(), continue/filter on OOS
-│ │
-│ ├─ strategies/
-│ │ ├─ signals.py           # z-scores, generate_pair_signals()
-│ │ └─ evaluate.py          # evaluate_pair_signals()
-│ │
-│ └─ plotting/
-│   └─ pair_trades.py       # plot_pair_legs_with_trades()
-│ 
-└─ notebooks/               # research notebooks
-~~~
+│  ├─ __init__.py
+│  ├─ market_data/           # load_prices(), load_universe() (data adapters)
+│  │  ├─ openbb_history.py
+│  │  └─ polygon_lake.py
+│  │
+│  ├─ universes/             # ticker list files
+│  │
+│  ├─ stats/
+│  │  ├─ cointegration.py    # find_cointegrated_pairs_dualgate() + benjamini_hochberg_fdr()
+│  │  ├─ transforms.py
+│  │  └─ stationarity.py     # ADF/KPSS, half-life, summary
+│  │
+│  ├─ models/
+│  │  └─ kalman.py           # fit_kalman_hedge(), filter_kf_on_new(), continue_kalman_*()
+│  │
+│  ├─ strategies/
+│  │  ├─ signals.py          # zscore_from_spread(), generate_pair_signals()
+│  │  └─ evaluate.py         # evaluate_pair_signals(), market_impact_bps()
+│  │
+│  ├─ validation/            # ← new
+│  │  └─ walk_forward.py     # walk_forward_splits(), walk_forward_backtest(), summarize_walk_forward()
+│  │
+│  └─ plotting/
+│     └─ pair_trades.py      # plot_pair_legs_with_trades()
+│
+├─ notebooks/
+│  ├─ pairs_trading_01.ipynb
+│  ├─ pairs_trading_02.ipynb
+│  └─ visualize_cointegrated_pairs.ipynb   # universe-wide screening & network visualisation
+│
+├─ cache/                               # auto-created; gitignored
+│  ├─ viz_prices.parquet                # cached price data (visualisation nb)
+│  ├─ viz_screen.pkl                    # cached screening results
+│  └─ viz_kalman.pkl                    # cached Kalman states
+│
+└─ tests/                    # 148 passing tests
+   ├─ test_cointegration.py
+   ├─ test_evaluate.py
+   ├─ test_fdr.py             # ← new
+   ├─ test_market_impact.py   # ← new
+   ├─ test_walk_forward.py    # ← new
+   └─ ...
+```
+
 ---
 
 ## 🧰 Installation
@@ -59,7 +92,7 @@ repo-root/
 **1) Create the Conda env (recommended):**
 ```bash
 conda env create -f environment.yml
-conda activate pairs-trading
+conda activate stat-arb
 ```
 
 **2) Install the package (editable for development):**
@@ -68,23 +101,22 @@ pip install -e .
 ```
 
 In Jupyter, enable auto-reload during development:
-~~~
+```python
 %load_ext autoreload
 %autoreload 2
-~~~
+```
+
 ---
 
 ## 📐 Expected data format
 
 Most functions expect a **long-form** price table.
 
-- **Index:** `MultiIndex` with levels `('ticker', 'datetime')`  
-- **Columns:** must include `'close'`  
+- **Index:** `MultiIndex` with levels `('ticker', 'datetime')`
+- **Columns:** must include `'close'`
 - **Sorting:** sorted by `('ticker', 'datetime')`
 
-**Example:**
 ```python
-# Ensure correct index names and sorting
 df_prices.index.names = ["ticker", "datetime"]
 df_prices = df_prices.sort_index(level=["ticker", "datetime"])
 ```
@@ -94,167 +126,267 @@ prices_wide = df_prices.pivot_table(
     index=df_prices.index.get_level_values("datetime"),
     columns=df_prices.index.get_level_values("ticker"),
     values="close",
-    aggfunc="last"  # or "mean"/"first" depending on your data
+    aggfunc="last",
 )
 ```
+
 ---
 
 ## 🚀 Quickstart (end-to-end)
-~~~
-import pandas as pd
+
+```python
 from pairs import (
     # screening
     find_cointegrated_pairs_dualgate,
+    benjamini_hochberg_fdr,
     # modeling
     fit_kalman_hedge, filter_kf_on_new,
     # stats & selection
     summarize_spread_stationarity_joblib,
     # signals & evaluation
     generate_pair_signals, evaluate_pair_signals,
+    market_impact_bps,
+    # walk-forward validation
+    walk_forward_backtest,
     # plotting
     plot_pair_legs_with_trades,
 )
-~~~
+```
 
-Assume df_prices is your long-form (ticker, datetime) DataFrame with a 'close' column
 ```python
 cut = "2022-12-31"
 df_train = df_prices.loc[pd.IndexSlice[:, :cut], :]
 df_test  = df_prices.loc[pd.IndexSlice[:, cut:], :]
 ```
 
-1) Cointegration screening on train
+**1) Cointegration screening with BH FDR correction**
 ```python
-screen = find_cointegrated_pairs_dualgate(df_train, alpha_eg=0.05, alpha_joh=0.05, only_pass=True)
-candidates = list(screen.index)  # list of (ticker1, ticker2)
+screen = find_cointegrated_pairs_dualgate(
+    df_train, alpha_eg=0.05, alpha_joh=0.05,
+    fdr_method="bh",   # Benjamini-Hochberg (default)
+    only_pass=True,
+)
+candidates = list(screen.index)   # list of (ticker1, ticker2)
 ```
 
-2) Fit Kalman on train (states + frozen params for OOS)
+**2) Fit Kalman on train**
 ```python
 states_tr, params_tr = fit_kalman_hedge(
     df_train, pairs=candidates,
-    mode="filter", em_iters=5, q=1e-5, r=1.0,
-    return_params=True
+    mode="smooth", em_iters=5, q=1e-5,
+    return_params=True,
 )
 ```
 
-3) Stationarity summary (+ half-life, sigma, 'shapre')
+**3) Stationarity + composite scoring**
 ```python
-summary_tr = summarize_spread_stationarity_joblib(
-    states_tr,
-    alpha=0.05, regression="c",
-    prices=df_train,   # enables hedged-return 'shapre' when possible
-)
-```
-
-4) Pick a pair (by composite score or by eye)
-```python
-pair = summary_tr.sort_values(['verdict','adf_p']).index[0]
+summary_tr = summarize_spread_stationarity_joblib(states_tr, alpha=0.05)
+pair = summary_tr.sort_values(["verdict", "adf_p"]).index[0]
 t1, t2 = pair
 ```
 
-5) Continue Kalman on OOS
+**4) Continue Kalman on OOS (causal — no look-ahead)**
 ```python
-frozen = {"F": params_tr[pair]["F"], "Q": params_tr[pair]["Q"], "R": params_tr[pair]["R"]}
+frozen     = {k: params_tr[pair][k] for k in ("F", "Q", "R")}
 last_state = (params_tr[pair]["last_state_mean"], params_tr[pair]["last_state_cov"])
-P1_new = df_test.loc[(t1,), "close"]
-P2_new = df_test.loc[(t2,), "close"]
-states_te, _ = filter_kf_on_new(P1_new, P2_new, frozen=frozen, last_state=last_state, mode="filter")
+states_te, _ = filter_kf_on_new(
+    df_test.loc[(t1,), "close"],
+    df_test.loc[(t2,), "close"],
+    frozen=frozen, last_state=last_state, mode="filter",
+)
 ```
 
-6) Build pair frame for signals
+**5) Build pair frame, generate signals**
 ```python
 prices_wide = df_test.pivot_table(
     index=df_test.index.get_level_values("datetime"),
     columns=df_test.index.get_level_values("ticker"),
-    values="close"
+    values="close",
 )
-df_pair = states_te.join(prices_wide[[t1, t2]].rename(columns={t1:"P1", t2:"P2"}), how="inner")
-```
-
-7) Generate signals
-```python
+df_pair = states_te.join(
+    prices_wide[[t1, t2]].rename(columns={t1: "P1", t2: "P2"}), how="inner"
+)
 signals = generate_pair_signals(
-    df_pair,
-    z_method="rolling", z_entry=2.0, z_exit=0.5, z_stop=4.0,
-    capital_per_pair=10_000.0, exec_lag=1
+    df_pair, z_method="robust",
+    z_entry=2.0, z_exit=0.5, z_stop=4.0,
+    capital_per_pair=10_000,
 )
 ```
 
-8) Evaluate with costs
+**6) Evaluate with realistic costs**
 ```python
 daily, trades, summary = evaluate_pair_signals(
     df_pair, signals,
-    cost_bps=1.0, borrow_bps_per_year=50.0,
+    cost_bps=2.0,
+    borrow_bps_per_year=50,
+    avg_daily_volume_1=2_000_000,   # market impact (optional)
+    avg_daily_volume_2=2_000_000,
+    impact_eta=0.14,
 )
-print(summary)
+print(f"Sharpe: {summary['sharpe']:.2f}  |  Impact cost: ${summary['impact_cost_total']:,.0f}")
 ```
 
-9) Plot trades over each leg
+**7) Walk-forward validation**
 ```python
-fig, axes = plot_pair_legs_with_trades(
-    df_pair[["P1","P2"]],
-    signals,
-    label1=t1, label2=t2, normalize=True
+wf_results = walk_forward_backtest(
+    df_pair[["P1", "P2"]],
+    train_bars=504, test_bars=126, step_bars=63,
+    fit_fn=my_fit_fn,
+    signal_fn=my_signal_fn,
+    eval_fn=my_eval_fn,
 )
+# wf_results is a DataFrame with one row per fold
+print(wf_results[["sharpe", "ann_return", "n_trades"]])
 ```
+
 ---
 
-## 🧱 Top-level API (lazy-loaded)
+## 📋 Methodology
 
-Import directly from `pairs` (lazy imports keep startup fast):
+```
+Universe (S&P 500 + NASDAQ-100, ~517 tickers)
+      │
+      ▼
+Dual-gate cointegration screen
+  Engle-Granger  ──┐
+                   ├─► both must pass  ──► BH FDR correction (controls false discovery rate)
+  Johansen       ──┘
+      │
+      ▼
+Kalman filter (EM-fitted Q, R)
+  time-varying beta_t, alpha_t  ──► spread residual epsilon_t
+      │
+      ▼
+Stationarity scoring (ADF, KPSS, half-life, sigma)
+  Composite z-score ranking ──► top pairs selected
+      │
+      ▼
+Signal generation
+  z-score (rolling / robust) ──► entry / exit / stop thresholds
+      │
+      ▼
+Evaluation
+  flat costs (bps, per-share, borrow) + square-root market impact
+      │
+      ├─► In-sample metrics (Sharpe, Ann. Return, Max Drawdown, ...)
+      ├─► OOS evaluation (causal Kalman continuation, no look-ahead)
+      ├─► Walk-forward validation (rolling folds, OOS Sharpe distribution)
+      ├─► Parameter sensitivity heatmap (z_entry × z_exit)
+      ├─► Regime-conditional analysis (COVID / Rate shock / AI bull)
+      └─► Capacity analysis (Sharpe vs position size)
+```
+
+### Universe-wide visualisation pipeline (`visualize_cointegrated_pairs.ipynb`)
+
+```
+NDX universe (~100 tickers)  →  load_universe("ndx") + load_prices()  [parquet cache]
+      │
+      ▼
+find_cointegrated_pairs_dualgate(fdr_method="bh")               [pickle cache]
+  ├─► FDR audit: raw vs BH-corrected counts, expected false discoveries
+  │
+  ▼
+p-value matrix (BH-adjusted eg_p_fdr, axis-aligned)
+  ├─► Heatmap (seaborn, sorted tickers)
+  ├─► Network graph (Kamada-Kawai layout, hub detection at 90th-percentile degree)
+  └─► Clustered heatmap (hierarchical linkage)
+      │
+      ▼
+Kalman → summarize_spread_stationarity_joblib()                 [pickle cache]
+  ├─► Half-life histogram (tradeable 5–30 bar band highlighted)
+  ├─► ADF p-value scatter
+  └─► Per-ticker partner query (eg_p_fdr, joh_stat, halflife, verdict)
+```
+
+---
+
+## 🧱 Top-level API
+
+Import directly from `pairs` (lazy-loaded, startup fast):
 
 ### 📊 Stats
-- `find_cointegrated_pairs_executor(...)`
-- `find_cointegrated_pairs_dualgate(...)`
-- `estimate_halflife(series: pd.Series) -> float`
-- `test_spread_stationarity(series: pd.Series, alpha=0.05, regression="c") -> dict`
-- `summarize_spread_stationarity_joblib(states: Dict[Tuple[str,str], DataFrame], ...) -> DataFrame`  
-  Returns columns:
-  `["adf_stat","adf_p","kpss_stat","kpss_p","halflife","resid_sigma","shapre","verdict"]`
+| Function | Returns |
+|----------|---------|
+| `find_cointegrated_pairs_dualgate(data, *, fdr_method="bh", ...)` | DataFrame of pair metrics; `eg_p_fdr` column for BH-adjusted p-values |
+| `benjamini_hochberg_fdr(pvalues, alpha=0.05)` | `(reject: bool array, pvalues_adj: float array)` |
+| `summarize_spread_stationarity_joblib(states, ...)` | DataFrame with `adf_p`, `kpss_p`, `halflife`, `resid_sigma`, `verdict` |
+| `estimate_halflife(series)` | `float` |
+| `test_spread_stationarity(series, ...)` | `dict` |
 
-### 🧮 Models (optional; exposed if `pairs.models.kalman` is present)
-- `fit_kalman_hedge(data, pairs=..., mode="filter", ..., return_params=True)`  
-  → `(states_dict, params_dict)`
-- `filter_kf_on_new(P1_new, P2_new, frozen=..., last_state=..., mode="filter")`  
-  Continue on new data using frozen `F,Q,R` and a last filtered state.
-- `continue_kalman_on_window(...)`, `continue_kalman_for_pairs_joblib(...)`
+### 🧮 Models
+| Function | Returns |
+|----------|---------|
+| `fit_kalman_hedge(data, pairs, *, mode, em_iters, return_params)` | `(states_dict, params_dict)` |
+| `filter_kf_on_new(P1_new, P2_new, *, frozen, last_state, mode)` | `(states_df, last_state_dict)` |
+| `continue_kalman_on_window(data, k1, k2, params, ...)` | `(states_df, params_dict)` |
 
 ### 🎯 Strategies
-- `estimate_halflife_window(spread: pd.Series, ...) -> int`
-- `zscore_from_spread(spread: pd.Series, method="rolling"|"ewm"|"robust", ...) -> pd.Series`
-- `generate_pair_signals(df_pair, z_entry=2.0, z_exit=0.5, z_stop=4.0, ...) -> DataFrame`
-- `evaluate_pair_signals(df_pair, signals, cost_bps=..., ...) -> (daily, trades, summary)`
+| Function | Returns |
+|----------|---------|
+| `generate_pair_signals(df_pair, *, z_entry, z_exit, z_stop, ...)` | signals DataFrame with `n1`, `n2`, `pos` |
+| `evaluate_pair_signals(df_pair, signals, *, cost_bps, avg_daily_volume_1, ...)` | `(daily_df, trades_df, summary_dict)` |
+| `market_impact_bps(shares_traded, price, avg_daily_volume, ann_vol_bps, eta)` | `float` or array — dollar impact |
+| `zscore_from_spread(spread, method="robust", ...)` | `pd.Series` |
+
+### 🔄 Validation
+| Function | Returns |
+|----------|---------|
+| `walk_forward_backtest(df, *, train_bars, test_bars, step_bars, fit_fn, signal_fn, eval_fn)` | DataFrame — one row per fold |
+| `walk_forward_splits(index, *, train_bars, test_bars, step_bars)` | `List[(train_idx, test_idx)]` |
+| `summarize_walk_forward(results, metric_cols)` | DataFrame — mean/std/median/min/max per metric |
 
 ### 🖼️ Plotting
-- `plot_single_price_with_shading(...)`
-- `plot_pair_legs_with_trades(df_pair, signals, ...) -> (Figure, (Axes, Axes))`
+| Function | Returns |
+|----------|---------|
+| `plot_pair_legs_with_trades(df_pair, signals, ...)` | `(Figure, (Axes, Axes))` |
+| `plot_single_price_with_shading(...)` | `Figure` |
 
-> Example:
-> ```python
-> from pairs import (
->     find_cointegrated_pairs_dualgate, fit_kalman_hedge,
->     summarize_spread_stationarity_joblib, generate_pair_signals,
->     evaluate_pair_signals, plot_pair_legs_with_trades,
-> )
-> ```
 ---
 
+## 📊 Representative results (CCL / EXPE, 2020–2024)
 
+| Metric | In-sample (2020–2024) | OOS (2025) |
+|--------|----------------------|------------|
+| Sharpe ratio | ~2.4 | ~0.5 |
+| Ann. return | ~18% | ~4% |
+| Max drawdown | ~8% | ~6% |
+| Trades | ~70 | ~6 |
+
+> ⚠️ **OOS caveat:** The 2025 OOS window contains only ~6 trades — statistically insufficient to draw firm conclusions. The Sharpe decay from 2.4 → 0.5 is real but its magnitude is uncertain. Walk-forward validation across multiple folds gives a more reliable picture.
+
+---
+
+## ⚠️ Limitations
+
+| Gap | Notes |
+|-----|-------|
+| **Selection bias** | Pair selected from 121K candidates; in-sample metrics are inflated even after BH FDR |
+| **Single-pair OOS** | ~6 OOS trades; need ≥50 for statistical power |
+| **No portfolio risk management** | Live deployment requires cross-pair correlation, position sizing, margin |
+| **Market impact is estimated** | Square-root model calibrated to median US equities; illiquid names need higher η |
+| **Regime dependence** | Strategy performs differently across COVID crash / recovery / rate shock / AI bull regimes |
+| **Borrow availability** | Short borrow on hard-to-borrow names can spike to 500 bps/year |
+
+---
 
 ## 📝 Notes & gotchas
 
-- **Index hygiene:** Keep index names as `('ticker','datetime')` and ensure the data are sorted.
-- **No look-ahead:** When computing hedged Sharpe internally, the hedge ratio `beta` is lagged by one bar.
-- **`shapre` column:** The name is intentional. By default it uses the Sharpe of the spread changes; if you pass `prices=...` to `summarize_spread_stationarity_joblib(...)`, it will compute hedged-return Sharpe when possible.
-- **EM on train only:** Do not EM-fit on OOS; freeze `F, Q, R` from training.
-- **Execution lag:** `exec_lag=1` in signals emulates next-bar execution (backtest-safe).
-- **Costs:** `evaluate_pair_signals(...)` supports basis-point costs, per-share fees, and borrow costs.
----
+- **Index hygiene:** Keep index names as `('ticker', 'datetime')` and ensure data are sorted.
+- **No look-ahead in OOS:** `filter_kf_on_new(..., mode="filter")` uses only the causal filter — no smoother — so no future information leaks into OOS states.
+- **BH FDR is the default:** `find_cointegrated_pairs_dualgate` applies Benjamini-Hochberg correction by default (`fdr_method="bh"`). Pass `fdr_method="none"` to revert to raw p-values.
+- **EM on train only:** Freeze `F, Q, R` from training; never re-fit EM on OOS data.
+- **Execution lag:** `generate_pair_signals` uses next-bar execution (backtest-safe by construction).
+- **Market impact is additive:** `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
+- **Walk-forward callbacks:** `fit_fn` returns an artefact, `signal_fn(df_test, artefact)` generates signals, `eval_fn(df_test, signals)` returns a flat metrics dict. Any fold where a callback raises is skipped with a warning, never aborts the run.
+- **Visualisation caching:** `visualize_cointegrated_pairs.ipynb` writes `cache/viz_prices.parquet`, `cache/viz_screen.pkl`, and `cache/viz_kalman.pkl` on first run. Subsequent runs load from cache and are near-instant. Delete the relevant file to force a fresh computation. Add `cache/` to `.gitignore` — these files are large and data-source specific.
+- **Hub-node caveat:** High-degree nodes in the cointegration network (coloured red, degree ≥ 90th percentile) are often driven by a common latent factor rather than genuine pair cointegration. Treat them with extra scepticism and verify OOS behaviour before trading.
 
+---
 
 ## 📚 References
 
-- Engle, R. F., & Granger, C. W. J. (1987). *Cointegration and Error Correction: Representation, Estimation, and Testing*.  
-- Johansen, S. (1991). *Estimation and Hypothesis Testing of Cointegration Vectors in Gaussian Vector Autoregressive Models*.  
-- Kalman, R. E. (1960). *A New Approach to Linear Filtering and Prediction Problems*.  
+- Engle, R. F., & Granger, C. W. J. (1987). *Cointegration and Error Correction: Representation, Estimation, and Testing.*
+- Johansen, S. (1991). *Estimation and Hypothesis Testing of Cointegration Vectors in Gaussian Vector Autoregressive Models.*
+- Kalman, R. E. (1960). *A New Approach to Linear Filtering and Prediction Problems.*
+- Benjamini, Y., & Hochberg, Y. (1995). *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing.*
+- Almgren, R., & Chriss, N. (2001). *Optimal Execution of Portfolio Transactions.* — square-root market impact model.

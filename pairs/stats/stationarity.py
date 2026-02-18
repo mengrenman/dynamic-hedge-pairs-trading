@@ -29,6 +29,7 @@ from statsmodels.tools.sm_exceptions import InterpolationWarning
 from statsmodels.tsa.stattools import adfuller, kpss
 
 from pairs.utils.progress import tqdm_joblib
+from pairs.utils.splits import normalize_multiindex
 
 __all__ = [
     "estimate_halflife",
@@ -39,7 +40,19 @@ __all__ = [
 
 # ----------------- Half-life estimation -----------------
 def estimate_halflife(resid: pd.Series) -> float:
-    """Estimate half-life of mean reversion from residual series."""
+    """
+    Estimate half-life of mean reversion from residual series.
+
+    Assumes an AR(1) process: x_t = a + b*x_{t-1} + e_t.
+    Half-life = -log(2) / log(b).
+
+    Returns np.nan if:
+    - fewer than 20 observations after dropping NaNs
+    - AR(1) coefficient b <= 0 (no mean reversion) or b >= 1 (unit root or explosive)
+    - series has drift or trend that biases the AR(1) estimate
+
+    Note: This estimator can be biased for series with drift or structural breaks.
+    """
     r = pd.Series(resid).dropna().astype(float)
     if len(r) < 20:
         return np.nan
@@ -62,6 +75,10 @@ def test_spread_stationarity(spread: pd.Series, alpha: float = 0.05, regression:
     )
     adf_reject  = adf_p < alpha
     kpss_reject = kpss_p < alpha
+    # ADF H0: unit-root (non-stationary). KPSS H0: stationary.
+    # Stationary:     ADF rejects (evidence against unit-root) AND KPSS does not reject (consistent with stationarity).
+    # Non-stationary: ADF does not reject AND KPSS rejects (both agree series is non-stationary).
+    # Inconclusive:   Both reject or neither rejects (tests contradict or are both ambiguous).
     if adf_reject and not kpss_reject:
         verdict = "stationary"
     elif (not adf_reject) and kpss_reject:
@@ -95,14 +112,7 @@ def compute_hedged_sharpe(
       - `prices` must be a MultiIndex DataFrame (ticker, datetime) with column 'close'.
     """
     # Normalize and validate prices index
-    if not isinstance(prices.index, pd.MultiIndex) or prices.index.nlevels < 2:
-        raise ValueError("prices must have MultiIndex with levels ('ticker','datetime').")
-    names = list(prices.index.names)
-    if names[0] != "ticker" or names[1] != "datetime":
-        prices = prices.copy()
-        names[0], names[1] = "ticker", "datetime"
-        prices.index = prices.index.set_names(names)
-    prices = prices.sort_index(level=["ticker", "datetime"])
+    prices = normalize_multiindex(prices)
 
     out: Dict[Tuple[str, str], float] = {}
 
@@ -217,15 +227,8 @@ def summarize_spread_stationarity_joblib(
         else:
             res = test_spread_stationarity(s, alpha=alpha, regression=regression)
 
-        # Half-life via simple AR(1) slope on levels-diff
-        halflife = np.nan
-        try:
-            spread_lag = s.shift(1).dropna()
-            spread_ret = s.diff().dropna()
-            beta = np.polyfit(spread_lag, spread_ret, 1)[0]
-            halflife = -np.log(2) / beta if beta != 0 else np.nan
-        except Exception:
-            pass
+        # Reuse canonical half-life estimator (AR(1) OLS, avoids duplication)
+        halflife = estimate_halflife(s)
 
         resid_sigma = float(s.std())
 
@@ -238,7 +241,7 @@ def summarize_spread_stationarity_joblib(
                 vol = float(ret.std(ddof=1))
                 if np.isfinite(vol) and vol > 0:
                     shapre_proxy = mu / vol * np.sqrt(float(shapre_periods_per_year))
-        except Exception:
+        except (ValueError, ZeroDivisionError, FloatingPointError):
             pass
 
         return {
@@ -285,8 +288,12 @@ def summarize_spread_stationarity_joblib(
                 out["shapre"] = hedged
             else:  # auto: prefer hedged where available, else keep proxy
                 out["shapre"] = hedged.fillna(out["shapre"])
-        except Exception:
-            # keep proxy column as-is on any failure
-            pass
+        except (ValueError, KeyError, TypeError) as e:
+            warnings.warn(
+                f"compute_hedged_sharpe failed ({type(e).__name__}: {e}); "
+                "falling back to residual-change Sharpe proxy.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
     return out.sort_values(["verdict", "adf_p"])

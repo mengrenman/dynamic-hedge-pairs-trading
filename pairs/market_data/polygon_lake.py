@@ -131,9 +131,13 @@ def _select_from_manifest(
     seen: set[str] = set()
     tset = {str(t).upper() for t in tickers}
 
+    manifest_dir = manifest_path.parent
     for t in tset:
         for ent in man.get(t, []):
             p = Path(ent["path"])
+            # Resolve relative paths relative to the manifest file's directory
+            if not p.is_absolute():
+                p = (manifest_dir / p).resolve()
             key = str(p)
             if key in seen: 
                 continue

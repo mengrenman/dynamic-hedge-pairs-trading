@@ -2,10 +2,17 @@
 from __future__ import annotations
 import pandas as pd
 
-__all__ = ["split_by_date", "split_train_val_test"]
+__all__ = ["normalize_multiindex", "split_by_date", "split_train_val_test"]
 
-def _normalize_index(df: pd.DataFrame) -> pd.DataFrame:
-    """Ensure MultiIndex names ('ticker','datetime') and sort by them."""
+
+def normalize_multiindex(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Ensure a DataFrame has a MultiIndex with names ('ticker', 'datetime') and is
+    sorted by both levels. Raises ValueError if the index is not a 2-level MultiIndex.
+
+    This is the canonical shared utility used across cointegration, Kalman, stationarity,
+    and split modules to avoid duplicated index-normalization logic.
+    """
     if not isinstance(df.index, pd.MultiIndex) or df.index.nlevels < 2:
         raise ValueError("Expected MultiIndex with levels ('ticker','datetime').")
     names = list(df.index.names)
@@ -14,6 +21,10 @@ def _normalize_index(df: pd.DataFrame) -> pd.DataFrame:
         names[0], names[1] = "ticker", "datetime"
         df.index = df.index.set_names(names)
     return df.sort_index(level=["ticker", "datetime"])
+
+
+# Private alias kept for backward compatibility within this module
+_normalize_index = normalize_multiindex
 
 def split_by_date(
     df_multi: pd.DataFrame, *, train_end: str | pd.Timestamp, val_end: str | pd.Timestamp

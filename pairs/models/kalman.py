@@ -19,6 +19,7 @@ from tqdm import tqdm
 from pykalman import KalmanFilter
 
 from pairs.utils.progress import tqdm_joblib
+from pairs.utils.splits import normalize_multiindex
 
 __all__ = [
     "kalman_dynamic_hedge_joblib",
@@ -67,6 +68,13 @@ def _kalman_dynamic_hedge(
 ):
     if df is None or len(df) < 5:
         return k1, k2, None, None
+
+    if q <= 0 or not np.isfinite(q):
+        raise ValueError(f"q (transition noise) must be positive and finite, got {q}.")
+    if r <= 0 or not np.isfinite(r):
+        raise ValueError(f"r (observation noise) must be positive and finite, got {r}.")
+    if init_cov <= 0 or not np.isfinite(init_cov):
+        raise ValueError(f"init_cov must be positive and finite, got {init_cov}.")
 
     y = df["P1"].values.reshape(-1, 1)
     x = df["P2"].values
@@ -151,18 +159,7 @@ def kalman_dynamic_hedge_joblib(
 
     if "close" not in data.columns:
         raise ValueError("data must include a 'close' column.")
-    if not isinstance(data.index, pd.MultiIndex) or data.index.nlevels < 2:
-        raise ValueError("data must have a MultiIndex with levels (ticker, datetime).")
-
-    # Normalize level names and sort
-    names = list(data.index.names)
-    if names[0] != "ticker" or names[1] != "datetime":
-        new_names = names[:]
-        new_names[0] = "ticker"
-        new_names[1] = "datetime"
-        data = data.copy()
-        data.index = data.index.set_names(new_names)
-    data = data.sort_index(level=["ticker", "datetime"])
+    data = normalize_multiindex(data)
 
     # Native Python strings for tickers
     tickers: List[str] = [str(k) for k in data.index.get_level_values("ticker").unique().tolist()]
@@ -430,40 +427,26 @@ def continue_kalman_for_pairs_joblib(
     # Normalize index like in the fitter
     if "close" not in data.columns:
         raise ValueError("data must include a 'close' column.")
-    if not isinstance(data.index, pd.MultiIndex) or data.index.nlevels < 2:
-        raise ValueError("data must have a MultiIndex with levels (ticker, datetime).")
-    names = list(data.index.names)
-    if names[0] != "ticker" or names[1] != "datetime":
-        data = data.copy()
-        names[0], names[1] = "ticker", "datetime"
-        data.index = data.index.set_names(names)
-    data = data.sort_index(level=["ticker", "datetime"])
+    data = normalize_multiindex(data)
 
     # Worklist
     work_pairs = list(params_dict.keys()) if pairs is None else [(str(a), str(b)) for (a, b) in pairs if (a, b) in params_dict]
 
     # Parallel
-    import os
-    from joblib import Parallel, delayed
-    try:
-        from pairs.utils.progress import tqdm_joblib
-        from tqdm import tqdm
-        with tqdm_joblib(tqdm(total=len(work_pairs), desc="Kalman OOS", leave=False)):
-            results = Parallel(n_jobs=n_workers or os.cpu_count() or 1, prefer="processes", batch_size=chunksize)(
-                delayed(continue_kalman_on_window)(
-                    data, k1, k2, params_dict[(k1, k2)],
-                    mode=mode, init_cov=init_cov, return_params=return_params
-                )
-                for (k1, k2) in work_pairs
-            )
-    except Exception:
-        results = Parallel(n_jobs=n_workers or os.cpu_count() or 1, prefer="processes", batch_size=chunksize)(
-            delayed(continue_kalman_on_window)(
-                data, k1, k2, params_dict[(k1, k2)],
-                mode=mode, init_cov=init_cov, return_params=return_params
-            )
-            for (k1, k2) in work_pairs
+    n_jobs = n_workers or os.cpu_count() or 1
+    parallel_kwargs = dict(n_jobs=n_jobs, prefer="processes", batch_size=chunksize)
+    iterator = (
+        delayed(continue_kalman_on_window)(
+            data, k1, k2, params_dict[(k1, k2)],
+            mode=mode, init_cov=init_cov, return_params=return_params
         )
+        for (k1, k2) in work_pairs
+    )
+    if show_progress:
+        with tqdm_joblib(tqdm(total=len(work_pairs), desc="Kalman OOS", leave=False)):
+            results = Parallel(**parallel_kwargs)(iterator)
+    else:
+        results = Parallel(**parallel_kwargs)(iterator)
 
     states_out: Dict[Tuple[str, str], pd.DataFrame] = {}
     params_out: Dict[Tuple[str, str], Dict[str, np.ndarray]] = {}

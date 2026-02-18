@@ -7,6 +7,7 @@ Statistics utilities for the pairs package:
 """
 
 from .cointegration import (
+    benjamini_hochberg_fdr,
     find_cointegrated_pairs_executor,
     find_cointegrated_pairs_dualgate,
 )
@@ -18,6 +19,7 @@ from .stationarity import (
 from .transforms import zscore, Z, rolling_zscore
 
 __all__ = [
+    "benjamini_hochberg_fdr",
     "find_cointegrated_pairs_executor",
     "find_cointegrated_pairs_dualgate",
     "estimate_halflife",

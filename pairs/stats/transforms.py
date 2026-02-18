@@ -1,5 +1,6 @@
 # pairs/stats/transforms.py
 from __future__ import annotations
+from typing import Optional
 import numpy as np
 import pandas as pd
 
@@ -22,7 +23,7 @@ def Z(s: pd.Series) -> pd.Series:
     return zscore(s, ddof=0)
 
 def rolling_zscore(
-    s: pd.Series, window: int, *, min_periods: int | None = None, ddof: int = 0
+    s: pd.Series, window: int, *, min_periods: Optional[int] = None, ddof: int = 0
 ) -> pd.Series:
     """
     Rolling z-score with windowed mean/std.
