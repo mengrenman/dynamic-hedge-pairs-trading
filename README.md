@@ -10,6 +10,9 @@ validation and capacity analysis.
 - 🎯 Signal generation (z-score thresholds, stops, cooldowns)
 - 📊 Evaluation & PnL with a flexible cost model incl. **square-root market impact**
 - 🔄 **Walk-forward validation** — rolling OOS folds, no look-ahead
+- 🛡️ **Circuit breaker** — post-processor that flattens positions on z-score blow-outs or rolling drawdown breach, with configurable cooldown and re-entry guard
+- 📐 **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
+- 🔬 **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
 - 🕸️ **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
 - 🖼️ Plotting of trades over price legs
 
@@ -51,14 +54,17 @@ repo-root/
 │  ├─ stats/
 │  │  ├─ cointegration.py    # find_cointegrated_pairs_dualgate() + benjamini_hochberg_fdr()
 │  │  ├─ transforms.py
-│  │  └─ stationarity.py     # ADF/KPSS, half-life, summary
+│  │  ├─ stationarity.py     # ADF/KPSS, half-life, summary
+│  │  ├─ portfolio.py        # pair_return_correlations(), portfolio_diversification_score(), suggest_position_weights()
+│  │  └─ stability.py        # cusum_beta_stability(), rolling_beta_drift(), summarize_hedge_ratio_stability()
 │  │
 │  ├─ models/
 │  │  └─ kalman.py           # fit_kalman_hedge(), filter_kf_on_new(), continue_kalman_*()
 │  │
 │  ├─ strategies/
 │  │  ├─ signals.py          # zscore_from_spread(), generate_pair_signals()
-│  │  └─ evaluate.py         # evaluate_pair_signals(), market_impact_bps()
+│  │  ├─ evaluate.py         # evaluate_pair_signals(), market_impact_bps()
+│  │  └─ circuit_breaker.py  # apply_circuit_breaker(), CircuitBreakerConfig
 │  │
 │  ├─ validation/            # ← new
 │  │  └─ walk_forward.py     # walk_forward_splits(), walk_forward_backtest(), summarize_walk_forward()
@@ -76,12 +82,15 @@ repo-root/
 │  ├─ viz_screen.pkl                    # cached screening results
 │  └─ viz_kalman.pkl                    # cached Kalman states
 │
-└─ tests/                    # 148 passing tests
+└─ tests/                    # 251 passing tests
    ├─ test_cointegration.py
    ├─ test_evaluate.py
-   ├─ test_fdr.py             # ← new
-   ├─ test_market_impact.py   # ← new
-   ├─ test_walk_forward.py    # ← new
+   ├─ test_fdr.py
+   ├─ test_market_impact.py
+   ├─ test_walk_forward.py
+   ├─ test_circuit_breaker.py # circuit breaker (45 tests)
+   ├─ test_portfolio.py       # pair correlation & weights (26 tests)
+   ├─ test_stability.py       # hedge ratio stability (32 tests)
    └─ ...
 ```
 
@@ -143,9 +152,17 @@ from pairs import (
     fit_kalman_hedge, filter_kf_on_new,
     # stats & selection
     summarize_spread_stationarity_joblib,
+    # portfolio analytics
+    pair_return_correlations, portfolio_diversification_score,
+    suggest_position_weights,
+    # hedge ratio stability
+    cusum_beta_stability, rolling_beta_drift,
+    summarize_hedge_ratio_stability,
     # signals & evaluation
     generate_pair_signals, evaluate_pair_signals,
     market_impact_bps,
+    # risk management
+    apply_circuit_breaker, CircuitBreakerConfig,
     # walk-forward validation
     walk_forward_backtest,
     # plotting
@@ -256,13 +273,27 @@ Dual-gate cointegration screen
 Kalman filter (EM-fitted Q, R)
   time-varying beta_t, alpha_t  ──► spread residual epsilon_t
       │
+      ├─► Hedge ratio stability tests
+      │     CUSUM level-shift test + rolling β-drift  ──► flag / exclude unstable pairs
+      │
       ▼
 Stationarity scoring (ADF, KPSS, half-life, sigma)
   Composite z-score ranking ──► top pairs selected
       │
       ▼
+Portfolio analytics (multi-pair)
+  Spread-return correlation matrix ──► diversification score
+  Inverse-variance weights ──► capital allocation per pair
+      │
+      ▼
 Signal generation
   z-score (rolling / robust) ──► entry / exit / stop thresholds
+      │
+      ▼
+Circuit breaker (post-processor)
+  z-score blow-out  ──┐
+                      ├─► force flat + cooldown ──► patched signals
+  Rolling drawdown  ──┘
       │
       ▼
 Evaluation
@@ -312,6 +343,12 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | `summarize_spread_stationarity_joblib(states, ...)` | DataFrame with `adf_p`, `kpss_p`, `halflife`, `resid_sigma`, `verdict` |
 | `estimate_halflife(series)` | `float` |
 | `test_spread_stationarity(series, ...)` | `dict` |
+| `pair_return_correlations(kf_results, *, method, min_overlap)` | Symmetric N×N DataFrame of cross-pair Δresid correlations |
+| `portfolio_diversification_score(corr_matrix)` | `float` — diversification ratio (1 / mean\|ρ_off-diag\|); >3 = well diversified |
+| `suggest_position_weights(kf_results, corr_matrix, *, method, max_weight)` | DataFrame with `pair`, `resid_var`, `weight`, `suggested_capital_pct` |
+| `cusum_beta_stability(beta, *, alpha)` | `dict` with `cusum_stat`, `critical_val`, `is_stable`, `cusum_series` |
+| `rolling_beta_drift(beta, *, window, threshold_sigma)` | `dict` with `max_roll_std_ratio`, `is_stable`, `flagged_dates`, `roll_std_series` |
+| `summarize_hedge_ratio_stability(kf_results, ...)` | DataFrame indexed by `(ticker1, ticker2)` with `overall_stable` column |
 
 ### 🧮 Models
 | Function | Returns |
@@ -327,6 +364,8 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | `evaluate_pair_signals(df_pair, signals, *, cost_bps, avg_daily_volume_1, ...)` | `(daily_df, trades_df, summary_dict)` |
 | `market_impact_bps(shares_traded, price, avg_daily_volume, ann_vol_bps, eta)` | `float` or array — dollar impact |
 | `zscore_from_spread(spread, method="robust", ...)` | `pd.Series` |
+| `apply_circuit_breaker(signals, df_pair, *, z_halt, cb_cooldown_bars, z_reentry, max_drawdown_pct, ...)` | `(signals_cb, audit_df)` — patched signals + halt window log |
+| `CircuitBreakerConfig(z_halt, cb_cooldown_bars, z_reentry, max_drawdown_pct, ...)` | Convenience dataclass wrapping all circuit breaker parameters |
 
 ### 🔄 Validation
 | Function | Returns |
@@ -362,7 +401,8 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 |-----|-------|
 | **Selection bias** | Pair selected from 121K candidates; in-sample metrics are inflated even after BH FDR |
 | **Single-pair OOS** | ~6 OOS trades; need ≥50 for statistical power |
-| **No portfolio risk management** | Live deployment requires cross-pair correlation, position sizing, margin |
+| **Portfolio weights are heuristic** | Inverse-variance ignores off-diagonal covariance; a minimum-variance optimizer would be more precise |
+| **Circuit breaker is back-tested** | Thresholds calibrated in-sample may over-fit; validate OOS before deploying |
 | **Market impact is estimated** | Square-root model calibrated to median US equities; illiquid names need higher η |
 | **Regime dependence** | Strategy performs differently across COVID crash / recovery / rate shock / AI bull regimes |
 | **Borrow availability** | Short borrow on hard-to-borrow names can spike to 500 bps/year |
@@ -378,8 +418,11 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 - **Execution lag:** `generate_pair_signals` uses next-bar execution (backtest-safe by construction).
 - **Market impact is additive:** `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
 - **Walk-forward callbacks:** `fit_fn` returns an artefact, `signal_fn(df_test, artefact)` generates signals, `eval_fn(df_test, signals)` returns a flat metrics dict. Any fold where a callback raises is skipped with a warning, never aborts the run.
-- **Visualisation caching:** `visualize_cointegrated_pairs.ipynb` writes `cache/viz_prices.parquet`, `cache/viz_screen.pkl`, and `cache/viz_kalman.pkl` on first run. Subsequent runs load from cache and are near-instant. Delete the relevant file to force a fresh computation. Add `cache/` to `.gitignore` — these files are large and data-source specific.
+- **Visualisation caching:** `visualize_cointegrated_pairs.ipynb` writes `cache/viz_prices.parquet`, `cache/viz_screen.pkl`, and `cache/viz_kalman.pkl` on first run. Subsequent runs load from cache and are near-instant. Delete the relevant file to force a fresh computation. The `cache/` directory is gitignored — these files are large and data-source specific.
 - **Hub-node caveat:** High-degree nodes in the cointegration network (coloured red, degree ≥ 90th percentile) are often driven by a common latent factor rather than genuine pair cointegration. Treat them with extra scepticism and verify OOS behaviour before trading.
+- **Circuit breaker calibration:** `z_halt` should be set at or above the `z_stop` used in signal generation. `max_drawdown_pct` thresholds that fire frequently in-sample indicate over-fitting — validate on held-out folds before deploying.
+- **Hedge ratio stability:** Run `summarize_hedge_ratio_stability(states_tr)` after fitting the Kalman filter and **before** selecting pairs for live trading. Pairs flagged as `overall_stable=False` should be inspected (plot the CUSUM path) and excluded if β drift is persistent throughout the OOS window.
+- **Portfolio weights:** `suggest_position_weights` uses `states_tr` (the full multi-pair Kalman dict) as input and is best re-computed periodically (e.g., monthly) since correlations between pair spreads can shift with market regime.
 
 ---
 
@@ -390,3 +433,4 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 - Kalman, R. E. (1960). *A New Approach to Linear Filtering and Prediction Problems.*
 - Benjamini, Y., & Hochberg, Y. (1995). *Controlling the False Discovery Rate: A Practical and Powerful Approach to Multiple Testing.*
 - Almgren, R., & Chriss, N. (2001). *Optimal Execution of Portfolio Transactions.* — square-root market impact model.
+- Brown, R. L., Durbin, J., & Evans, J. M. (1975). *Techniques for Testing the Constancy of Regression Relationships over Time.* — CUSUM test for structural change.
