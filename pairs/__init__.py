@@ -9,9 +9,15 @@ Public entry points (lazy-loaded):
 - Statistics:   find_cointegrated_pairs_executor(), find_cointegrated_pairs_dualgate(),
                 benjamini_hochberg_fdr(),
                 estimate_halflife(), test_spread_stationarity(),
-                summarize_spread_stationarity_joblib()
+                summarize_spread_stationarity_joblib(),
+                pair_return_correlations(), portfolio_diversification_score(),
+                suggest_position_weights(),
+                cusum_beta_stability(), rolling_beta_drift(),
+                summarize_hedge_ratio_stability()
 - Strategies:   estimate_halflife_window(), zscore_from_spread(),
-                generate_pair_signals(), evaluate_pair_signals()
+                generate_pair_signals(), evaluate_pair_signals(),
+                market_impact_bps(),
+                CircuitBreakerConfig, apply_circuit_breaker()
 - Validation:   walk_forward_splits(), walk_forward_backtest()
 - Models (opt): fit_kalman_hedge(), filter_kf_on_new(),
                 continue_kalman_on_window(), continue_kalman_for_pairs_joblib()
@@ -41,12 +47,22 @@ __all__ = [
     "estimate_halflife",
     "test_spread_stationarity",
     "summarize_spread_stationarity_joblib",
+    # statistics (portfolio & stability)
+    "pair_return_correlations",
+    "portfolio_diversification_score",
+    "suggest_position_weights",
+    "cusum_beta_stability",
+    "rolling_beta_drift",
+    "summarize_hedge_ratio_stability",
     # strategies (signals & evaluation)
     "estimate_halflife_window",
     "zscore_from_spread",
     "generate_pair_signals",
     "evaluate_pair_signals",
     "market_impact_bps",
+    # strategies (circuit breaker)
+    "CircuitBreakerConfig",
+    "apply_circuit_breaker",
     # validation
     "walk_forward_splits",
     "walk_forward_backtest",
@@ -85,12 +101,22 @@ _LAZY_MAP = {
     "estimate_halflife": ("pairs.stats.stationarity", "estimate_halflife"),
     "test_spread_stationarity": ("pairs.stats.stationarity", "test_spread_stationarity"),
     "summarize_spread_stationarity_joblib": ("pairs.stats.stationarity", "summarize_spread_stationarity_joblib"),
+    # statistics (portfolio & stability)
+    "pair_return_correlations": ("pairs.stats.portfolio", "pair_return_correlations"),
+    "portfolio_diversification_score": ("pairs.stats.portfolio", "portfolio_diversification_score"),
+    "suggest_position_weights": ("pairs.stats.portfolio", "suggest_position_weights"),
+    "cusum_beta_stability": ("pairs.stats.stability", "cusum_beta_stability"),
+    "rolling_beta_drift": ("pairs.stats.stability", "rolling_beta_drift"),
+    "summarize_hedge_ratio_stability": ("pairs.stats.stability", "summarize_hedge_ratio_stability"),
     # strategies (signals & evaluation)
     "estimate_halflife_window": ("pairs.strategies.signals", "estimate_halflife_window"),
     "zscore_from_spread": ("pairs.strategies.signals", "zscore_from_spread"),
     "generate_pair_signals": ("pairs.strategies.signals", "generate_pair_signals"),
     "evaluate_pair_signals": ("pairs.strategies.evaluate", "evaluate_pair_signals"),
     "market_impact_bps": ("pairs.strategies.evaluate", "market_impact_bps"),
+    # strategies (circuit breaker)
+    "CircuitBreakerConfig": ("pairs.strategies.circuit_breaker", "CircuitBreakerConfig"),
+    "apply_circuit_breaker": ("pairs.strategies.circuit_breaker", "apply_circuit_breaker"),
     # validation
     "walk_forward_splits": ("pairs.validation.walk_forward", "walk_forward_splits"),
     "walk_forward_backtest": ("pairs.validation.walk_forward", "walk_forward_backtest"),
@@ -146,12 +172,23 @@ if TYPE_CHECKING:  # pragma: no cover
         test_spread_stationarity,
         summarize_spread_stationarity_joblib,
     )
+    from .stats.portfolio import (
+        pair_return_correlations,
+        portfolio_diversification_score,
+        suggest_position_weights,
+    )
+    from .stats.stability import (
+        cusum_beta_stability,
+        rolling_beta_drift,
+        summarize_hedge_ratio_stability,
+    )
     from .strategies.signals import (
         estimate_halflife_window,
         zscore_from_spread,
         generate_pair_signals,
     )
     from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
+    from .strategies.circuit_breaker import CircuitBreakerConfig, apply_circuit_breaker
     from .validation.walk_forward import walk_forward_splits, walk_forward_backtest
     try:
         from .models.kalman import (

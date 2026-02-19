@@ -1,43 +1,37 @@
-__pycache__/
-*.pyc
-*.egg-info/
-.DS_Store
-.env
-.ipynb_checkpoints/
-# IDE
-.idea/
-
-# Editor backups
-*~
-
-# Notebook caches / generated artifacts
-notebooks/cache/
-*.pkl
-*.parquet
-
-# IDE
-.idea/
-
-# Editor backups
-*~
-
-# Notebook caches / generated artifacts
-notebooks/cache/
-*.pkl
-*.parquet
-.DS_Store
-
-# Python bytecode / caches
+# ── Python bytecode / caches ──────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 
-# Packaging/build artifacts
+# ── Packaging / build artifacts ───────────────────────────────────────────────
 *.egg-info/
 build/
 dist/
 
-# Jupyter
+# ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
+notebooks/cache/
 
-# macOS
+# ── Testing ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+
+# ── Data / serialized objects ─────────────────────────────────────────────────
+*.pkl
+*.parquet
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+
+# ── Editor backups ────────────────────────────────────────────────────────────
+*~
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
+**/.DS_Store
+
+# ── Local tooling (not part of the project) ───────────────────────────────────
+.claude/
