@@ -1,20 +1,20 @@
-# 📈 dynamic-hedge-pairs-trading
+# dynamic-hedge-pairs-trading
 
 A **pairs trading** research toolkit built as a Python package, featuring a
 production-style pipeline from cointegration screening through walk-forward
 validation and capacity analysis.
 
-- 🔗 Cointegration screening (Engle–Granger + Johansen dual-gate) with **Benjamini-Hochberg FDR correction**
-- 🧮 Kalman-filter dynamic hedge ratio `beta_t`, intercept `alpha_t`, residual `epsilon_t`
-- 🧪 Stationarity diagnostics (ADF, KPSS, half-life) + composite pair scoring
-- 🎯 Signal generation (z-score thresholds, stops, cooldowns)
-- 📊 Evaluation & PnL with a flexible cost model incl. **square-root market impact**
-- 🔄 **Walk-forward validation** — rolling OOS folds, no look-ahead
-- 🛡️ **Circuit breaker** — post-processor that flattens positions on z-score blow-outs or rolling drawdown breach, with configurable cooldown and re-entry guard
-- 📐 **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
-- 🔬 **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
-- 🕸️ **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
-- 🖼️ Plotting of trades over price legs
+- Cointegration screening (Engle–Granger + Johansen dual-gate) with **Benjamini-Hochberg FDR correction**
+- Kalman-filter dynamic hedge ratio `beta_t`, intercept `alpha_t`, residual `epsilon_t`
+- Stationarity diagnostics (ADF, KPSS, half-life) + composite pair scoring
+- Signal generation (z-score thresholds, stops, cooldowns)
+- Evaluation & PnL with a flexible cost model incl. **square-root market impact**
+- **Walk-forward validation** — rolling OOS folds, no look-ahead
+- **Circuit breaker** — post-processor that flattens positions on z-score blow-outs or rolling drawdown breach, with configurable cooldown and re-entry guard
+- **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
+- **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
+- **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
+- Plotting of trades over price legs
 
 <p align="center">
     <img src="figures/signals.png" alt="Left figure" height="290">
@@ -25,7 +25,7 @@ validation and capacity analysis.
 
 ---
 
-## 🗂️ Notebooks
+## Notebooks
 
 | Notebook | Purpose |
 |----------|---------|
@@ -35,7 +35,7 @@ validation and capacity analysis.
 
 ---
 
-## 📦 Package layout
+## Package layout
 
 ```text
 repo-root/
@@ -96,7 +96,7 @@ repo-root/
 
 ---
 
-## 🧰 Installation
+## Installation
 
 **1) Create the Conda env (recommended):**
 ```bash
@@ -117,7 +117,7 @@ In Jupyter, enable auto-reload during development:
 
 ---
 
-## 📐 Expected data format
+## Expected data format
 
 Most functions expect a **long-form** price table.
 
@@ -141,7 +141,7 @@ prices_wide = df_prices.pivot_table(
 
 ---
 
-## 🚀 Quickstart (end-to-end)
+## Quickstart (end-to-end)
 
 ```python
 from pairs import (
@@ -258,7 +258,7 @@ print(wf_results[["sharpe", "ann_return", "n_trades"]])
 
 ---
 
-## 📋 Methodology
+## Methodology
 
 ```
 Universe (S&P 500 + NASDAQ-100, ~517 tickers)
@@ -331,11 +331,11 @@ Kalman → summarize_spread_stationarity_joblib()                 [pickle cache]
 
 ---
 
-## 🧱 Top-level API
+## Top-level API
 
 Import directly from `pairs` (lazy-loaded, startup fast):
 
-### 📊 Stats
+### Stats
 | Function | Returns |
 |----------|---------|
 | `find_cointegrated_pairs_dualgate(data, *, fdr_method="bh", ...)` | DataFrame of pair metrics; `eg_p_fdr` column for BH-adjusted p-values |
@@ -350,14 +350,14 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | `rolling_beta_drift(beta, *, window, threshold_sigma)` | `dict` with `max_roll_std_ratio`, `is_stable`, `flagged_dates`, `roll_std_series` |
 | `summarize_hedge_ratio_stability(kf_results, ...)` | DataFrame indexed by `(ticker1, ticker2)` with `overall_stable` column |
 
-### 🧮 Models
+### Models
 | Function | Returns |
 |----------|---------|
 | `fit_kalman_hedge(data, pairs, *, mode, em_iters, return_params)` | `(states_dict, params_dict)` |
 | `filter_kf_on_new(P1_new, P2_new, *, frozen, last_state, mode)` | `(states_df, last_state_dict)` |
 | `continue_kalman_on_window(data, k1, k2, params, ...)` | `(states_df, params_dict)` |
 
-### 🎯 Strategies
+### Strategies
 | Function | Returns |
 |----------|---------|
 | `generate_pair_signals(df_pair, *, z_entry, z_exit, z_stop, ...)` | signals DataFrame with `n1`, `n2`, `pos` |
@@ -367,14 +367,14 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | `apply_circuit_breaker(signals, df_pair, *, z_halt, cb_cooldown_bars, z_reentry, max_drawdown_pct, ...)` | `(signals_cb, audit_df)` — patched signals + halt window log |
 | `CircuitBreakerConfig(z_halt, cb_cooldown_bars, z_reentry, max_drawdown_pct, ...)` | Convenience dataclass wrapping all circuit breaker parameters |
 
-### 🔄 Validation
+### Validation
 | Function | Returns |
 |----------|---------|
 | `walk_forward_backtest(df, *, train_bars, test_bars, step_bars, fit_fn, signal_fn, eval_fn)` | DataFrame — one row per fold |
 | `walk_forward_splits(index, *, train_bars, test_bars, step_bars)` | `List[(train_idx, test_idx)]` |
 | `summarize_walk_forward(results, metric_cols)` | DataFrame — mean/std/median/min/max per metric |
 
-### 🖼️ Plotting
+### Plotting
 | Function | Returns |
 |----------|---------|
 | `plot_pair_legs_with_trades(df_pair, signals, ...)` | `(Figure, (Axes, Axes))` |
@@ -382,7 +382,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 ---
 
-## 📊 Representative results (CCL / EXPE, 2020–2024)
+## Representative results (CCL / EXPE, 2020–2024)
 
 | Metric | In-sample (2020–2024) | OOS (2025) |
 |--------|----------------------|------------|
@@ -391,11 +391,11 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | Max drawdown | ~8% | ~6% |
 | Trades | ~70 | ~6 |
 
-> ⚠️ **OOS caveat:** The 2025 OOS window contains only ~6 trades — statistically insufficient to draw firm conclusions. The Sharpe decay from 2.4 → 0.5 is real but its magnitude is uncertain. Walk-forward validation across multiple folds gives a more reliable picture.
+> **OOS caveat:** The 2025 OOS window contains only ~6 trades — statistically insufficient to draw firm conclusions. The Sharpe decay from 2.4 → 0.5 is real but its magnitude is uncertain. Walk-forward validation across multiple folds gives a more reliable picture.
 
 ---
 
-## ⚠️ Limitations
+## Limitations
 
 | Gap | Notes |
 |-----|-------|
@@ -409,7 +409,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 ---
 
-## 📝 Notes & gotchas
+## Notes & gotchas
 
 - **Index hygiene:** Keep index names as `('ticker', 'datetime')` and ensure data are sorted.
 - **No look-ahead in OOS:** `filter_kf_on_new(..., mode="filter")` uses only the causal filter — no smoother — so no future information leaks into OOS states.
@@ -426,7 +426,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 ---
 
-## 📚 References
+## References
 
 - Engle, R. F., & Granger, C. W. J. (1987). *Cointegration and Error Correction: Representation, Estimation, and Testing.*
 - Johansen, S. (1991). *Estimation and Hypothesis Testing of Cointegration Vectors in Gaussian Vector Autoregressive Models.*
