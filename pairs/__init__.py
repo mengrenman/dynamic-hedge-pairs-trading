@@ -5,7 +5,7 @@ pairs: Utilities for market data access, universes, plotting, statistics, strate
 Public entry points (lazy-loaded):
 - Data:         load_prices(), load_polygon_lake(), download_openbb()
 - Universe:     load_universe(), list_universes()
-- Plotting:     plot_single_price_with_shading(), plot_pair_legs_with_trades()
+- Plotting:     plot_pair_legs_with_trades()
 - Statistics:   find_cointegrated_pairs_executor(), find_cointegrated_pairs_dualgate(),
                 benjamini_hochberg_fdr(),
                 estimate_halflife(), test_spread_stationarity(),
@@ -37,7 +37,6 @@ __all__ = [
     "load_universe",
     "list_universes",
     # plotting
-    "plot_single_price_with_shading",
     "plot_pair_legs_with_trades",
     # statistics (cointegration + FDR)
     "benjamini_hochberg_fdr",
@@ -91,7 +90,6 @@ _LAZY_MAP = {
     "load_universe": ("pairs.universes", "load_universe"),
     "list_universes": ("pairs.universes", "list_universes"),
     # plotting (modules may be added later; lazy import avoids hard dependency)
-    "plot_single_price_with_shading": ("pairs.plotting.single_price", "plot_single_price_with_shading"),
     "plot_pair_legs_with_trades": ("pairs.plotting.pair_trades", "plot_pair_legs_with_trades"),
     # statistics (cointegration + FDR)
     "benjamini_hochberg_fdr": ("pairs.stats.cointegration", "benjamini_hochberg_fdr"),
@@ -160,7 +158,6 @@ def __getattr__(name: str):
 if TYPE_CHECKING:  # pragma: no cover
     from .market_data import load_prices, load_polygon_lake, download_openbb
     from .universes import load_universe, list_universes
-    from .plotting.single_price import plot_single_price_with_shading
     from .plotting.pair_trades import plot_pair_legs_with_trades
     from .stats.cointegration import (
         benjamini_hochberg_fdr,

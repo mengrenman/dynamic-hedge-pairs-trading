@@ -378,7 +378,6 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | Function | Returns |
 |----------|---------|
 | `plot_pair_legs_with_trades(df_pair, signals, ...)` | `(Figure, (Axes, Axes))` |
-| `plot_single_price_with_shading(...)` | `Figure` |
 
 ---
 
