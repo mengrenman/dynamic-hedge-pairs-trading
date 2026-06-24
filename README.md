@@ -9,7 +9,7 @@ validation and capacity analysis.
 - Stationarity diagnostics (ADF, KPSS, half-life) + composite pair scoring
 - Signal generation (z-score thresholds, stops, cooldowns)
 - Evaluation & PnL with a flexible cost model incl. **square-root market impact**
-- **Walk-forward validation** — rolling OOS folds, no look-ahead
+- **Walk-forward validation** — rolling OOS folds, no look-ahead; also **drives pair selection** by cross-fold Sharpe stability (the composite score is only a pre-filter)
 - **Circuit breaker** — post-processor that flattens positions on z-score blow-outs or rolling drawdown breach, with configurable cooldown and re-entry guard
 - **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
 - **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
@@ -30,7 +30,7 @@ validation and capacity analysis.
 | Notebook | Purpose |
 |----------|---------|
 | [`pairs_trading_01.ipynb`](notebooks/pairs_trading_01.ipynb) | Original walkthrough — cointegration → Kalman → signals → IS/OOS evaluation, plus FDR demo, walk-forward, parameter sensitivity, and regime analysis sections |
-| [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — self-contained end-to-end demo of the full revised pipeline including all new features |
+| [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — self-contained end-to-end demo. Pair selection is driven by **walk-forward cross-fold stability** (§3.5; composite score is only a pre-filter), with **in-sample _and_ OOS** trade visualisations, plus walk-forward, parameter-sensitivity, regime, capacity, circuit-breaker, portfolio and stability sections |
 | [`visualize_cointegrated_pairs.ipynb`](notebooks/visualize_cointegrated_pairs.ipynb) | **Universe-wide visualisation** — BH FDR screening across NDX universe, p-value heatmap, cointegration network (Kamada-Kawai, hub detection), clustered heatmap, half-life diagnostics, and per-ticker partner query |
 
 ---
@@ -195,10 +195,18 @@ states_tr, params_tr = fit_kalman_hedge(
 )
 ```
 
-**3) Stationarity + composite scoring**
+**3) Stationarity scoring → candidate shortlist → walk-forward selection**
+
+The composite stationarity score is a *pre-filter* that yields a candidate shortlist; the
+traded pair is then chosen by **walk-forward cross-fold Sharpe stability** over the training
+span (see `pairs_trading_02.ipynb` §3.5), never by in-sample ranking alone. The OOS/test
+window is never consulted during selection. Minimal self-contained version:
 ```python
 summary_tr = summarize_spread_stationarity_joblib(states_tr, alpha=0.05)
-pair = summary_tr.sort_values(["verdict", "adf_p"]).index[0]
+shortlist  = list(summary_tr.sort_values(["verdict", "adf_p"]).index[:15])  # pre-filter only
+# Recommended: rank `shortlist` by walk-forward cross-fold Sharpe (notebook §3.5),
+# then take the most stable pair instead of the top in-sample row:
+pair = shortlist[0]
 t1, t2 = pair
 ```
 
@@ -278,7 +286,13 @@ Kalman filter (EM-fitted Q, R)
       │
       ▼
 Stationarity scoring (ADF, KPSS, half-life, sigma)
-  Composite z-score ranking ──► top pairs selected
+  Composite z-score ranking ──► candidate shortlist (pre-filter only)
+      │
+      ▼
+Walk-forward pair selection
+  rolling train/test folds over the training span
+  ──► rank by cross-fold Sharpe stability ──► traded pair chosen
+  (test window never consulted for selection)
       │
       ▼
 Portfolio analytics (multi-pair)
@@ -381,7 +395,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 ---
 
-## Representative results (CCL / EXPE, 2020–2024)
+## Representative results (illustrative pair: CCL / EXPE, 2020–2024)
 
 | Metric | In-sample (2020–2024) | OOS (2025) |
 |--------|----------------------|------------|
@@ -391,6 +405,8 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 | Trades | ~70 | ~6 |
 
 > **OOS caveat:** The 2025 OOS window contains only ~6 trades — statistically insufficient to draw firm conclusions. The Sharpe decay from 2.4 → 0.5 is real but its magnitude is uncertain. Walk-forward validation across multiple folds gives a more reliable picture.
+>
+> **Pair caveat:** These figures reflect a single fixed pair under the *earlier* composite-score selection. The revised notebook (§3.5) selects the traded pair by walk-forward stability, which may surface a different pair — and different numbers — on re-run.
 
 ---
 
@@ -398,7 +414,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 | Gap | Notes |
 |-----|-------|
-| **Selection bias** | Pair selected from 121K candidates; in-sample metrics are inflated even after BH FDR |
+| **Selection bias** | Candidates screened from a large universe; even with walk-forward-based selection (§3.5), picking the best pair on validation folds inflates expectations. The 2025 test window is held out, but validation-set selection bias remains |
 | **Single-pair OOS** | ~6 OOS trades; need ≥50 for statistical power |
 | **Portfolio weights are heuristic** | Inverse-variance ignores off-diagonal covariance; a minimum-variance optimizer would be more precise |
 | **Circuit breaker is back-tested** | Thresholds calibrated in-sample may over-fit; validate OOS before deploying |
@@ -417,6 +433,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 - **Execution lag:** `generate_pair_signals` uses next-bar execution (backtest-safe by construction).
 - **Market impact is additive:** `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
 - **Walk-forward callbacks:** `fit_fn` returns an artefact, `signal_fn(df_test, artefact)` generates signals, `eval_fn(df_test, signals)` returns a flat metrics dict. Any fold where a callback raises is skipped with a warning, never aborts the run.
+- **Walk-forward-driven selection:** In `pairs_trading_02.ipynb` (§3.5) the composite stationarity score is only a *pre-filter* yielding a candidate shortlist; the traded pair is selected by **walk-forward cross-fold Sharpe stability** over the training span, with the OOS/test window never consulted during selection. The selection loop is parallelised across candidates with joblib (BLAS threads pinned to 1 to avoid oversubscription).
 - **Visualisation caching:** `visualize_cointegrated_pairs.ipynb` writes `cache/viz_prices.parquet`, `cache/viz_screen.pkl`, and `cache/viz_kalman.pkl` on first run. Subsequent runs load from cache and are near-instant. Delete the relevant file to force a fresh computation. The `cache/` directory is gitignored — these files are large and data-source specific.
 - **Hub-node caveat:** High-degree nodes in the cointegration network (coloured red, degree ≥ 90th percentile) are often driven by a common latent factor rather than genuine pair cointegration. Treat them with extra scepticism and verify OOS behaviour before trading.
 - **Circuit breaker calibration:** `z_halt` should be set at or above the `z_stop` used in signal generation. `max_drawdown_pct` thresholds that fire frequently in-sample indicate over-fitting — validate on held-out folds before deploying.
