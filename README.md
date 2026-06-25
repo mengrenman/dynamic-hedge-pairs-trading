@@ -30,7 +30,8 @@ validation and capacity analysis.
 | Notebook | Purpose |
 |----------|---------|
 | [`pairs_trading_01.ipynb`](notebooks/pairs_trading_01.ipynb) | Original walkthrough — cointegration → Kalman → signals → IS/OOS evaluation, plus FDR demo, walk-forward, parameter sensitivity, and regime analysis sections |
-| [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — self-contained end-to-end demo. Pair selection is driven by **walk-forward cross-fold stability** (§3.5; composite score is only a pre-filter), with **in-sample _and_ OOS** trade visualisations, plus walk-forward, parameter-sensitivity, regime, capacity, circuit-breaker, portfolio and stability sections |
+| [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — the conceptual spine, end-to-end: cointegration screen → Kalman hedge → **walk-forward pair selection** (§3.5; composite score is only a pre-filter) → in-sample **and OOS** evaluation with trade plots → honest limitations. Advanced layers are kept out of the spine: circuit breaker, portfolio analytics, hedge-ratio stability and capacity/market-impact live in the package API (with test coverage), while parameter sensitivity and regime analysis are also demonstrated in `pairs_trading_01.ipynb` |
+| [`pairs_trading_03.ipynb`](notebooks/pairs_trading_03.ipynb) | **No-BH ablation** — the *same* full pipeline as nb02 (screen → Kalman → walk-forward pair selection → in-sample & OOS backtests with signals and performance metrics → limitations) with **one deliberate change: no Benjamini-Hochberg correction** (`fdr_method="none"`, raw p-values). Isolates the effect of dropping multiple-testing control on selection and performance |
 | [`visualize_cointegrated_pairs.ipynb`](notebooks/visualize_cointegrated_pairs.ipynb) | **Universe-wide visualisation** — BH FDR screening across NDX universe, p-value heatmap, cointegration network (Kamada-Kawai, hub detection), clustered heatmap, half-life diagnostics, and per-ticker partner query |
 
 ---
@@ -428,7 +429,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 
 - **Index hygiene:** Keep index names as `('ticker', 'datetime')` and ensure data are sorted.
 - **No look-ahead in OOS:** `filter_kf_on_new(..., mode="filter")` uses only the causal filter — no smoother — so no future information leaks into OOS states.
-- **BH FDR is the default:** `find_cointegrated_pairs_dualgate` applies Benjamini-Hochberg correction by default (`fdr_method="bh"`). Pass `fdr_method="none"` to revert to raw p-values.
+- **BH FDR is the default:** `find_cointegrated_pairs_dualgate` applies Benjamini-Hochberg correction by default (`fdr_method="bh"`). Pass `fdr_method="none"` to revert to raw p-values — [`pairs_trading_03.ipynb`](notebooks/pairs_trading_03.ipynb) runs the full pipeline that way as an ablation, isolating the effect of dropping multiple-testing control. Use `"none"` only for such experiments, never to expand a tradeable candidate set.
 - **EM on train only:** Freeze `F, Q, R` from training; never re-fit EM on OOS data.
 - **Execution lag:** `generate_pair_signals` uses next-bar execution (backtest-safe by construction).
 - **Market impact is additive:** `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
