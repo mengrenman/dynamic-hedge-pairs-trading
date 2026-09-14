@@ -9,6 +9,7 @@ from pairs.strategies.signals import (
     zscore_from_spread,
     generate_pair_signals,
 )
+from pairs.stats.stationarity import estimate_halflife
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -145,3 +146,54 @@ def test_zscore_unknown_method_raises():
     s = pd.Series(np.random.default_rng(0).standard_normal(100))
     with pytest.raises(ValueError, match="method"):
         zscore_from_spread(s, method="bogus")
+
+
+# ── zscore_from_spread / generate_pair_signals: history warm-up (no in-window look-ahead) ──
+
+def _ar1(n, phi, seed, scale=1.0):
+    rng = np.random.default_rng(seed)
+    x = np.zeros(n)
+    for t in range(1, n):
+        x[t] = phi * x[t - 1] + scale * rng.standard_normal()
+    return pd.Series(x)
+
+
+class TestZscoreHistory:
+    def test_history_removes_leading_nans_and_matches_concatenated_calc(self):
+        hist = _ar1(300, 0.9, seed=1)
+        s = _ar1(60, 0.9, seed=2)
+        s.index = pd.RangeIndex(1000, 1060)                      # distinct index from history
+        z_plain = zscore_from_spread(s, method="rolling", window=30)
+        z_hist = zscore_from_spread(s, method="rolling", window=30, history=hist)
+        assert z_plain.iloc[:29].isna().all()                      # no warm-up: first bars undefined
+        assert z_hist.notna().all()                                # warmed up on history
+        assert z_hist.index.equals(s.index)
+        full = zscore_from_spread(pd.concat([hist, s], ignore_index=True), method="rolling", window=30)
+        np.testing.assert_allclose(z_hist.to_numpy(), full.iloc[-60:].to_numpy())
+
+    @pytest.mark.parametrize("method", ["rolling", "robust", "ewm"])
+    def test_lookback_is_chosen_from_history_not_from_sample(self, method):
+        hist = _ar1(400, 0.5, seed=3)          # short half-life
+        s = _ar1(80, 0.98, seed=4)             # long half-life — must not influence the look-back
+        z_hist = zscore_from_spread(s, method=method, history=hist)
+        if method == "ewm":
+            hl = estimate_halflife(hist)
+            expected = zscore_from_spread(s, method=method, halflife=float(hl), history=hist)
+        else:
+            expected = zscore_from_spread(s, method=method, window=estimate_halflife_window(hist), history=hist)
+        pd.testing.assert_series_equal(z_hist, expected)
+
+    def test_generate_pair_signals_uses_history(self):
+        n, m = 300, 60
+        rng = np.random.default_rng(5)
+        resid_all = _ar1(n + m, 0.9, seed=6)
+        p2 = pd.Series(100 + rng.standard_normal(n + m).cumsum())
+        p1 = 0.8 * p2 + resid_all
+        idx = pd.date_range("2020-01-01", periods=n + m, freq="B")
+        df = pd.DataFrame({"resid": resid_all.values, "beta": 0.8, "P1": p1.values, "P2": p2.values}, index=idx)
+        df_hist, df_test = df.iloc[:n], df.iloc[n:]
+        sig_plain = generate_pair_signals(df_test, z_method="rolling", z_window=30)
+        sig_hist = generate_pair_signals(df_test, z_method="rolling", z_window=30, z_history=df_hist["resid"])
+        assert sig_plain["z"].iloc[:29].isna().all()
+        assert sig_hist["z"].notna().all()
+        assert sig_hist.index.equals(df_test.index)

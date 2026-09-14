@@ -55,6 +55,8 @@ def zscore_from_spread(
     method: str = "rolling",              # "rolling" | "ewm" | "robust"
     window: Optional[int] = None,
     halflife: Optional[float] = None,
+    *,
+    history: Optional[pd.Series] = None,
 ) -> pd.Series:
     """
     Compute a z-score for a spread series using different estimators of mean/vol.
@@ -65,36 +67,53 @@ def zscore_from_spread(
     - method="robust":  rolling median + MAD (scaled to sigma) over 'window'
                         (defaults to 3×HL)
 
+    history : optional Series of *past* spread values (e.g. the training-window
+        residual) that precede `spread` in time. When given, (i) the window /
+        half-life is estimated from `history` instead of from `spread` itself —
+        scoring a test window with a look-back chosen from that same window is a
+        look-ahead — and (ii) `history` warms up the rolling statistics so the first
+        bars of `spread` have a full look-back instead of NaN. Only the entries
+        aligned with `spread` are returned.
+
     Returns a Series aligned to the input index.
     """
     if method not in ("rolling", "ewm", "robust"):
         raise ValueError(f"method must be one of 'rolling', 'ewm', 'robust'; got {method!r}")
 
     s = pd.Series(spread, dtype=float)
+    if history is not None:
+        h = pd.Series(history, dtype=float)
+        ref  = h                                      # look-back chosen from the past only
+        full = pd.concat([h, s], ignore_index=True)   # positional; indices may overlap
+    else:
+        ref, full = s, s
 
     if method == "ewm":
         if halflife is None:
-            hl = _hl_float(s)
+            hl = _hl_float(ref)
             halflife = float(hl) if np.isfinite(hl) and hl > 0 else 10.0
-        mu = s.ewm(halflife=halflife, adjust=False).mean()
-        sd = s.ewm(halflife=halflife, adjust=False).std(bias=False)
+        mu = full.ewm(halflife=halflife, adjust=False).mean()
+        sd = full.ewm(halflife=halflife, adjust=False).std(bias=False)
 
     elif method == "robust":
         if window is None:
-            window = estimate_halflife_window(s)
-        med = s.rolling(window, min_periods=window).median()
-        mad = (s - med).abs().rolling(window, min_periods=window).median()
+            window = estimate_halflife_window(ref)
+        med = full.rolling(window, min_periods=window).median()
+        mad = (full - med).abs().rolling(window, min_periods=window).median()
         sd  = 1.4826 * mad   # ≈ robust sigma
         mu  = med
 
     else:  # "rolling"
         if window is None:
-            window = estimate_halflife_window(s)
-        mu = s.rolling(window, min_periods=window).mean()
-        sd = s.rolling(window, min_periods=window).std(ddof=0)
+            window = estimate_halflife_window(ref)
+        mu = full.rolling(window, min_periods=window).mean()
+        sd = full.rolling(window, min_periods=window).std(ddof=0)
 
-    z = (s - mu) / sd
-    return z.replace([np.inf, -np.inf], np.nan)
+    z = ((full - mu) / sd).replace([np.inf, -np.inf], np.nan)
+    if history is not None:
+        z = z.iloc[len(full) - len(s):]
+        z.index = s.index
+    return z
 
 # ---- 3) Signal generator ----------------------------------------------------
 def generate_pair_signals(
@@ -103,6 +122,7 @@ def generate_pair_signals(
     z_method: str = "rolling",
     z_window: int | None = None,
     z_halflife: float | None = None,
+    z_history: pd.Series | None = None,
     z_entry: float = 2.0,
     z_exit: float = 0.5,
     z_stop: float = 4.0,
@@ -123,6 +143,11 @@ def generate_pair_signals(
     z_method : {'rolling','ewm','robust'}
     z_window : optional int window for 'rolling'/'robust' (defaults to 3×HL)
     z_halflife : optional float half-life for 'ewm' (defaults to max(10, HL))
+    z_history : optional Series of past spread values (e.g. the training-window
+        residual) preceding df_pair in time; the z-score look-back is then chosen
+        from this history and warmed up on it, so an out-of-sample window never
+        informs its own z-score (see zscore_from_spread). Strongly recommended
+        for walk-forward / OOS evaluation.
     z_entry, z_exit, z_stop : thresholds on |z|
     capital_per_pair : notional used to size N1/N2 dollar-neutral targets
     max_hold_bars : optional cap on holding period
@@ -140,7 +165,8 @@ def generate_pair_signals(
         raise ValueError(f"df_pair must contain columns {sorted(required)}; missing: {sorted(missing)}")
 
     df = df_pair.copy()
-    df["z"] = zscore_from_spread(df["resid"], method=z_method, window=z_window, halflife=z_halflife)
+    df["z"] = zscore_from_spread(df["resid"], method=z_method, window=z_window, halflife=z_halflife,
+                                 history=z_history)
 
     n = len(df)
     pos_dec  = np.zeros(n, dtype=int)     # decision at time t (pre-execution)
