@@ -4,9 +4,17 @@ channels:
   - defaults
 dependencies:
   - python=3.12
+  - pip
+  # core (imported by the pairs package)
   - numpy
   - pandas
   - scipy
+  - statsmodels
+  - joblib
+  - tqdm
+  - threadpoolctl
+  - psutil
+  # research / notebooks
   - scikit-learn
   - matplotlib
   - seaborn
@@ -25,3 +33,9 @@ dependencies:
   - dash
   - flask
   - pandas-datareader
+  # tests
+  - pytest
+  - pip:
+      - pykalman>=0.9.7
+      # OpenBB (data loader used by the notebooks) is large; install on demand:
+      #   pip install -e ".[notebooks]"

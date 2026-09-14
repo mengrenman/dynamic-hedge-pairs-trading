@@ -58,7 +58,6 @@ import os, glob, json, datetime as dt
 os.environ.setdefault("PYARROW_NUM_THREADS", "2")
 
 import pandas as pd
-from pandas.api.types import is_datetime64tz_dtype
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
@@ -316,7 +315,7 @@ def load_polygonio_lake(
     if "datetime" not in df.columns:
         raise KeyError("Expected 'datetime' column in parquet files.")
 
-    if not is_datetime64tz_dtype(df["datetime"]):
+    if not isinstance(df["datetime"].dtype, pd.DatetimeTZDtype):
         df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
         df["datetime"] = df["datetime"].dt.tz_localize(source_tz, nonexistent="shift_forward", ambiguous="NaT")
 
@@ -326,7 +325,7 @@ def load_polygonio_lake(
     # Filter rows by time range & tickers
     df = df[(df["datetime"] >= s) & (df["datetime"] <= e)]
     if "ticker" in df.columns:
-        df["ticker"] = df["ticker"].astype(str).str.upper()
+        df = df.assign(ticker=df["ticker"].astype(str).str.upper())
         df = df[df["ticker"].isin(set(tickers))]
 
     # Sort & index

@@ -50,6 +50,16 @@ __all__ = [
     "apply_circuit_breaker",
 ]
 
+# Column layout of the audit DataFrame (one row per contiguous halt window)
+_AUDIT_COLS = [
+    "trigger_type",
+    "z_at_trigger",
+    "dd_pct_at_trigger",
+    "halt_start",
+    "halt_end",
+    "n_halted_bars",
+]
+
 # ---------------------------------------------------------------------------
 # Configuration dataclass
 # ---------------------------------------------------------------------------
@@ -330,14 +340,7 @@ def _build_audit_df(
     halt_end          : Timestamp — last halted bar
     n_halted_bars     : int — length of the contiguous window
     """
-    COLS = [
-        "trigger_type",
-        "z_at_trigger",
-        "dd_pct_at_trigger",
-        "halt_start",
-        "halt_end",
-        "n_halted_bars",
-    ]
+    COLS = _AUDIT_COLS
 
     idx = signals.index
     n = len(signals)
@@ -533,14 +536,10 @@ def apply_circuit_breaker(
     _validate_inputs(signals, df_pair, z_halt, max_drawdown_pct, halt_bars, cb_cooldown_bars)
 
     # --- No-op fast paths ----------------------------------------------------
-    _EMPTY_AUDIT_COLS = [
-        "trigger_type", "z_at_trigger", "dd_pct_at_trigger",
-        "halt_start", "halt_end", "n_halted_bars",
-    ]
     both_disabled = (z_halt is None) and (max_drawdown_pct is None)
     all_flat = (signals["pos"].abs().sum() == 0)
     if both_disabled or all_flat:
-        return signals.copy(), pd.DataFrame(columns=_EMPTY_AUDIT_COLS)
+        return signals.copy(), pd.DataFrame(columns=_AUDIT_COLS)
 
     # --- Trigger 1: Z-score blow-out -----------------------------------------
     z_halted: Optional[pd.Series] = None

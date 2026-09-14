@@ -137,3 +137,11 @@ class TestGeneratePairSignals:
         df = _make_df_pair()
         sig = generate_pair_signals(df, z_window=30, exec_lag=1)
         assert sig["pos"].iloc[0] == 0
+
+
+# ── zscore_from_spread: argument validation ──────────────────────────────────
+
+def test_zscore_unknown_method_raises():
+    s = pd.Series(np.random.default_rng(0).standard_normal(100))
+    with pytest.raises(ValueError, match="method"):
+        zscore_from_spread(s, method="bogus")

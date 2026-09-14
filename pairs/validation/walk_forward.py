@@ -37,6 +37,7 @@ import pandas as pd
 __all__ = [
     "walk_forward_splits",
     "walk_forward_backtest",
+    "summarize_walk_forward",
 ]
 
 

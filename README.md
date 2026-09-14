@@ -14,6 +14,8 @@ validation and capacity analysis.
 - **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
 - **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
 - **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
+- **Walk-forward hyperparameter tuning** — Kalman noise and signal thresholds tuned on training folds only, with selection-bias checks and a default-vs-tuned hold-out comparison ([`pairs_trading_04_hyperparameter_tuning.ipynb`](notebooks/pairs_trading_04_hyperparameter_tuning.ipynb))
+- **Time-varying cointegration tests** — is the dynamic hedge spurious? Eroğlu–Miller–Yiğit (2021) state-space tests with bootstrap inference, applied to the Kalman hedge ([`tv_cointegration_kalman.ipynb`](notebooks/tv_cointegration_kalman.ipynb))
 - Plotting of trades over price legs
 
 <p align="center">
@@ -27,12 +29,16 @@ validation and capacity analysis.
 
 ## Notebooks
 
+All notebooks are committed with their outputs and open directly on GitHub — click the name.
+
 | Notebook | Purpose |
 |----------|---------|
 | [`pairs_trading_01.ipynb`](notebooks/pairs_trading_01.ipynb) | Original walkthrough — cointegration → Kalman → signals → IS/OOS evaluation, plus FDR demo, walk-forward, parameter sensitivity, and regime analysis sections |
 | [`pairs_trading_02.ipynb`](notebooks/pairs_trading_02.ipynb) | **Revised clean workflow** — the conceptual spine, end-to-end: cointegration screen → Kalman hedge → **walk-forward pair selection** (§3.5; composite score is only a pre-filter) → in-sample **and OOS** evaluation with trade plots → honest limitations. Advanced layers are kept out of the spine: circuit breaker, portfolio analytics, hedge-ratio stability and capacity/market-impact live in the package API (with test coverage), while parameter sensitivity and regime analysis are also demonstrated in `pairs_trading_01.ipynb` |
 | [`pairs_trading_03.ipynb`](notebooks/pairs_trading_03.ipynb) | **No-BH ablation** — the *same* full pipeline as nb02 (screen → Kalman → walk-forward pair selection → in-sample & OOS backtests with signals and performance metrics → limitations) with **one deliberate change: no Benjamini-Hochberg correction** (`fdr_method="none"`, raw p-values). Isolates the effect of dropping multiple-testing control on selection and performance |
 | [`visualize_cointegrated_pairs.ipynb`](notebooks/visualize_cointegrated_pairs.ipynb) | **Universe-wide visualisation** — BH FDR screening across NDX universe, p-value heatmap, cointegration network (Kamada-Kawai, hub detection), clustered heatmap, half-life diagnostics, and per-ticker partner query |
+| [`pairs_trading_04_hyperparameter_tuning.ipynb`](notebooks/pairs_trading_04_hyperparameter_tuning.ipynb) | **Hyperparameter tuning** — nb02's pipeline with a new §3.6 that tunes the Kalman noise (`q`, `em_iters`) and signal parameters (`z_method`, `z_entry`, `z_exit`, `z_stop`, `max_hold_bars`, `cooldown_bars`) on walk-forward folds of the training window only (2,304 configurations), with marginal-effect plots, a split-half rank-stability check and a transfer check on runner-up pairs; §4/§4b then evaluate default vs tuned side by side on the same 2026 hold-out |
+| [`tv_cointegration_kalman.ipynb`](notebooks/tv_cointegration_kalman.ipynb) | **Is the dynamic hedge spurious?** — explores Eroğlu, Miller & Yiğit (2021), *Time-varying cointegration and the Kalman filter*: shows the package's Kalman hedge manufactures a stationary residual for independent random walks, implements the paper's state-space model with a persistent error state and its bootstrap $t$-tests (no / fixed / time-varying cointegration), replicates a slice of its Monte Carlo, and applies the tests to real pairs |
 
 ---
 
@@ -76,14 +82,17 @@ repo-root/
 ├─ notebooks/
 │  ├─ pairs_trading_01.ipynb
 │  ├─ pairs_trading_02.ipynb
-│  └─ visualize_cointegrated_pairs.ipynb   # universe-wide screening & network visualisation
+│  ├─ pairs_trading_03.ipynb
+│  ├─ pairs_trading_04_hyperparameter_tuning.ipynb   # nb02 + walk-forward hyperparameter tuning
+│  ├─ visualize_cointegrated_pairs.ipynb   # universe-wide screening & network visualisation
+│  └─ tv_cointegration_kalman.ipynb        # time-varying cointegration tests (Eroğlu–Miller–Yiğit 2021)
 │
 ├─ cache/                               # auto-created; gitignored
 │  ├─ viz_prices.parquet                # cached price data (visualisation nb)
 │  ├─ viz_screen.pkl                    # cached screening results
 │  └─ viz_kalman.pkl                    # cached Kalman states
 │
-└─ tests/                    # 251 passing tests
+└─ tests/                    # 273 passing tests
    ├─ test_cointegration.py
    ├─ test_evaluate.py
    ├─ test_fdr.py
@@ -108,6 +117,18 @@ conda activate stat-arb
 **2) Install the package (editable for development):**
 ```bash
 pip install -e .
+```
+
+Optional extras (pick what you need):
+```bash
+pip install -e ".[notebooks]"   # OpenBB data loader, matplotlib, JupyterLab — required for the notebooks
+pip install -e ".[polygon]"     # pyarrow for the Polygon parquet-lake loader
+pip install -e ".[test]"        # pytest
+```
+
+**3) Run the tests:**
+```bash
+pytest
 ```
 
 In Jupyter, enable auto-reload during development:

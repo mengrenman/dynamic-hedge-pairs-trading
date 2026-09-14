@@ -140,6 +140,26 @@ def _init_worker(series_map, keys, full_start, full_end):
 def _align_dropna(S1: pd.Series, S2: pd.Series) -> pd.DataFrame:
     return pd.concat([S1, S2], axis=1, keys=["S1", "S2"]).dropna()
 
+def _build_series_map(
+    data: pd.DataFrame,
+) -> Tuple[dict, List[str], pd.Timestamp, pd.Timestamp]:
+    """
+    Split a normalised (ticker, datetime) frame into per-ticker 'close' series.
+
+    Returns (series_map, tickers, full_start, full_end). Keys are native ``str``
+    (never ``np.str_``) so they pickle cleanly into worker processes.
+    """
+    series_map: dict = {}
+    for k, g in data.groupby(level="ticker"):
+        s = g["close"].copy()
+        s.index = s.index.droplevel("ticker")          # leave only datetime in index
+        if not isinstance(s.index, pd.DatetimeIndex):  # ensure dtype
+            s.index = pd.to_datetime(s.index, errors="coerce")
+        series_map[str(k)] = s.sort_index()
+    tickers: List[str] = list(series_map.keys())
+    dt_index = data.index.get_level_values("datetime")
+    return series_map, tickers, dt_index.min(), dt_index.max()
+
 def _alpha_to_col(alpha: float) -> int:
     if alpha <= 0.01: return 2
     if alpha <= 0.05: return 1
@@ -273,26 +293,12 @@ def find_cointegrated_pairs_executor(
     data = normalize_multiindex(data)
 
     # ---- Build per-ticker close series with DatetimeIndex ----
-    series_map = {}
-    for k, g in data.groupby(level="ticker"):
-        s = g["close"].copy()
-        s.index = s.index.droplevel("ticker")          # leave only datetime in index
-        if not isinstance(s.index, pd.DatetimeIndex):  # ensure dtype
-            s.index = pd.to_datetime(s.index, errors="coerce")
-        s = s.sort_index()
-        series_map[str(k)] = s                         # ensure keys are native str
-
-    # Native Python str keys (avoid np.str_)
-    keys: List[str] = [str(k) for k in series_map.keys()]
+    series_map, keys, full_start, full_end = _build_series_map(data)
     n = len(keys)
 
     score_matrix  = np.zeros((n, n))
     pvalue_matrix = np.full((n, n), np.nan)
     pairs: List[Tuple[str, str]] = []
-
-    # Global span from the datetime level
-    dt_index = data.index.get_level_values("datetime")
-    full_start, full_end = dt_index.min(), dt_index.max()
 
     combos = list(combinations(range(n), 2))
 
@@ -303,7 +309,7 @@ def find_cointegrated_pairs_executor(
         warnings.warn(
             f"Multiple testing: running {n_tests} pair tests at alpha={alpha}. "
             f"Expected false positives by chance: ~{expected_false_positives:.0f}. "
-            "Consider applying a correction (e.g. Bonferroni: alpha/{n_tests}, "
+            f"Consider applying a correction (e.g. Bonferroni: alpha/{n_tests}, "
             "or FDR/Benjamini-Hochberg) to control the false discovery rate.",
             UserWarning,
             stacklevel=2,
@@ -425,19 +431,8 @@ def find_cointegrated_pairs_dualgate(
     data = normalize_multiindex(data)
 
     # ---- Build per-ticker series map -----------------------------------------
-    series_map: dict = {}
-    for k, g in data.groupby(level="ticker"):
-        s = g["close"].copy()
-        s.index = s.index.droplevel("ticker")
-        if not isinstance(s.index, pd.DatetimeIndex):
-            s.index = pd.to_datetime(s.index, errors="coerce")
-        series_map[str(k)] = s.sort_index()
-
-    tickers: List[str] = [str(k) for k in series_map]
+    series_map, tickers, full_start, full_end = _build_series_map(data)
     n = len(tickers)
-
-    dt_index = data.index.get_level_values("datetime")
-    full_start, full_end = dt_index.min(), dt_index.max()
 
     combos = list(combinations(range(n), 2))
     n_tests = len(combos)

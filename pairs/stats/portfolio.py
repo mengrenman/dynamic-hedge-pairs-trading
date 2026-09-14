@@ -67,15 +67,13 @@ def pair_return_correlations(
     # Compute correlation matrix
     corr = combined.corr(method=method)
 
-    # Zero out (NaN) entries where pairwise overlap < min_overlap
-    for i, li in enumerate(labels):
-        for j, lj in enumerate(labels):
-            if i == j:
-                continue
-            overlap = combined[[li, lj]].dropna().shape[0]
-            if overlap < min_overlap:
-                corr.loc[li, lj] = np.nan
-                corr.loc[lj, li] = np.nan
+    # NaN-out off-diagonal entries whose pairwise overlap is below min_overlap.
+    # overlap[i, j] = number of bars where both series are non-NaN, computed
+    # with one matrix product instead of an O(N^2) loop of dropna() calls.
+    present = combined.notna().to_numpy(dtype=np.int64)
+    overlap = present.T @ present
+    too_few = (overlap < min_overlap) & ~np.eye(len(labels), dtype=bool)
+    corr = corr.mask(too_few)
 
     return corr
 

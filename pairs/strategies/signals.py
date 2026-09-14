@@ -67,6 +67,9 @@ def zscore_from_spread(
 
     Returns a Series aligned to the input index.
     """
+    if method not in ("rolling", "ewm", "robust"):
+        raise ValueError(f"method must be one of 'rolling', 'ewm', 'robust'; got {method!r}")
+
     s = pd.Series(spread, dtype=float)
 
     if method == "ewm":

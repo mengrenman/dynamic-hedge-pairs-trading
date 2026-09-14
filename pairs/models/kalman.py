@@ -6,11 +6,13 @@ Designed for a MultiIndex (ticker, datetime) DataFrame with a 'close' column.
 Public API:
 - kalman_dynamic_hedge_joblib(...)
 - fit_kalman_hedge(...)  # alias to kalman_dynamic_hedge_joblib
+- filter_kf_on_new(...)  # continue a fitted filter on a new window
+- continue_kalman_on_window(...), continue_kalman_for_pairs_joblib(...)
 """
 
 from __future__ import annotations
 from itertools import combinations
-from typing import Optional, Literal, Dict, Tuple, List
+from typing import Any, Optional, Literal, Dict, Tuple, List
 import os
 import numpy as np
 import pandas as pd
@@ -24,6 +26,9 @@ from pairs.utils.splits import normalize_multiindex
 __all__ = [
     "kalman_dynamic_hedge_joblib",
     "fit_kalman_hedge",
+    "filter_kf_on_new",
+    "continue_kalman_on_window",
+    "continue_kalman_for_pairs_joblib",
 ]
 
 # ---------- helpers ----------
@@ -222,17 +227,6 @@ def fit_kalman_hedge(*args, **kwargs):
 
 
 # --- Kalman continuation on new windows (validation/test) --------------------
-from typing import Optional, Dict, Tuple, Any
-import numpy as np
-import pandas as pd
-from pykalman import KalmanFilter
-
-# Extend public API
-try:
-    __all__
-except NameError:
-    __all__ = []
-__all__ += ["filter_kf_on_new", "continue_kalman_on_window", "continue_kalman_for_pairs_joblib"]
 
 def _align_two(series1: pd.Series, series2: pd.Series, name1="P1", name2="P2") -> pd.DataFrame:
     if not isinstance(series1.index, pd.DatetimeIndex):

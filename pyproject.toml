@@ -9,19 +9,31 @@ description = "Dynamic-hedge pairs trading toolkit"
 readme = "README.md"
 requires-python = ">=3.9"
 authors = [{name = "Mengren Man"}]
+# Everything imported at module top by pairs.stats / pairs.models / pairs.strategies.
 dependencies = [
   "numpy>=1.24",
   "pandas>=2.0",
+  "scipy>=1.10",
+  "statsmodels>=0.14",   # Engle-Granger / Johansen / ADF / KPSS
+  "pykalman>=0.9.7",     # Kalman dynamic hedge ratio
+  "joblib>=1.3",
+  "tqdm>=4.66",
+  "threadpoolctl>=3.1",
 ]
 
 [project.optional-dependencies]
+# Polygon.io parquet-lake loader (pairs.market_data.polygon_lake)
+polygon = ["pyarrow>=14"]
+# pairs.plotting
+plot = ["matplotlib>=3.7"]
+# Everything the research notebooks use (OpenBB is only needed by the openbb loader)
 notebooks = [
   "jupyterlab",
   "matplotlib>=3.7",
-  "tqdm>=4.66",
-  # OpenBB is optional, used only if you call openbb loader:
+  "pyarrow>=14",
   "openbb>=4 ; python_version >= '3.9'",
 ]
+test = ["pytest>=7"]
 
 [tool.setuptools]
 include-package-data = true

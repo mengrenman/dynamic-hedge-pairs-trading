@@ -18,7 +18,7 @@ Public entry points (lazy-loaded):
                 generate_pair_signals(), evaluate_pair_signals(),
                 market_impact_bps(),
                 CircuitBreakerConfig, apply_circuit_breaker()
-- Validation:   walk_forward_splits(), walk_forward_backtest()
+- Validation:   walk_forward_splits(), walk_forward_backtest(), summarize_walk_forward()
 - Models (opt): fit_kalman_hedge(), filter_kf_on_new(),
                 continue_kalman_on_window(), continue_kalman_for_pairs_joblib()
 """
@@ -65,6 +65,7 @@ __all__ = [
     # validation
     "walk_forward_splits",
     "walk_forward_backtest",
+    "summarize_walk_forward",
     # models (Kalman) appended conditionally below
 ]
 
@@ -75,7 +76,8 @@ except Exception:  # pragma: no cover
     from importlib_metadata import version as _pkg_version, PackageNotFoundError  # fallback
 
 try:
-    __version__ = _pkg_version("pairs")
+    # Distribution name from pyproject.toml (not the import name "pairs")
+    __version__ = _pkg_version("pairs-trading")
 except PackageNotFoundError:  # running from source without installed metadata
     __version__ = "0+unknown"
 
@@ -118,6 +120,7 @@ _LAZY_MAP = {
     # validation
     "walk_forward_splits": ("pairs.validation.walk_forward", "walk_forward_splits"),
     "walk_forward_backtest": ("pairs.validation.walk_forward", "walk_forward_backtest"),
+    "summarize_walk_forward": ("pairs.validation.walk_forward", "summarize_walk_forward"),
 }
 
 # Optionally expose models if present without importing now.
@@ -186,7 +189,11 @@ if TYPE_CHECKING:  # pragma: no cover
     )
     from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
     from .strategies.circuit_breaker import CircuitBreakerConfig, apply_circuit_breaker
-    from .validation.walk_forward import walk_forward_splits, walk_forward_backtest
+    from .validation.walk_forward import (
+        walk_forward_splits,
+        walk_forward_backtest,
+        summarize_walk_forward,
+    )
     try:
         from .models.kalman import (
             fit_kalman_hedge,

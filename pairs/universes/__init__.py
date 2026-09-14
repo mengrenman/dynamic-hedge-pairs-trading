@@ -3,35 +3,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Iterable
 
-try:
-    from ..utils.tickers import load_tickers as _load_tickers
-except Exception:
-    # minimal local fallback
-    def _load_tickers(path: Path) -> pd.Index:
-        suf = path.suffix.lower()
-        if suf in {".txt",".list"}:
-            vals = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines()
-                    if ln.strip() and not ln.lstrip().startswith("#")]
-        elif suf == ".csv":
-            df = pd.read_csv(path)
-            col = next((c for c in ("ticker","symbol","Ticker","SYMBOL") if c in df.columns), df.columns[0])
-            vals = df[col].astype(str).tolist()
-        elif suf == ".json":
-            obj = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(obj, list) and all(isinstance(x, str) for x in obj):
-                vals = obj
-            elif isinstance(obj, list) and all(isinstance(x, dict) for x in obj):
-                for key in ("ticker","symbol","Ticker","SYMBOL"):
-                    if all(key in d for d in obj):
-                        vals = [d[key] for d in obj]; break
-                else:
-                    raise ValueError("Unrecognized JSON format")
-            else:
-                raise ValueError("Unrecognized JSON format")
-        else:
-            raise ValueError(f"Unsupported file type: {suf}")
-        s = pd.Series(vals, dtype="string").str.strip().str.upper().dropna().drop_duplicates().sort_values()
-        return pd.Index(s)
+from ..utils.tickers import load_tickers as _load_tickers
 
 __all__ = ["load_universe", "list_universes", "__UNIVERSES_VERSION__"]
 __UNIVERSES_VERSION__ = "2025.08"
