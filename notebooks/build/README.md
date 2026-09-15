@@ -8,6 +8,7 @@ diffed and reviewed like source:
 | `build_tv_notebook.py` | `../tv_cointegration_kalman.ipynb` | scratch |
 | `build_tuning_notebook.py` | `../pairs_trading_04_hyperparameter_tuning.ipynb` | `../pairs_trading_02.ipynb` (inherits every cell it does not rewrite) |
 | `build_viz_notebook.py` | `../visualize_cointegrated_pairs.ipynb` | scratch |
+| `build_tuning_study_notebook.py` | `../pairs_trading_05_tuning_revisited.ipynb` | scratch (cold run ≈ 8 min; caches the out-of-fold study under `cache/tuning_study_oof.pkl`) |
 
 Regenerate a notebook (cells only, outputs cleared) and then execute it:
 
