@@ -258,9 +258,9 @@ hub_table = pd.DataFrame({"degree": deg, "share of all edges": deg / G.number_of
                           "community": pd.Series({n: i for i, c in enumerate(comms) for n in c})}).loc[hubs]
 print(f"{len(hubs)} hubs at or above the 90th percentile of degree (≥ {max(2, np.quantile(deg, 0.9)):.0f}); top 15:")
 print(hub_table.head(15).to_string(float_format="{:.2f}".format))
-print(f"\nAre the two mega-hubs cointegrated with each other? "
-      f"{'yes' if G.has_edge(*deg.index[:2]) else 'no'} ({deg.index[0]}/{deg.index[1]} is not a dual-gate pair)"
-      if not G.has_edge(*deg.index[:2]) else "")
+h1, h2 = deg.index[:2]
+print(f"\nAre the two largest hubs cointegrated with each other? "
+      f"{'yes' if G.has_edge(h1, h2) else 'no'} — {h1}/{h2} {'is' if G.has_edge(h1, h2) else 'is not'} a dual-gate pair.")
 """)
 md(r"""
 ### 3.3 Degree distribution, and the network without its hubs

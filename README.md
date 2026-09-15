@@ -13,7 +13,7 @@ validation and capacity analysis.
 - **Circuit breaker** — post-processor that flattens positions on z-score blow-outs or rolling drawdown breach, with configurable cooldown and re-entry guard
 - **Portfolio analytics** — cross-pair spread-return correlation matrix, diversification score, inverse-variance position weights
 - **Hedge ratio stability tests** — CUSUM level-shift test + rolling β-drift detection; flags structurally shifted pairs
-- **Universe-wide cointegration visualisation** — p-value heatmap, network graph, half-life diagnostics
+- **Universe-wide cointegration visualisation** — multiple-testing audit, p-value heatmap, network graph with hubs and communities, static-spread half-life diagnostics ([`visualize_cointegrated_pairs.ipynb`](notebooks/visualize_cointegrated_pairs.ipynb))
 - **Walk-forward hyperparameter tuning** — Kalman noise and signal thresholds tuned on training folds only, with selection-bias checks and a default-vs-tuned hold-out comparison ([`pairs_trading_04_hyperparameter_tuning.ipynb`](notebooks/pairs_trading_04_hyperparameter_tuning.ipynb))
 - **Time-varying cointegration tests** — is the dynamic hedge spurious? Eroğlu–Miller–Yiğit (2021) state-space tests with bootstrap inference, applied to the Kalman hedge ([`tv_cointegration_kalman.ipynb`](notebooks/tv_cointegration_kalman.ipynb))
 - Plotting of trades over price legs
