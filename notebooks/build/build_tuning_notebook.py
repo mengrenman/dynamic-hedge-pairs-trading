@@ -105,8 +105,15 @@ md(r"""
 
 nb02 picks the pair with a walk-forward driver but runs it with hand-set parameters. Here the same
 folds (train 504 / test 126 / step 63 bars, 2020–2025) score a grid of configurations for the selected
-pair. The objective is the one nb02 already uses for selection, **median out-of-fold Sharpe**, with a
-minimum total trade count so that a config cannot win by trading twice.
+pair. The objective is the **pooled out-of-fold Sharpe**: the out-of-fold daily net returns of all folds
+are concatenated into one series and a single annualised Sharpe is computed on it, with a fixed $10k
+capital base so returns are comparable across folds. Because the 126-bar test windows overlap (step 63),
+each fold contributes only the 63 bars before the next refit (the last fold contributes all of its bars),
+so every bar from bar 505 onward has exactly one out-of-fold return, from the most recently refitted
+model — the way a live rolling re-estimation would trade. A configuration that sits flat most of the time
+is not rewarded for it: flat days enter the series at zero. nb02's own selection metric, the *median* of
+the per-fold Sharpes, is kept as a secondary column, and configurations with fewer than
+`MIN_TOTAL_TRADES` trades across the folds are discarded.
 
 The search is structured so that the expensive part is done once:
 
@@ -180,27 +187,57 @@ print(f"Kalman fold fits: {len(KALMAN_GRID)} settings × {len(splits)} folds in 
 """),
 code(r"""
 # ── Step 2: evaluate every signal configuration on the precomputed folds ─────────
-def _eval_config(kcfg, scfg, frames):
-    warnings.filterwarnings("ignore")
-    sharpes, trades = [], 0
-    for f in frames:
+EVAL_KW = dict(cost_bps=1, borrow_bps_per_year=50, days_per_year=252, bars_per_year=252,
+               capital_base=10_000)      # fixed base: out-of-fold returns are comparable across folds
+
+def _pooled_sharpe(n, s1, s2, periods=252):
+    # Annualised Sharpe of a return series known only through its count, sum and sum of squares
+    # (mean / population std). Lets any subset of folds be pooled without keeping the returns.
+    n = np.asarray(n, float); s1 = np.asarray(s1, float); s2 = np.asarray(s2, float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        mean = s1 / n
+        var = s2 / n - mean ** 2
+        out = mean / np.sqrt(var) * np.sqrt(periods)
+    return np.where((n >= 2) & (var > 0), out, np.nan)
+
+def _oof_slices(frames, scfg):
+    # Per-fold out-of-fold daily results, keeping only the bars before the next refit
+    # (the last fold keeps all of them) so each bar appears exactly once.
+    out = []
+    for k, f in enumerate(frames):
         fr = None if f is None else f["frame"]
         if fr is None or len(fr) < 30:
-            sharpes.append(np.nan); continue
+            out.append(None); continue
         sig = generate_pair_signals(fr, capital_per_pair=10_000,
                                     z_window=f["z_window"], z_history=f["z_history"], **scfg)
-        _, _, summ = evaluate_pair_signals(fr[["P1", "P2"]], sig,
-                                           cost_bps=1, borrow_bps_per_year=50, days_per_year=252, bars_per_year=252)
-        sharpes.append(summ["sharpe"]); trades += int(summ["n_trades"])
+        daily, _, summ = evaluate_pair_signals(fr[["P1", "P2"]], sig, **EVAL_KW)
+        if k < len(frames) - 1:
+            daily = daily.iloc[:STEP_BARS]
+        out.append((daily, summ))
+    return out
+
+def _eval_config(kcfg, scfg, frames):
+    warnings.filterwarnings("ignore")
+    n_f = len(frames)
+    sharpes, trades = [], 0
+    fold_n = np.zeros(n_f); fold_s1 = np.zeros(n_f); fold_s2 = np.zeros(n_f)
+    for k, item in enumerate(_oof_slices(frames, scfg)):
+        if item is None:
+            sharpes.append(np.nan); continue
+        daily, summ = item
+        sharpes.append(summ["sharpe"]); trades += int(summ["n_trades"])   # per-fold stats on the full 126-bar window
+        r = daily["ret_net"].to_numpy(float); r = r[np.isfinite(r)]
+        fold_n[k], fold_s1[k], fold_s2[k] = len(r), r.sum(), (r ** 2).sum()
     s = np.asarray(sharpes, float)
     return {**kcfg, **scfg,
+            "oof_sharpe":       float(_pooled_sharpe(fold_n.sum(), fold_s1.sum(), fold_s2.sum())),
+            "oof_ann_return":   float(fold_s1.sum() / max(fold_n.sum(), 1) * 252),    # arithmetic, on the $10k base
             "wf_sharpe_median": np.nanmedian(s) if np.isfinite(s).any() else np.nan,
             "wf_sharpe_mean":   np.nanmean(s)   if np.isfinite(s).any() else np.nan,
-            "wf_sharpe_std":    np.nanstd(s)    if np.isfinite(s).any() else np.nan,
             "pct_pos_folds":    float(np.mean(s > 0)),
             "wf_trades_total":  trades,
             "n_folds":          int(np.isfinite(s).sum()),
-            "fold_sharpes":     s}
+            "fold_sharpes":     s, "fold_n": fold_n, "fold_s1": fold_s1, "fold_s2": fold_s2}
 
 t0 = time.time()
 tuning = pd.DataFrame(Parallel(n_jobs=N_JOBS, batch_size=32)(
@@ -215,21 +252,24 @@ def _match(df, cfg):
     return m
 
 default_row = tuning[_match(tuning, HP_DEFAULT)].iloc[0]
-valid = tuning[tuning["wf_trades_total"] >= MIN_TOTAL_TRADES].sort_values("wf_sharpe_median", ascending=False)
+OBJECTIVE = "oof_sharpe"
+valid = (tuning[tuning["wf_trades_total"] >= MIN_TOTAL_TRADES]
+         .dropna(subset=[OBJECTIVE])
+         .sort_values(OBJECTIVE, ascending=False, kind="mergesort"))   # stable: ties keep grid order (simplest first)
 print(f"{len(valid):,} configurations with ≥ {MIN_TOTAL_TRADES} total trades\n")
 
-show_cols = list(KALMAN_KEYS + SIGNAL_KEYS) + ["wf_sharpe_median", "wf_sharpe_mean", "wf_sharpe_std", "pct_pos_folds", "wf_trades_total"]
-print("Top 10 configurations by median out-of-fold Sharpe:")
+show_cols = list(KALMAN_KEYS + SIGNAL_KEYS) + ["oof_sharpe", "oof_ann_return", "wf_sharpe_median", "pct_pos_folds", "wf_trades_total"]
+print("Top 10 configurations by pooled out-of-fold Sharpe:")
 print(valid[show_cols].head(10).to_string(index=False, float_format="{:.3f}".format))
 print("\nnb02 default configuration:")
 print(default_row[show_cols].to_frame().T.to_string(index=False, float_format="{:.3f}".format))
-print(f"\nDefault ranks {int((valid['wf_sharpe_median'] > default_row['wf_sharpe_median']).sum()) + 1} "
+print(f"\nDefault ranks {int((valid[OBJECTIVE] > default_row[OBJECTIVE]).sum()) + 1} "
       f"of {len(valid)} valid configurations.")
 """),
 md(r"""
 ### 3.6.1 What matters and what does not
 
-Marginal effect of each hyperparameter: the distribution of median out-of-fold Sharpe across all
+Marginal effect of each hyperparameter: the distribution of pooled out-of-fold Sharpe across all
 configurations sharing a value (box = interquartile range across the other seven dimensions). A flat
 row means the parameter does not matter much on this pair; a steep one is where the tuning gain comes
 from.
@@ -248,15 +288,15 @@ params_to_plot = list(KALMAN_KEYS + SIGNAL_KEYS)
 fig, axes = plt.subplots(2, 4, figsize=(18, 7))
 for ax, p in zip(axes.ravel(), params_to_plot):
     labels, order = _value_labels(valid[p])
-    groups = valid.groupby(labels, sort=False)["wf_sharpe_median"]
+    groups = valid.groupby(labels, sort=False)[OBJECTIVE]
     data = [groups.get_group(g).values for g in order if g in groups.groups]
     ticks = [g for g in order if g in groups.groups]
     ax.boxplot(data, showfliers=False)
     ax.set_xticks(range(1, len(ticks) + 1), ticks)      # works on matplotlib < 3.9 too
-    ax.axhline(default_row["wf_sharpe_median"], color="red", ls="--", lw=1, label="nb02 default")
+    ax.axhline(default_row[OBJECTIVE], color="red", ls="--", lw=1, label="nb02 default")
     ax.set_title(p); ax.grid(alpha=0.3)
     if p == params_to_plot[0]: ax.legend(fontsize=8)
-fig.suptitle(f"Median out-of-fold Sharpe by hyperparameter value — {ticker1}/{ticker2} (configs with ≥ {MIN_TOTAL_TRADES} trades)")
+fig.suptitle(f"Pooled out-of-fold Sharpe by hyperparameter value — {ticker1}/{ticker2} (configs with ≥ {MIN_TOTAL_TRADES} trades)")
 plt.tight_layout(); plt.show()
 """),
 md(r"""
@@ -268,7 +308,7 @@ even when nothing is really better. Two cheap checks before believing the winner
 * **Where the default sits** in the distribution of all configurations, and how far the top of the
   distribution is from its bulk (a lone outlier at the top is more suspicious than a plateau of similar
   configurations).
-* **Split-half rank stability**: rank every configuration by its median Sharpe on the odd folds and
+* **Split-half rank stability**: rank every configuration by its pooled Sharpe on the odd folds and
   again on the even folds. If tuning is finding structure rather than noise, the two rankings agree
   (Spearman correlation well above zero) and the winner on one half is near the top on the other.
 
@@ -279,15 +319,16 @@ from scipy.stats import spearmanr
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 4))
 ax = axes[0]
-ax.hist(valid["wf_sharpe_median"], bins=50, color="steelblue", alpha=0.7)
-ax.axvline(default_row["wf_sharpe_median"], color="red", ls="--", label=f"nb02 default = {default_row['wf_sharpe_median']:.2f}")
-ax.axvline(valid["wf_sharpe_median"].iloc[0], color="green", ls="--", label=f"best = {valid['wf_sharpe_median'].iloc[0]:.2f}")
-ax.set_xlabel("median out-of-fold Sharpe"); ax.set_ylabel("# configurations"); ax.legend()
+ax.hist(valid[OBJECTIVE], bins=50, color="steelblue", alpha=0.7)
+ax.axvline(default_row[OBJECTIVE], color="red", ls="--", label=f"nb02 default = {default_row[OBJECTIVE]:.2f}")
+ax.axvline(valid[OBJECTIVE].iloc[0], color="green", ls="--", label=f"best = {valid[OBJECTIVE].iloc[0]:.2f}")
+ax.set_xlabel("pooled out-of-fold Sharpe"); ax.set_ylabel("# configurations"); ax.legend()
 ax.set_title("Distribution over the grid")
 
-# split-half rank stability
-S = np.vstack(valid["fold_sharpes"].values)                       # configs × folds
-odd, even = np.nanmedian(S[:, 0::2], axis=1), np.nanmedian(S[:, 1::2], axis=1)
+# split-half rank stability: pooled Sharpe over the odd folds vs over the even folds
+N_, S1_, S2_ = (np.vstack(valid[c].values) for c in ("fold_n", "fold_s1", "fold_s2"))   # configs × folds
+odd  = _pooled_sharpe(N_[:, 0::2].sum(1), S1_[:, 0::2].sum(1), S2_[:, 0::2].sum(1))
+even = _pooled_sharpe(N_[:, 1::2].sum(1), S1_[:, 1::2].sum(1), S2_[:, 1::2].sum(1))
 ok = np.isfinite(odd) & np.isfinite(even)
 rho = spearmanr(odd[ok], even[ok]).correlation
 ax = axes[1]
@@ -296,7 +337,7 @@ ax.scatter(odd[0], even[0], color="green", s=60, label="best on all folds", zord
 if default_row.name in valid.index:            # the default may have too few trades to be 'valid'
     d_i = int(np.where(valid.index == default_row.name)[0][0])
     ax.scatter(odd[d_i], even[d_i], color="red", s=60, label="nb02 default", zorder=3)
-ax.set_xlabel("median Sharpe, odd folds"); ax.set_ylabel("median Sharpe, even folds")
+ax.set_xlabel("pooled OOF Sharpe, odd folds"); ax.set_ylabel("pooled OOF Sharpe, even folds")
 ax.set_title(f"Split-half stability across configurations: Spearman ρ = {rho:.2f}"); ax.legend()
 plt.tight_layout(); plt.show()
 
@@ -309,7 +350,7 @@ print(f"Top-{top_k} configs by odd-fold Sharpe have median even-fold rank "
 md(r"""
 ### 3.6.3 Choose the tuned configuration, and check it transfers
 
-The winner is the best median out-of-fold Sharpe among configurations with enough trades. As a guard
+The winner is the best pooled out-of-fold Sharpe among configurations with enough trades. As a guard
 against a configuration that is idiosyncratic to the selected pair, the same configuration is
 re-scored on the next three candidates from the §3.5 shortlist (each with its own walk-forward folds):
 a genuine improvement in the *strategy* should not evaporate on neighbouring pairs.
@@ -337,12 +378,39 @@ others = [p for p in wf_selection.index if p != (ticker1, ticker2)][:3]
 jobs = [(p, name, cfg) for p in [(ticker1, ticker2)] + others for name, cfg in (("default", HP_DEFAULT), ("tuned", TUNED))]
 res = Parallel(n_jobs=N_JOBS)(delayed(_wf_score)(p, cfg) for p, name, cfg in jobs)
 transfer = pd.DataFrame([{"pair": f"{p[0]}/{p[1]}", "config": name,
-                          "wf_sharpe_median": r["wf_sharpe_median"], "pct_pos_folds": r["pct_pos_folds"],
+                          "oof_sharpe": r["oof_sharpe"], "wf_sharpe_median": r["wf_sharpe_median"],
                           "wf_trades_total": r["wf_trades_total"]} for (p, name, cfg), r in zip(jobs, res)])
-transfer = transfer.pivot(index="pair", columns="config", values=["wf_sharpe_median", "pct_pos_folds", "wf_trades_total"])
+transfer = transfer.pivot(index="pair", columns="config", values=["oof_sharpe", "wf_sharpe_median", "wf_trades_total"])
 transfer = transfer.reindex([f"{p[0]}/{p[1]}" for p in [(ticker1, ticker2)] + others])
-print("\nWalk-forward score of the default vs tuned configuration (selected pair first, then runner-ups):")
+print("\nPooled out-of-fold Sharpe of the default vs tuned configuration (selected pair first, then runner-ups):")
 print(transfer.to_string(float_format="{:.3f}".format))
+"""),
+md(r"""
+### 3.6.4 Pooled out-of-fold equity: the honest in-sample view
+
+The in-sample curves in §4 use smoothed Kalman states fitted on the whole window and overstate both
+configurations. The curve below is what the tuning actually scored: every bar's return comes from a filter
+that was fitted before it and run causally through it, stitched together across the folds. This is the
+in-sample comparison to trust.
+"""),
+code(r"""
+def _oof_daily(frames, cfg):
+    parts = [d for d, _ in (x for x in _oof_slices(frames, {k: cfg[k] for k in SIGNAL_KEYS}) if x is not None)]
+    return pd.concat(parts).sort_index()
+
+oof = {name: _oof_daily(fold_frames[_kalman_key(cfg["q"], cfg["em_iters"])], cfg)
+       for name, cfg in (("default", HP_DEFAULT), ("tuned", TUNED))}
+
+fig, ax = plt.subplots(figsize=(13, 4.5))
+for name, color in (("default", "steelblue"), ("tuned", "darkorange")):
+    d = oof[name]
+    sh = float(_pooled_sharpe(len(d), d["ret_net"].sum(), (d["ret_net"] ** 2).sum()))
+    ax.plot(d.index, d["pnl_net"].cumsum(), color=color, lw=1.5,
+            label=f"{name}: pooled OOF Sharpe {sh:.2f}, {int(d['in_pos'].sum())} bars in position")
+ax.axhline(0, color="black", lw=0.8)
+ax.set_title(f"Pooled out-of-fold equity — {ticker1}/{ticker2}, each bar from the latest refit (base $10k)")
+ax.set_ylabel("Equity ($)"); ax.legend(); plt.tight_layout(); plt.show()
+print(f"Out-of-fold bars: {len(oof['default'])}  ({oof['default'].index[0].date()} → {oof['default'].index[-1].date()})")
 """),
 ]
 
@@ -513,8 +581,9 @@ Two things to keep in mind when reading the table:
 
 * The **in-sample** columns use nb02's smoothed, EM-fitted Kalman states over the whole training window —
   a fit that looks at the future of every bar — so they overstate everything, and they can rank the two
-  configurations differently from the walk-forward folds, which filter causally. The fold median in §3.6 is
-  the right in-sample yardstick; the IS columns are here for continuity with nb02.
+  configurations differently from the walk-forward folds, which filter causally. The pooled out-of-fold
+  Sharpe and equity curve in §3.6 are the right in-sample yardstick; the IS columns are here for
+  continuity with nb02.
 * The **OOS** columns are the evidence, but half a year yields a handful of trades: they can show a tuned
   configuration failing, they cannot show it succeeding with any confidence.
 """
@@ -534,36 +603,44 @@ results_cell = md(r"""
 ## 4b.5 What this tuning run actually found
 
 Numbers refer to the run stored in this notebook (deterministic given the cached prices; a fresh
-download shifts them slightly).
+download shifts them slightly). The objective is the pooled out-of-fold Sharpe of §3.6; nb02's per-fold
+median is reported alongside.
 
-* **The grid finds "better" configurations easily.** The best median out-of-fold Sharpe is 2.02 against
-  0.96 for nb02's defaults, which rank around 390th of ~1,950 valid configurations. The winner is a
-  *stiffer and quieter* strategy: `q=1e-6` with no EM (a nearly static hedge ratio), rolling rather than
-  robust z-scores, entry at 2.5 and exit at 1.0 — about a third as many trades as the default, on the
-  folds (45 vs 149) and in the full in-sample run (26 vs 86).
-* **Within the pair, the ranking is stable.** Configurations ranked on the odd folds keep a median rank of
-  6 of ~1,950 on the even folds (pure noise: ~980; Spearman ρ ≈ 0.44 across the whole grid), and the
-  winner is the best configuration on both halves separately. The top of the grid is nonetheless a
-  plateau of configurations that differ only in parameters that never bind (`z_stop`, holding cap,
-  cooldown) — they produce the same trades.
-* **It transfers only partly.** On the runner-up pairs the tuned configuration helps NCLH/TEL
-  (0.24 → 1.05), is neutral on CCL/EXPE (0.68 → 0.69) and hurts NCLH/SPG (0.43 → 0.19) (§3.6.3).
+* **The grid finds "better" configurations easily.** The best pooled out-of-fold Sharpe is 1.38 against
+  0.71 for nb02's defaults, which rank around 300th of ~1,950 valid configurations — and the defaults sit
+  above the median of every marginal group in §3.6.1, so by the grid's own standards they are a good
+  configuration. The winner is a *stiffer and quieter* strategy: `q=1e-6` with no EM (a nearly static
+  hedge ratio), rolling rather than robust z-scores, entry at 2.5 and exit at 1.0 — in position for 104
+  of the 1,004 out-of-fold bars against 218 for the default, and about a third as many trades (45 vs 149
+  on the folds, 26 vs 86 in the full in-sample run). It is the same configuration family that wins under
+  nb02's per-fold median (2.02 vs 0.96), so the two objectives agree on the winner.
+* **The pooled equity curve (§3.6.4) is the honest in-sample comparison**, and it is far less dramatic
+  than the smoothed §4 curves: both configurations make money out of fold, roughly +$3,500 and +$4,400 on
+  a $10k base over 2022–2025, the tuned one with fewer, longer holding periods and without the default's
+  2025 drawdown.
+* **The ranking is not reproducible across fold halves.** Under the pooled objective, configurations
+  ranked on the odd folds have a median rank of ~1,190 of ~1,930 on the even folds — no better than chance
+  (~965) — and the Spearman correlation between the two rankings is −0.18. The winner itself scores well on
+  both halves (about 1.35 and 1.45), but the ordering of the rest of the grid is noise: with two to ten
+  trades per 63-bar segment, a pooled Sharpe over eight segments is dominated by a few large days. nb02's
+  per-fold median gave a more stable ranking (ρ ≈ 0.44), at the price of ignoring how much of the time a
+  configuration is invested.
+* **It transfers poorly.** On the runner-up pairs the tuned configuration helps NCLH/TEL (0.20 → 0.60) and
+  hurts CCL/EXPE (0.41 → 0.15) and NCLH/SPG (0.61 → −0.01) (§3.6.3).
 * **Out of sample it did not help.** On the 2026 hold-out the default made seven trades, six of them
   winners (Sharpe 1.4), while the tuned configuration made two, one of them a loser (Sharpe −0.4). With
-  two to seven trades neither number is statistically meaningful, but the direction is the one
-  selection bias predicts.
+  two to seven trades neither number is statistically meaningful, but the direction is the one selection
+  bias predicts.
 
-The honest reading is a little different from "mostly noise": the fold-level ranking is reproducible
-*within* CCL/STT, so the tuned configuration is a genuine description of that pair's 2020–2025
-behaviour — and that is exactly the problem. A configuration that fits one pair's regime (a static
-hedge, wide entry, early exit) is not evidence about the *strategy*, as the mixed transfer and the losing
-hold-out show. What the exercise does establish is *which* knobs matter on this pair (§3.6.1): the exit
+The honest reading: the winner is a genuine description of CCL/STT's 2020–2025 behaviour — a static
+hedge, wide entry, early exit — that both objectives pick out, but it is not evidence about the *strategy*:
+it does not transfer to neighbouring pairs, it loses on the hold-out, and the rest of the grid's ranking
+is noise. What the exercise does establish is *which* knobs matter on this pair (§3.6.1): the exit
 threshold dominates (exiting only at the mean, `z_exit=0`, is clearly worse than 0.5 or 1.0), the entry
-threshold matters at the low end (1.5 is worse than 2.0–3.0), the Kalman noise has a mild effect — and
-the winner sits at the `q` value with the *lowest* marginal median, i.e. it is an outlier of its own
-group. `em_iters`, `z_stop`, the holding cap and the cooldown barely register; `z_method` slightly
-favours rolling. A sensible next step is a much smaller search over `z_exit` and `z_entry` only, pooled
-across the shortlist rather than fitted to one pair.
+threshold has a mild optimum near 2.5, rolling z-scores edge out robust ones, a holding cap or a cooldown
+costs a little, and the Kalman noise, `em_iters` and `z_stop` barely register. A sensible next step is a
+much smaller search over `z_exit` and `z_entry` only, pooled across the shortlist rather than fitted to
+one pair.
 """)
 
 # ───────────────────────── §8 limitations: add tuning caveats ─────────────────────────
