@@ -73,7 +73,9 @@ def zscore_from_spread(
         scoring a test window with a look-back chosen from that same window is a
         look-ahead — and (ii) `history` warms up the rolling statistics so the first
         bars of `spread` have a full look-back instead of NaN. Only the entries
-        aligned with `spread` are returned.
+        aligned with `spread` are returned. Standard rolling semantics apply across
+        the join: a NaN within the last `window` bars of `history` leaves the
+        z-score undefined for up to `window` bars into `spread`.
 
     Returns a Series aligned to the input index.
     """

@@ -2,10 +2,11 @@
 
     python notebooks/build/execute.py notebooks/tv_cointegration_kalman.ipynb [--kernel python3] [--timeout 3600]
 
-Runs with notebooks/ as the working directory (the notebooks resolve the repo root as
-Path.cwd().parent), stores the outputs back into the file, normalises cell ids, and exits
-non-zero if any cell raised. Cell errors do not stop the run, so the failing cell and every
-later one are visible in the saved notebook.
+Runs with the notebook's own directory as the working directory (for the notebooks in this
+repo that is notebooks/, and they resolve the repo root as Path.cwd().parent), stores the
+outputs back into the file, normalises cell ids, and exits non-zero if any cell raised. Cell
+errors do not stop the run, so the failing cell and every later one are visible in the saved
+notebook.
 """
 import argparse
 import sys
