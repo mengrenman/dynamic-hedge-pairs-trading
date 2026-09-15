@@ -30,6 +30,8 @@ plot = ["matplotlib>=3.7"]
 notebooks = [
   "jupyterlab",
   "matplotlib>=3.7",
+  "seaborn>=0.13",
+  "networkx>=3.0",
   "pyarrow>=14",
   "openbb>=4 ; python_version >= '3.9'",
 ]

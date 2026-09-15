@@ -18,6 +18,7 @@ dependencies:
   - scikit-learn
   - matplotlib
   - seaborn
+  - networkx
   - pyarrow
   - jupyter
   - jupyterlab

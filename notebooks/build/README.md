@@ -7,6 +7,7 @@ diffed and reviewed like source:
 |---|---|---|
 | `build_tv_notebook.py` | `../tv_cointegration_kalman.ipynb` | scratch |
 | `build_tuning_notebook.py` | `../pairs_trading_04_hyperparameter_tuning.ipynb` | `../pairs_trading_02.ipynb` (inherits every cell it does not rewrite) |
+| `build_viz_notebook.py` | `../visualize_cointegrated_pairs.ipynb` | scratch |
 
 Regenerate a notebook (cells only, outputs cleared) and then execute it:
 
