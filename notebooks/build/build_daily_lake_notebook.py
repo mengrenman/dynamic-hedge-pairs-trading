@@ -63,7 +63,8 @@ CACHE = Path("cache"); CACHE.mkdir(exist_ok=True)
 
 START, END = "2004-01-01", "2025-08-13"               # the lake begins 2003-09 and ends 2025-08-13
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 100})
-print("pairs", pairs.__version__, "| lake:", LAKE, "| layouts:",
+LAKE_LABEL = f"~/{LAKE.relative_to(Path.home())}" if LAKE.is_relative_to(Path.home()) else str(LAKE)
+print("pairs", pairs.__version__, "| lake:", LAKE_LABEL, "| layouts:",
       detect_day_lake_layout(INDEX_ROOT), "/", detect_day_lake_layout(MARKET_ROOT))
 """)
 

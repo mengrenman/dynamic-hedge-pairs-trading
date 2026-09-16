@@ -71,7 +71,8 @@ UNIVERSE = "spx_ndx_combined"
 N_CANDIDATES = 24                                     # pairs carried into notebooks 10 and 11
 
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 100})
-print("pairs", pairs.__version__, "| lake:", LAKE, "| layouts:",
+LAKE_LABEL = f"~/{LAKE.relative_to(Path.home())}" if LAKE.is_relative_to(Path.home()) else str(LAKE)
+print("pairs", pairs.__version__, "| lake:", LAKE_LABEL, "| layouts:",
       detect_lake_layout(TICKER_ROOT), "/", detect_lake_layout(MARKET_ROOT) if MARKET_ROOT.exists() else "n/a")
 """)
 
