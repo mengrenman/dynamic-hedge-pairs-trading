@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_04_hyperparameter_tuning.ipynb from pairs_trading_02.ipynb (cells only).
+"""Build notebooks/pairs_trading_04_hyperparameter_tuning_yahoo.ipynb from pairs_trading_02_yahoo.ipynb (cells only).
 
     python notebooks/build/build_tuning_notebook.py [--out PATH]
 
@@ -10,7 +10,7 @@ import nbformat as nbf
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]               # notebooks/build/ -> notebooks/
-src = nbf.read(ROOT / "pairs_trading_02.ipynb", as_version=4)
+src = nbf.read(ROOT / "pairs_trading_02_yahoo.ipynb", as_version=4)
 cells = list(src.cells)
 for c in cells:                                   # start from clean source
     if c.cell_type == "code":
@@ -28,9 +28,9 @@ code = lambda s: nbf.v4.new_code_cell(s.strip("\n"))
 get(0, "Dynamic Hedge Pairs Trading").source = r"""
 # Dynamic Hedge Pairs Trading — Hyperparameter Tuning
 
-## `pairs_trading_04_hyperparameter_tuning.ipynb`
+## `pairs_trading_04_hyperparameter_tuning_yahoo.ipynb`
 
-A copy of `pairs_trading_02.ipynb` — the clean end-to-end spine (cointegration screen → Kalman hedge →
+A copy of `pairs_trading_02_yahoo.ipynb` — the clean end-to-end spine (cointegration screen → Kalman hedge →
 walk-forward pair selection → in-sample and OOS evaluation) — with one addition: **§3.6 tunes the
 hyperparameters that nb02 hard-codes**, using walk-forward folds on the training window only, and
 **§4/§4b evaluate the default and the tuned configuration side by side on the same 2026 hold-out.**
@@ -388,10 +388,11 @@ print(transfer.to_string(float_format="{:.3f}".format))
 md(r"""
 ### 3.6.4 Pooled out-of-fold equity: the honest in-sample view
 
-The in-sample curves in §4 use smoothed Kalman states fitted on the whole window and overstate both
-configurations. The curve below is what the tuning actually scored: every bar's return comes from a filter
-that was fitted before it and run causally through it, stitched together across the folds. This is the
-in-sample comparison to trust.
+The curves in §4 are in-sample in the ordinary sense: the Kalman filter is fitted by EM on the whole
+training window and then run causally through it, so each bar's state uses only its own past but the
+noise parameters were chosen with the window in hand. The curve below is stricter, and is what the tuning
+actually scored: each fold's filter is fitted only on the bars before that fold. Where the two disagree,
+this one is the yardstick.
 """),
 code(r"""
 def _oof_daily(frames, cfg):
@@ -435,7 +436,7 @@ df_pair = pd.DataFrame({'P1': prices[ticker1], 'P2': prices[ticker2]}).join(stat
 
 # tuned Kalman states: refit on the full training window with the tuned (q, em_iters)
 states_tuned, params_tuned = fit_kalman_hedge(
-    df_train, pairs=[pair], mode="smooth",
+    df_train, pairs=[pair], mode="filter",   # causal, as in nb02
     q=TUNED["q"], em_iters=TUNED["em_iters"], show_progress=False, return_params=True,
 )
 df_pair_tuned = pd.DataFrame({'P1': prices[ticker1], 'P2': prices[ticker2]}).join(states_tuned[pair][['beta', 'resid']])
@@ -579,11 +580,11 @@ get(45, "4b.4 In-sample vs OOS comparison").source = r"""
 
 Two things to keep in mind when reading the table:
 
-* The **in-sample** columns use nb02's smoothed, EM-fitted Kalman states over the whole training window —
-  a fit that looks at the future of every bar — so they overstate everything, and they can rank the two
-  configurations differently from the walk-forward folds, which filter causally. The pooled out-of-fold
-  Sharpe and equity curve in §3.6 are the right in-sample yardstick; the IS columns are here for
-  continuity with nb02.
+* The **in-sample** columns use nb02's causally-filtered Kalman states, with the EM noise parameters fitted
+  on the whole training window. No bar's signal sees its own future, but the parameters were chosen with
+  the window in hand, so these columns still flatter both configurations and can rank them differently
+  from the walk-forward folds. The pooled out-of-fold Sharpe and equity curve in §3.6 are the right
+  in-sample yardstick; the IS columns are here for continuity with nb02.
 * The **OOS** columns are the evidence, but half a year yields a handful of trades: they can show a tuned
   configuration failing, they cannot show it succeeding with any confidence.
 """
@@ -665,8 +666,8 @@ lim.source = lim.source.rstrip() + r"""
 new_cells = cells[:29] + tuning_cells + cells[29:47] + [results_cell] + cells[47:]
 nb = nbf.v4.new_notebook(cells=new_cells)
 nb.metadata = src.metadata
-parser = argparse.ArgumentParser(description="Build pairs_trading_04_hyperparameter_tuning.ipynb from nb02 (cells only).")
-parser.add_argument("--out", type=Path, default=ROOT / "pairs_trading_04_hyperparameter_tuning.ipynb",
+parser = argparse.ArgumentParser(description="Build pairs_trading_04_hyperparameter_tuning_yahoo.ipynb from nb02 (cells only).")
+parser.add_argument("--out", type=Path, default=ROOT / "pairs_trading_04_hyperparameter_tuning_yahoo.ipynb",
                     help="output path (default: the notebook under notebooks/)")
 args = parser.parse_args()
 nbf.write(nb, args.out)

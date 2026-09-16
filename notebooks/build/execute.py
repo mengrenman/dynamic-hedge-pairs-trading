@@ -1,6 +1,6 @@
 """Execute a notebook in place with the repo's kernel.
 
-    python notebooks/build/execute.py notebooks/tv_cointegration_kalman.ipynb [--kernel python3] [--timeout 3600]
+    python notebooks/build/execute.py notebooks/tv_cointegration_kalman_yahoo.ipynb [--kernel python3] [--timeout 3600]
 
 Runs with the notebook's own directory as the working directory (for the notebooks in this
 repo that is notebooks/, and they resolve the repo root as Path.cwd().parent), stores the
