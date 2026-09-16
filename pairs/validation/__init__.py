@@ -6,10 +6,12 @@ Provides walk-forward (rolling-window) back-testing helpers that prevent
 look-ahead bias and give honest out-of-sample performance estimates.
 """
 
-from .walk_forward import walk_forward_splits, walk_forward_backtest, summarize_walk_forward
+from .walk_forward import (walk_forward_splits, walk_forward_session_splits, walk_forward_backtest,
+                           summarize_walk_forward)
 
 __all__ = [
     "walk_forward_splits",
+    "walk_forward_session_splits",
     "walk_forward_backtest",
     "summarize_walk_forward",
 ]

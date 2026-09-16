@@ -3,7 +3,9 @@
 pairs: Utilities for market data access, universes, plotting, statistics, strategies, and models.
 
 Public entry points (lazy-loaded):
-- Data:         load_prices(), load_polygon_lake(), download_openbb()
+- Data:         load_prices(), load_polygon_lake(), download_openbb(),
+                load_minute_bars(), detect_lake_layout(), nyse_early_closes(), summarize_sessions(),
+                load_daily_bars(), detect_day_lake_layout(), recover_dividends(), liquidity_screen()
 - Universe:     load_universe(), list_universes()
 - Plotting:     plot_pair_legs_with_trades()
 - Statistics:   find_cointegrated_pairs_executor(), find_cointegrated_pairs_dualgate(),
@@ -13,12 +15,15 @@ Public entry points (lazy-loaded):
                 pair_return_correlations(), portfolio_diversification_score(),
                 suggest_position_weights(),
                 cusum_beta_stability(), rolling_beta_drift(),
-                summarize_hedge_ratio_stability()
+                summarize_hedge_ratio_stability(),
+                roll_spread(), realized_variance_signature(), epps_correlation(),
+                autocorr_by_interval()
 - Strategies:   estimate_halflife_window(), zscore_from_spread(),
-                generate_pair_signals(), evaluate_pair_signals(),
+                generate_pair_signals(), session_masks(), evaluate_pair_signals(),
                 market_impact_bps(),
                 CircuitBreakerConfig, apply_circuit_breaker()
-- Validation:   walk_forward_splits(), walk_forward_backtest(), summarize_walk_forward()
+- Validation:   walk_forward_splits(), walk_forward_session_splits(), walk_forward_backtest(),
+                summarize_walk_forward()
 - Models (opt): fit_kalman_hedge(), filter_kf_on_new(),
                 continue_kalman_on_window(), continue_kalman_for_pairs_joblib()
 """
@@ -33,6 +38,14 @@ __all__ = [
     "load_prices",
     "load_polygon_lake",
     "download_openbb",
+    "load_minute_bars",
+    "detect_lake_layout",
+    "nyse_early_closes",
+    "summarize_sessions",
+    "load_daily_bars",
+    "detect_day_lake_layout",
+    "recover_dividends",
+    "liquidity_screen",
     # universes
     "load_universe",
     "list_universes",
@@ -53,10 +66,16 @@ __all__ = [
     "cusum_beta_stability",
     "rolling_beta_drift",
     "summarize_hedge_ratio_stability",
+    # statistics (microstructure)
+    "roll_spread",
+    "realized_variance_signature",
+    "epps_correlation",
+    "autocorr_by_interval",
     # strategies (signals & evaluation)
     "estimate_halflife_window",
     "zscore_from_spread",
     "generate_pair_signals",
+    "session_masks",
     "evaluate_pair_signals",
     "market_impact_bps",
     # strategies (circuit breaker)
@@ -64,6 +83,7 @@ __all__ = [
     "apply_circuit_breaker",
     # validation
     "walk_forward_splits",
+    "walk_forward_session_splits",
     "walk_forward_backtest",
     "summarize_walk_forward",
     # models (Kalman) appended conditionally below
@@ -88,6 +108,14 @@ _LAZY_MAP = {
     "load_prices": ("pairs.market_data", "load_prices"),
     "load_polygon_lake": ("pairs.market_data", "load_polygon_lake"),
     "download_openbb": ("pairs.market_data", "download_openbb"),
+    "load_minute_bars": ("pairs.market_data.minute_bars", "load_minute_bars"),
+    "detect_lake_layout": ("pairs.market_data.minute_bars", "detect_lake_layout"),
+    "nyse_early_closes": ("pairs.market_data.minute_bars", "nyse_early_closes"),
+    "summarize_sessions": ("pairs.market_data.minute_bars", "summarize_sessions"),
+    "load_daily_bars": ("pairs.market_data.daily_bars", "load_daily_bars"),
+    "detect_day_lake_layout": ("pairs.market_data.daily_bars", "detect_day_lake_layout"),
+    "recover_dividends": ("pairs.market_data.daily_bars", "recover_dividends"),
+    "liquidity_screen": ("pairs.market_data.daily_bars", "liquidity_screen"),
     # universes
     "load_universe": ("pairs.universes", "load_universe"),
     "list_universes": ("pairs.universes", "list_universes"),
@@ -108,10 +136,16 @@ _LAZY_MAP = {
     "cusum_beta_stability": ("pairs.stats.stability", "cusum_beta_stability"),
     "rolling_beta_drift": ("pairs.stats.stability", "rolling_beta_drift"),
     "summarize_hedge_ratio_stability": ("pairs.stats.stability", "summarize_hedge_ratio_stability"),
+    # statistics (microstructure)
+    "roll_spread": ("pairs.stats.microstructure", "roll_spread"),
+    "realized_variance_signature": ("pairs.stats.microstructure", "realized_variance_signature"),
+    "epps_correlation": ("pairs.stats.microstructure", "epps_correlation"),
+    "autocorr_by_interval": ("pairs.stats.microstructure", "autocorr_by_interval"),
     # strategies (signals & evaluation)
     "estimate_halflife_window": ("pairs.strategies.signals", "estimate_halflife_window"),
     "zscore_from_spread": ("pairs.strategies.signals", "zscore_from_spread"),
     "generate_pair_signals": ("pairs.strategies.signals", "generate_pair_signals"),
+    "session_masks": ("pairs.strategies.signals", "session_masks"),
     "evaluate_pair_signals": ("pairs.strategies.evaluate", "evaluate_pair_signals"),
     "market_impact_bps": ("pairs.strategies.evaluate", "market_impact_bps"),
     # strategies (circuit breaker)
@@ -119,6 +153,7 @@ _LAZY_MAP = {
     "apply_circuit_breaker": ("pairs.strategies.circuit_breaker", "apply_circuit_breaker"),
     # validation
     "walk_forward_splits": ("pairs.validation.walk_forward", "walk_forward_splits"),
+    "walk_forward_session_splits": ("pairs.validation.walk_forward", "walk_forward_session_splits"),
     "walk_forward_backtest": ("pairs.validation.walk_forward", "walk_forward_backtest"),
     "summarize_walk_forward": ("pairs.validation.walk_forward", "summarize_walk_forward"),
 }
@@ -160,6 +195,8 @@ def __getattr__(name: str):
 # ---- Static imports for type checkers (no runtime cost) ----
 if TYPE_CHECKING:  # pragma: no cover
     from .market_data import load_prices, load_polygon_lake, download_openbb
+    from .market_data.minute_bars import load_minute_bars, detect_lake_layout, nyse_early_closes, summarize_sessions
+    from .market_data.daily_bars import load_daily_bars, detect_day_lake_layout, recover_dividends, liquidity_screen
     from .universes import load_universe, list_universes
     from .plotting.pair_trades import plot_pair_legs_with_trades
     from .stats.cointegration import (
@@ -182,15 +219,23 @@ if TYPE_CHECKING:  # pragma: no cover
         rolling_beta_drift,
         summarize_hedge_ratio_stability,
     )
+    from .stats.microstructure import (
+        roll_spread,
+        realized_variance_signature,
+        epps_correlation,
+        autocorr_by_interval,
+    )
     from .strategies.signals import (
         estimate_halflife_window,
         zscore_from_spread,
         generate_pair_signals,
+        session_masks,
     )
     from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
     from .strategies.circuit_breaker import CircuitBreakerConfig, apply_circuit_breaker
     from .validation.walk_forward import (
         walk_forward_splits,
+        walk_forward_session_splits,
         walk_forward_backtest,
         summarize_walk_forward,
     )

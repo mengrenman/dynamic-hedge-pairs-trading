@@ -67,7 +67,7 @@ def _kalman_dynamic_hedge(
     q: float = 1e-5,
     r: float = 1.0,
     init_cov: float = 1e6,
-    mode: Literal["smooth", "filter"] = "smooth",
+    mode: Literal["smooth", "filter"] = "filter",
     em_iters: int = 0,
     return_params: bool = False,
 ):
@@ -144,7 +144,7 @@ def kalman_dynamic_hedge_joblib(
     q: float = 1e-5,
     r: float = 1.0,
     init_cov: float = 1e6,
-    mode: Literal["smooth", "filter"] = "smooth",
+    mode: Literal["smooth", "filter"] = "filter",
     em_iters: int = 0,
     require_full_span: bool = False,
     n_workers: Optional[int] = None,
@@ -153,7 +153,29 @@ def kalman_dynamic_hedge_joblib(
     return_params: bool = False,
 ):
     """
-    Returns:
+    Fit the dynamic-hedge Kalman filter for many pairs in parallel.
+
+    Parameters
+    ----------
+    mode : {"filter", "smooth"}
+        ``"filter"`` (the default) runs the causal forward recursion: the state at bar *t* uses
+        only bars up to *t*. ``"smooth"`` runs the RTS smoother, whose state at bar *t* is
+        conditioned on the **whole sample, including bars after t**.
+
+        .. warning::
+           Never feed smoothed states to a trading signal, a backtest, a stationarity test or a
+           pair-selection score. The smoothed residual is a look-ahead: it is far more stationary
+           than anything that could have been computed at the time (on a typical pair the
+           half-life collapses by several times), which inflates Sharpe ratios and manufactures
+           "cointegration". ``"smooth"`` is for describing a hedge ratio after the fact, nothing
+           else. The default was ``"smooth"`` before this was understood.
+
+        ``return_params`` is unaffected by the choice: ``F``, ``Q`` and ``R`` come from the EM fit
+        and ``last_state_mean``/``last_state_cov`` are taken from the **filtered** recursion in both
+        modes, so an out-of-sample continuation started from them is causal either way.
+
+    Returns
+    -------
       - if return_params=False: dict[(k1,k2)] -> states DataFrame (index=datetime)
       - if return_params=True : (states_dict, params_dict)
     """

@@ -36,6 +36,7 @@ import pandas as pd
 
 __all__ = [
     "walk_forward_splits",
+    "walk_forward_session_splits",
     "walk_forward_backtest",
     "summarize_walk_forward",
 ]
@@ -114,6 +115,55 @@ def walk_forward_splits(
         splits.append((index[start:train_end], index[train_end:actual_test_end]))
         start += step_bars
 
+    return splits
+
+
+def walk_forward_session_splits(
+    index: pd.DatetimeIndex,
+    *,
+    train_sessions: int,
+    test_sessions: int,
+    step_sessions: Optional[int] = None,
+    min_test_sessions: Optional[int] = None,
+    session: Optional[np.ndarray] = None,
+) -> List[Tuple[pd.DatetimeIndex, pd.DatetimeIndex]]:
+    """
+    Walk-forward splits counted in *sessions* rather than bars, for intraday data.
+
+    Sessions are the distinct values of ``session`` (default: the calendar date of each bar).
+    Each fold trains on ``train_sessions`` consecutive sessions and tests on the following
+    ``test_sessions``; the window advances by ``step_sessions`` (default ``test_sessions``, so
+    the test folds tile the sample without overlap and their results can be pooled). A final
+    fold whose test window would be shorter than ``min_test_sessions`` (default
+    ``test_sessions``, i.e. short tails are dropped as in :func:`walk_forward_splits`) is
+    omitted; pass ``min_test_sessions=1`` to keep the tail.
+
+    Returns a list of ``(train_index, test_index)`` — the bars of those sessions.
+    """
+    if train_sessions <= 0 or test_sessions <= 0:
+        raise ValueError("train_sessions and test_sessions must be positive")
+    step_sessions = step_sessions or test_sessions
+    if step_sessions <= 0:
+        raise ValueError("step_sessions must be positive")
+    min_test_sessions = test_sessions if min_test_sessions is None else min_test_sessions
+    if not 1 <= min_test_sessions <= test_sessions:
+        raise ValueError("min_test_sessions must be between 1 and test_sessions")
+    if not isinstance(index, pd.DatetimeIndex):
+        raise TypeError("index must be a DatetimeIndex")
+    keys = np.asarray(index.normalize() if session is None else session)
+    if len(keys) != len(index):
+        raise ValueError("session must have one entry per bar")
+    uniq, first_pos = np.unique(keys, return_index=True)
+    order = np.argsort(first_pos)                    # sessions in order of appearance
+    uniq = uniq[order]
+    n = len(uniq)
+    splits = []
+    start = 0
+    while start + train_sessions + min_test_sessions <= n:
+        tr = uniq[start:start + train_sessions]
+        te = uniq[start + train_sessions:start + train_sessions + test_sessions]
+        splits.append((index[np.isin(keys, tr)], index[np.isin(keys, te)]))
+        start += step_sessions
     return splits
 
 

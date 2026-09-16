@@ -6,6 +6,7 @@ Statistics utilities for the pairs package:
 - Basic transforms (z-score utilities)
 - Portfolio analytics (cross-pair correlations, diversification, weights)
 - Hedge ratio stability tests (CUSUM, rolling drift)
+- Intraday microstructure diagnostics (Roll spread, signature plot, Epps effect)
 """
 
 from .cointegration import (
@@ -29,6 +30,12 @@ from .stability import (
     rolling_beta_drift,
     summarize_hedge_ratio_stability,
 )
+from .microstructure import (
+    roll_spread,
+    realized_variance_signature,
+    epps_correlation,
+    autocorr_by_interval,
+)
 
 __all__ = [
     "benjamini_hochberg_fdr",
@@ -46,4 +53,8 @@ __all__ = [
     "cusum_beta_stability",
     "rolling_beta_drift",
     "summarize_hedge_ratio_stability",
+    "roll_spread",
+    "realized_variance_signature",
+    "epps_correlation",
+    "autocorr_by_interval",
 ]

@@ -239,3 +239,61 @@ class TestWalkForwardBacktest:
             eval_fn=_trivial_eval, verbose=False,
         )
         assert list(results.index) == list(range(1, len(results) + 1))
+
+
+# ── session-based splits for intraday bars ────────────────────────────────────
+
+from pairs.validation.walk_forward import walk_forward_session_splits
+
+
+def _intraday_index(n_sessions: int, bars: int = 5) -> pd.DatetimeIndex:
+    days = pd.bdate_range("2024-01-01", periods=n_sessions)
+    return pd.DatetimeIndex(np.concatenate(
+        [pd.date_range(d + pd.Timedelta(hours=9, minutes=30), periods=bars, freq="min") for d in days]))
+
+
+class TestSessionSplits:
+    def test_folds_count_sessions_not_bars(self):
+        idx = _intraday_index(10, bars=5)
+        splits = walk_forward_session_splits(idx, train_sessions=4, test_sessions=2)
+        assert len(splits) == 3                                   # sessions 0-3|4-5, 2-5|6-7, 4-7|8-9
+        tr, te = splits[0]
+        assert len(tr) == 20 and len(te) == 10
+        assert tr.normalize().nunique() == 4 and te.normalize().nunique() == 2
+        assert tr[-1] < te[0]
+
+    def test_test_folds_tile_without_overlap_by_default(self):
+        idx = _intraday_index(12, bars=3)
+        splits = walk_forward_session_splits(idx, train_sessions=3, test_sessions=3)
+        tests = [te for _, te in splits]
+        assert len(splits) == 3
+        for a, b in zip(tests, tests[1:]):
+            assert a[-1] < b[0]
+        assert sum(len(t) for t in tests) == 27                   # sessions 3..11
+
+    def test_step_and_short_tail_dropped(self):
+        idx = _intraday_index(10, bars=2)
+        splits = walk_forward_session_splits(idx, train_sessions=4, test_sessions=3, step_sessions=1)
+        assert len(splits) == 4                                   # starts 0,1,2,3 (3+4+3=10 fits; 4 does not)
+        assert all(te.normalize().nunique() == 3 for _, te in splits)
+
+    def test_min_test_sessions_keeps_the_tail(self):
+        idx = _intraday_index(11, bars=2)
+        default = walk_forward_session_splits(idx, train_sessions=4, test_sessions=3)
+        assert len(default) == 2                                  # 4|3, 4|3 -> sessions 0..9; session 10 dropped
+        tail = walk_forward_session_splits(idx, train_sessions=4, test_sessions=3, min_test_sessions=1)
+        assert len(tail) == 3 and tail[-1][1].normalize().nunique() == 1
+        with pytest.raises(ValueError):
+            walk_forward_session_splits(idx, train_sessions=4, test_sessions=3, min_test_sessions=4)
+
+    def test_custom_session_keys_and_validation(self):
+        idx = _intraday_index(6, bars=2)
+        keys = np.repeat(np.arange(3), 4)                         # two calendar days per "session"
+        splits = walk_forward_session_splits(idx, train_sessions=1, test_sessions=1, session=keys)
+        assert len(splits) == 2 and len(splits[0][0]) == 4
+        with pytest.raises(ValueError):
+            walk_forward_session_splits(idx, train_sessions=0, test_sessions=1)
+        with pytest.raises(ValueError):
+            walk_forward_session_splits(idx, train_sessions=1, test_sessions=1, session=keys[:-1])
+        with pytest.raises(TypeError):
+            walk_forward_session_splits(pd.RangeIndex(10), train_sessions=1, test_sessions=1)

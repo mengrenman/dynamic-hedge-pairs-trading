@@ -32,6 +32,7 @@ __all__ = [
     "estimate_halflife_window",
     "zscore_from_spread",
     "generate_pair_signals",
+    "session_masks",
 ]
 
 # ---- 1) Half-life → window helper -------------------------------------------
@@ -75,7 +76,11 @@ def zscore_from_spread(
         bars of `spread` have a full look-back instead of NaN. Only the entries
         aligned with `spread` are returned. Standard rolling semantics apply across
         the join: a NaN within the last `window` bars of `history` leaves the
-        z-score undefined for up to `window` bars into `spread`.
+        z-score undefined for up to `window` bars into `spread`. Note that the
+        "robust" estimator chains two rolling medians (the level, then the MAD of the
+        deviations from it), so it needs **2 × window − 1** bars of history for the
+        first bar of `spread` to be defined; "rolling" and "ewm" need `window` (or a
+        few half-lives). Pass a generous history rather than exactly `window` bars.
 
     Returns a Series aligned to the input index.
     """
@@ -132,6 +137,9 @@ def generate_pair_signals(
     max_hold_bars: int | None = None,
     cooldown_bars: int = 0,
     exec_lag: int = 1,              # execute on the next bar by default (no look-ahead)
+    force_flat: pd.Series | np.ndarray | None = None,
+    block_entry: pd.Series | np.ndarray | None = None,
+    initial_position: tuple[int, float, float] | None = None,
 ) -> pd.DataFrame:
     """
     Generate entry/exit/stop signals and target sizes for a pair.
@@ -150,11 +158,26 @@ def generate_pair_signals(
         from this history and warmed up on it, so an out-of-sample window never
         informs its own z-score (see zscore_from_spread). Strongly recommended
         for walk-forward / OOS evaluation.
-    z_entry, z_exit, z_stop : thresholds on |z|
+    z_entry, z_exit, z_stop : thresholds on |z|. Entries are taken only while
+        ``z_entry <= |z| < z_stop``; at or beyond the stop level no position is opened
+        (it would be stopped out at once), so after a stop the spread has to come back
+        inside the band before the pair is traded again.
     capital_per_pair : notional used to size N1/N2 dollar-neutral targets
     max_hold_bars : optional cap on holding period
     cooldown_bars : bars to wait after a flatting event before re-entry
     exec_lag : shift signals forward by this many bars to emulate next-bar execution
+    force_flat : optional boolean mask aligned to df_pair. Where True the decision is "flat":
+        an open position is closed (logged as an exit) and no entry is taken. Session rules
+        for intraday bars are built from it, e.g. the last ``exec_lag`` bars of each session so
+        that nothing is carried overnight after the execution lag is applied.
+    block_entry : optional boolean mask aligned to df_pair. Where True no new position is
+        opened; an open position is managed as usual (e.g. no entries late in the session).
+    initial_position : optional ``(pos, n1, n2)`` — the executed holdings when the window
+        begins, e.g. the last row of the previous walk-forward fold's signals. The state
+        machine starts in that position (managed from the first bar: exit, stop and stop-loss
+        rules apply, and the sizes are refreshed to the window's own hedge ratio), and the
+        first ``exec_lag`` bars execute those holdings instead of being flat, so consecutive
+        folds can be stitched into one continuous position path.
 
     Returns
     -------
@@ -171,6 +194,19 @@ def generate_pair_signals(
                                  history=z_history)
 
     n = len(df)
+
+    def _mask(m, name):
+        if m is None:
+            return np.zeros(n, dtype=bool)
+        if isinstance(m, pd.Series):
+            m = m.reindex(df.index).fillna(False)
+        m = np.asarray(m, dtype=bool)
+        if m.shape != (n,):
+            raise ValueError(f"{name} must have one entry per row of df_pair ({n}), got shape {m.shape}")
+        return m
+    flat_mask  = _mask(force_flat, "force_flat")
+    block_mask = _mask(block_entry, "block_entry")
+
     pos_dec  = np.zeros(n, dtype=int)     # decision at time t (pre-execution)
     n1_dec   = np.zeros(n, dtype=float)
     n2_dec   = np.zeros(n, dtype=float)
@@ -178,7 +214,11 @@ def generate_pair_signals(
     exit_dec = np.zeros(n, dtype=bool)
     stop_dec = np.zeros(n, dtype=bool)
 
-    pos = 0
+    pos0, n1_0, n2_0 = (0, 0.0, 0.0) if initial_position is None else initial_position
+    pos0 = int(np.sign(pos0))
+    if pos0 == 0:
+        n1_0, n2_0 = 0.0, 0.0
+    pos = pos0
     hold = 0
     cooldown = 0
 
@@ -196,13 +236,18 @@ def generate_pair_signals(
 
         if cooldown > 0:
             cooldown -= 1
-        can_enter = (cooldown == 0)
+        can_enter = (cooldown == 0) and not block_mask[t] and not flat_mask[t]
 
         # Decide using info up to and including t
-        if pos == 0 and can_enter:
-            if z <= -z_entry:
+        if flat_mask[t] and pos != 0:
+            pos = 0; exit_dec[t] = True; hold = 0; cooldown = cooldown_bars
+        elif pos == 0 and can_enter:
+            # enter only inside the band [z_entry, z_stop): a position opened at or beyond the stop
+            # level would be stopped out on the next bar, and re-opened, for as long as the
+            # excursion lasts — paying costs every bar
+            if -z_stop < z <= -z_entry:
                 pos = +1; hold = 1; ent_dec[t] = True
-            elif z >= +z_entry:
+            elif z_entry <= z < z_stop:
                 pos = -1; hold = 1; ent_dec[t] = True
         elif pos == +1:
             hold += 1
@@ -235,9 +280,9 @@ def generate_pair_signals(
     # --- Execution alignment ---
     if exec_lag < 0:
         raise ValueError("exec_lag must be >= 0")
-    pos_exe  = pd.Series(pos_dec).shift(exec_lag, fill_value=0).astype(int).values
-    n1_exe   = pd.Series(n1_dec).shift(exec_lag, fill_value=0.0).values
-    n2_exe   = pd.Series(n2_dec).shift(exec_lag, fill_value=0.0).values
+    pos_exe  = pd.Series(pos_dec).shift(exec_lag, fill_value=pos0).astype(int).values
+    n1_exe   = pd.Series(n1_dec).shift(exec_lag, fill_value=float(n1_0)).values
+    n2_exe   = pd.Series(n2_dec).shift(exec_lag, fill_value=float(n2_0)).values
     entry_ex = pd.Series(ent_dec).shift(exec_lag, fill_value=False).astype(bool).values
     exit_ex  = pd.Series(exit_dec).shift(exec_lag, fill_value=False).astype(bool).values
     stop_ex  = pd.Series(stop_dec).shift(exec_lag, fill_value=False).astype(bool).values
@@ -255,3 +300,46 @@ def generate_pair_signals(
         index=df.index,
     )
     return out
+
+
+# ---- 4) Session rules for intraday bars ------------------------------------
+def session_masks(
+    index: pd.DatetimeIndex,
+    *,
+    exec_lag: int = 1,
+    flatten: bool = True,
+    no_entry_after: Optional[str] = None,
+    session: Optional[np.ndarray] = None,
+) -> tuple[pd.Series, pd.Series]:
+    """
+    Build the ``force_flat`` / ``block_entry`` masks for :func:`generate_pair_signals` from
+    session rules on intraday bars.
+
+    - ``flatten``: the last ``exec_lag`` bars of every session decide "flat", so that after the
+      execution lag the position is closed on the session's final bar and nothing is carried
+      overnight. (With ``exec_lag=1`` only the last bar is flagged; its flat decision executes
+      on the next bar, i.e. the first bar of the next session — which is why the last bar's own
+      P&L is still earned. The final bar's price is the last minute's close, not the closing
+      auction.)
+    - ``no_entry_after``: a time of day such as ``"15:30"``; bars at or after it never open a
+      position (open positions are managed as usual).
+
+    Sessions default to the calendar date of each bar. Returns ``(force_flat, block_entry)``
+    boolean Series aligned to ``index``.
+    """
+    if exec_lag < 0:
+        raise ValueError("exec_lag must be >= 0")
+    idx = pd.DatetimeIndex(index)
+    keys = np.asarray(idx.normalize() if session is None else session)
+    if len(keys) != len(idx):
+        raise ValueError("session must have one entry per bar")
+    pos_from_end = pd.Series(np.arange(len(idx))).groupby(keys, sort=False).cumcount(ascending=False).to_numpy()
+    flat = np.zeros(len(idx), dtype=bool)
+    if flatten and exec_lag > 0:
+        flat = pos_from_end < exec_lag
+    block = flat.copy()
+    if no_entry_after is not None:
+        t = pd.Timestamp(f"2000-01-01 {no_entry_after}")
+        cutoff = t.hour * 60 + t.minute
+        block |= (idx.hour * 60 + idx.minute) >= cutoff
+    return pd.Series(flat, index=idx, name="force_flat"), pd.Series(block, index=idx, name="block_entry")

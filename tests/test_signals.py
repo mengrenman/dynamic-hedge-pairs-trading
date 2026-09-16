@@ -197,3 +197,205 @@ class TestZscoreHistory:
         assert sig_plain["z"].iloc[:29].isna().all()
         assert sig_hist["z"].notna().all()
         assert sig_hist.index.equals(df_test.index)
+
+
+# ── session masks: force_flat / block_entry ───────────────────────────────────
+
+def _two_session_pair(n_per_session: int = 6) -> pd.DataFrame:
+    """
+    Two sessions of minute bars. The residual trends up one unit per bar, so with a 2-bar
+    rolling z-score z = +1 on every bar after the first: a z_entry of 1 opens a short spread
+    at once and, with z_exit below 1, nothing ever closes it — unless a mask says so.
+    """
+    idx = pd.DatetimeIndex(
+        list(pd.date_range("2024-01-02 09:30", periods=n_per_session, freq="min"))
+        + list(pd.date_range("2024-01-03 09:30", periods=n_per_session, freq="min"))
+    )
+    resid = np.arange(len(idx), dtype=float)
+    return pd.DataFrame({"resid": resid, "beta": 1.0, "P1": 100.0, "P2": 50.0}, index=idx)
+
+
+def _last_bar_of_session(index: pd.DatetimeIndex) -> pd.Series:
+    session = index.normalize()
+    nxt = np.append(session[1:], [session[-1] + pd.Timedelta(days=99)])
+    return pd.Series(session != nxt, index=index)
+
+
+class TestSessionMasks:
+    kw = dict(z_method="rolling", z_window=2, z_entry=1.0, z_exit=0.5, z_stop=100.0)
+
+    def test_default_carries_position_across_sessions(self):
+        df = _two_session_pair()
+        sig = generate_pair_signals(df, **self.kw)
+        assert (sig["pos"].iloc[2:] == -1).all()          # entered at bar 1, executed bar 2, never closed
+
+    def test_force_flat_on_last_bar_closes_overnight_exposure(self):
+        df = _two_session_pair()
+        flat = _last_bar_of_session(df.index)
+        sig = generate_pair_signals(df, force_flat=flat, **self.kw)
+        assert sig["pos"].iloc[5] == -1                    # held through the last bar of session 1
+        assert sig["pos"].iloc[6] == 0                     # flat decision at bar 5 -> executed at bar 6
+        assert bool(sig["exit"].iloc[6])
+        assert sig["pos"].iloc[7] == -1                    # re-entered on bar 6, executed bar 7
+        assert (sig["pos"].iloc[7:] == -1).all()
+
+    def test_force_flat_covers_exec_lag(self):
+        df = _two_session_pair()
+        session = df.index.normalize()
+        last = _last_bar_of_session(df.index)
+        two_last = last | last.shift(-1, fill_value=False)   # last two bars of each session
+        sig = generate_pair_signals(df, force_flat=two_last, exec_lag=2, **self.kw)
+        assert sig["pos"].iloc[6] == 0 and sig["pos"].iloc[7] == 0   # first two bars of session 2 flat
+        assert sig["pos"].iloc[5] == -1
+
+    def test_block_entry_prevents_new_positions_only(self):
+        df = _two_session_pair()
+        block = pd.Series(False, index=df.index)
+        block.iloc[:6] = True                              # no entries in session 1
+        sig = generate_pair_signals(df, block_entry=block, **self.kw)
+        assert (sig["pos"].iloc[:7] == 0).all()            # session-1 decisions (executed through bar 6) flat
+        assert (sig["pos"].iloc[7:] == -1).all()           # session 2 enters at once
+        block2 = pd.Series(False, index=df.index)
+        block2.iloc[6:] = True                             # blocking entries does not close an open position
+        sig2 = generate_pair_signals(df, block_entry=block2, **self.kw)
+        assert (sig2["pos"].iloc[2:] == -1).all()
+
+    def test_masks_align_by_index_and_validate_length(self):
+        df = _two_session_pair()
+        partial = pd.Series(True, index=df.index[:3])      # reindexed; missing entries mean False
+        sig = generate_pair_signals(df, force_flat=partial, **self.kw)
+        assert (sig["pos"].iloc[4:] == -1).all()           # bars 0-2 flat decisions; entry at bar 3, executed bar 4
+        with pytest.raises(ValueError, match="force_flat"):
+            generate_pair_signals(df, force_flat=np.ones(3, dtype=bool), **self.kw)
+
+    def test_masks_default_to_no_change(self):
+        df = _two_session_pair()
+        a = generate_pair_signals(df, **self.kw)
+        b = generate_pair_signals(df, force_flat=None, block_entry=None, **self.kw)
+        pd.testing.assert_frame_equal(a, b)
+
+
+# ── session_masks ─────────────────────────────────────────────────────────────
+
+from pairs.strategies.signals import session_masks
+
+
+class TestSessionMasksHelper:
+    def _idx(self):
+        return pd.DatetimeIndex(
+            list(pd.date_range("2024-01-02 09:30", periods=390, freq="min"))
+            + list(pd.date_range("2024-01-03 09:30", periods=210, freq="min")))   # second day an early close
+
+    def test_flatten_flags_last_exec_lag_bars(self):
+        idx = self._idx()
+        flat, block = session_masks(idx, exec_lag=1)
+        assert flat.sum() == 2 and flat.loc["2024-01-02 15:59"] and flat.loc["2024-01-03 12:59"]
+        flat2, _ = session_masks(idx, exec_lag=2)
+        assert flat2.sum() == 4 and flat2.loc["2024-01-02 15:58"]
+        assert (block == flat).all()                              # no cutoff: block only where flat
+
+    def test_no_entry_after_cutoff(self):
+        idx = self._idx()
+        flat, block = session_masks(idx, exec_lag=1, no_entry_after="15:30")
+        assert not flat.loc["2024-01-02 15:30"] and block.loc["2024-01-02 15:30"]
+        assert not block.loc["2024-01-02 15:29"]
+        assert block.loc["2024-01-02 15:30":"2024-01-02 15:59"].all()
+        assert not block.loc["2024-01-03 12:00"]                  # early-close day never reaches the cutoff
+
+    def test_no_flatten(self):
+        idx = self._idx()
+        flat, block = session_masks(idx, flatten=False, no_entry_after="15:45")
+        assert not flat.any() and block.sum() == 15
+
+    def test_feeds_generate_pair_signals(self):
+        df = _two_session_pair()
+        flat, block = session_masks(df.index, exec_lag=1)
+        sig = generate_pair_signals(df, force_flat=flat, block_entry=block, **TestSessionMasks.kw)
+        assert sig["pos"].iloc[6] == 0 and sig["pos"].iloc[5] == -1
+
+
+# ── initial_position: stitching walk-forward folds ────────────────────────────
+
+class TestInitialPosition:
+    kw = dict(z_method="rolling", z_window=2, z_entry=1.0, z_exit=0.5, z_stop=100.0)
+
+    def test_default_starts_flat(self):
+        df = _two_session_pair()
+        sig = generate_pair_signals(df, **self.kw)
+        assert sig["pos"].iloc[0] == 0 and sig["n1"].iloc[0] == 0.0
+
+    def test_carried_position_executes_from_the_first_bar(self):
+        df = _two_session_pair()
+        hist = pd.Series([-1.0])                                   # warm-up so z is defined on the first bar
+        sig = generate_pair_signals(df, z_history=hist, initial_position=(-1, -40.0, 40.0), **self.kw)
+        assert sig["pos"].iloc[0] == -1 and sig["n1"].iloc[0] == -40.0 and sig["n2"].iloc[0] == 40.0
+        # from bar 1 the sizes are the window's own (dollar-neutral at its prices), same side
+        assert sig["pos"].iloc[1] == -1 and sig["n1"].iloc[1] != -40.0
+        assert not sig["entry"].any()                              # never re-entered: it was already short
+
+    def test_carried_position_is_managed_by_the_rules(self):
+        df = _two_session_pair()
+        df["resid"] = 0.0                                          # z = NaN (zero std) -> "no information" -> flat
+        sig = generate_pair_signals(df, initial_position=(1, 50.0, -50.0), **self.kw)
+        assert sig["pos"].iloc[0] == 1 and (sig["pos"].iloc[1:] == 0).all()
+
+    def test_stitching_two_folds_equals_one_run(self):
+        df = _two_session_pair(n_per_session=8)
+        whole = generate_pair_signals(df, **self.kw)
+        a = generate_pair_signals(df.iloc[:8], **self.kw)
+        last = a.iloc[-1]
+        b = generate_pair_signals(df.iloc[8:], z_history=df["resid"].iloc[:8],      # the look-back carries over too
+                                  initial_position=(int(last["pos"]), float(last["n1"]), float(last["n2"])), **self.kw)
+        stitched = pd.concat([a, b])
+        pd.testing.assert_series_equal(stitched["pos"], whole["pos"])
+        # holdings agree except on the boundary bar, where the second fold re-sizes to its own first prices
+        assert np.allclose(stitched["n1"].iloc[:8], whole["n1"].iloc[:8]) and np.allclose(stitched["n1"].iloc[9:], whole["n1"].iloc[9:])
+
+    def test_zero_initial_position_ignores_sizes(self):
+        df = _two_session_pair()
+        a = generate_pair_signals(df, initial_position=(0, 12.0, -3.0), **self.kw)
+        b = generate_pair_signals(df, **self.kw)
+        pd.testing.assert_frame_equal(a, b)
+
+
+def test_robust_zscore_needs_two_windows_of_history():
+    rng = np.random.default_rng(1)
+    hist = pd.Series(rng.normal(size=200))
+    s = pd.Series(rng.normal(size=50))
+    z_one = zscore_from_spread(s, "robust", window=20, history=hist.iloc[-20:])
+    z_two = zscore_from_spread(s, "robust", window=20, history=hist.iloc[-39:])
+    assert z_one.iloc[:18].isna().all() and z_one.iloc[18:].notna().all()   # window-2 bars lost with one window of history
+    assert z_two.notna().all()
+    z_roll = zscore_from_spread(s, "rolling", window=20, history=hist.iloc[-20:])
+    assert z_roll.notna().all()
+
+
+class TestNoEntryBeyondStop:
+    def _df(self, z_path):
+        # a residual whose 2-bar rolling z reproduces z_path is awkward; use z_history=None with a
+        # long flat history so rolling mean 0 / std 1 and the residual IS the z-score
+        n = len(z_path)
+        idx = pd.date_range("2024-01-02 09:30", periods=n, freq="min")
+        return pd.DataFrame({"resid": z_path, "beta": 1.0, "P1": 100.0, "P2": 50.0}, index=idx)
+
+    def _hist(self):
+        rng = np.random.default_rng(0)
+        h = rng.normal(size=400)
+        return pd.Series((h - h.mean()) / h.std(ddof=0))                 # mean 0, std 1 -> z ≈ resid
+
+    def test_entry_at_or_beyond_stop_is_not_taken(self):
+        df = self._df([0.0, 4.5, 4.6, 4.7, 0.0, 0.0])
+        sig = generate_pair_signals(df, z_method="rolling", z_window=400, z_history=self._hist(),
+                                    z_entry=2.0, z_exit=0.5, z_stop=4.0)
+        assert not sig["entry"].any() and (sig["pos"] == 0).all()
+
+    def test_reentry_only_once_back_inside_the_band(self):
+        # enter at 2.5, blow out to 4.5 (stop), stay at 4.5 (no re-entry), come back to 3 (re-entry), revert to 0 (exit)
+        df = self._df([0.0, 2.5, 4.5, 4.5, 4.5, 3.0, 3.0, 0.0, 0.0])
+        sig = generate_pair_signals(df, z_method="rolling", z_window=400, z_history=self._hist(),
+                                    z_entry=2.0, z_exit=0.5, z_stop=4.0)
+        ent = list(np.flatnonzero(sig["entry"].to_numpy()))
+        stp = list(np.flatnonzero(sig["stop"].to_numpy()))
+        assert stp == [3]                                   # stop decided at bar 2, executed bar 3
+        assert ent == [2, 6]                                # entries decided at bars 1 and 5 (executed +1)
+        assert (sig["pos"].iloc[4:6] == 0).all()            # flat while |z| >= stop
