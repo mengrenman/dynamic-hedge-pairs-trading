@@ -64,6 +64,8 @@ def plot_pair_legs_with_trades(
     z_exit: float | None = None,
     z_stop: float | None = None,
     z_clip: float = 15.0,
+    x_positional: bool = False,
+    session_lines: bool = True,
     shade_color: str = "0.85",
     shade_alpha: float = 0.25,  # robust, light shading
     size_scale: float = 0.002,
@@ -125,6 +127,19 @@ def plot_pair_legs_with_trades(
     s1_series = pd.Series(s1, index=buy1_idx.union(sell1_idx))
     s2_series = pd.Series(s2, index=buy2_idx.union(sell2_idx))
 
+    # --- X coordinate -----------------------------------------------------------
+    # On intraday bars a datetime axis is mostly empty: a 30-minute bar spans 30
+    # minutes and an overnight gap spans 17.5 hours, so ~83% of the width is dead
+    # space with connector lines drawn across it.  x_positional plots against bar
+    # number instead and labels the ticks with dates.
+    if x_positional:
+        X = np.arange(len(df), dtype=float)
+        xpos = pd.Series(X, index=df.index)
+        at = lambda ts_index: xpos.reindex(ts_index).to_numpy()
+    else:
+        X = df.index
+        at = lambda ts_index: ts_index
+
     # --- Figure & axes ---
     if show_zscore:
         if "z" not in df.columns:
@@ -143,14 +158,15 @@ def plot_pair_legs_with_trades(
         pos_mask = df["pos"].astype(float).fillna(0.0).ne(0)
         for a in panels:
             for start, end in _spans_from_bool(pos_mask):
-                a.axvspan(start, end, color=shade_color, alpha=shade_alpha, zorder=0)
+                lo, hi = (float(xpos[start]), float(xpos[end])) if x_positional else (start, end)
+                a.axvspan(lo, hi, color=shade_color, alpha=shade_alpha, zorder=0)
 
     # --- Leg 1 ---
-    ax1.plot(df.index, df["P1_plot"], linewidth=1.2, label=label1, zorder=2)
-    ax1.scatter(buy1_idx,  df.loc[buy1_idx,  "P1_plot"], marker="^",
+    ax1.plot(X, df["P1_plot"], linewidth=1.2, label=label1, zorder=2)
+    ax1.scatter(at(buy1_idx),  df.loc[buy1_idx,  "P1_plot"], marker="^",
                 s=s1_series.reindex(buy1_idx).fillna(min_marker), label="Buy n1",
                 color=buy_color, zorder=3)
-    ax1.scatter(sell1_idx, df.loc[sell1_idx, "P1_plot"], marker="v",
+    ax1.scatter(at(sell1_idx), df.loc[sell1_idx, "P1_plot"], marker="v",
                 s=s1_series.reindex(sell1_idx).fillna(min_marker), label="Sell n1",
                 color=sell_color, zorder=3)
     ax1.set_ylabel(ylab)
@@ -158,11 +174,11 @@ def plot_pair_legs_with_trades(
     ax1.legend(loc="upper left")
 
     # --- Leg 2 ---
-    ax2.plot(df.index, df["P2_plot"], linewidth=1.2, label=label2, linestyle="--", zorder=2)
-    ax2.scatter(buy2_idx,  df.loc[buy2_idx,  "P2_plot"], marker="^",
+    ax2.plot(X, df["P2_plot"], linewidth=1.2, label=label2, linestyle="--", zorder=2)
+    ax2.scatter(at(buy2_idx),  df.loc[buy2_idx,  "P2_plot"], marker="^",
                 s=s2_series.reindex(buy2_idx).fillna(min_marker), label="Buy n2",
                 color=buy_color, zorder=3)
-    ax2.scatter(sell2_idx, df.loc[sell2_idx, "P2_plot"], marker="v",
+    ax2.scatter(at(sell2_idx), df.loc[sell2_idx, "P2_plot"], marker="v",
                 s=s2_series.reindex(sell2_idx).fillna(min_marker), label="Sell n2",
                 color=sell_color, zorder=3)
     ax2.set_ylabel(ylab)
@@ -172,7 +188,7 @@ def plot_pair_legs_with_trades(
     # --- Spread z-score: the signal the trades above are a consequence of -------
     if ax3 is not None:
         z = df["z"].astype(float)
-        ax3.plot(z.index, z, linewidth=1.2, color="tab:blue", label="z of spread", zorder=2)
+        ax3.plot(X, z.to_numpy(), linewidth=1.2, color="tab:blue", label="z of spread", zorder=2)
         ax3.axhline(0.0, color="k", linewidth=0.9, zorder=1)
         for lv, colour, name in ((z_entry, sell_color, "entry"),
                                  (z_exit, buy_color, "exit"),
@@ -193,12 +209,12 @@ def plot_pair_legs_with_trades(
             if len(opens):
                 long_spread = opens[pos.reindex(opens) > 0]
                 short_spread = opens[pos.reindex(opens) < 0]
-                ax3.scatter(long_spread, z.reindex(long_spread), marker="^", s=55,
+                ax3.scatter(at(long_spread), z.reindex(long_spread), marker="^", s=55,
                             color=buy_color, zorder=4, label="open long spread")
-                ax3.scatter(short_spread, z.reindex(short_spread), marker="v", s=55,
+                ax3.scatter(at(short_spread), z.reindex(short_spread), marker="v", s=55,
                             color=sell_color, zorder=4, label="open short spread")
             if len(closes):
-                ax3.scatter(closes, z.reindex(closes), marker="x", s=55, linewidths=1.6,
+                ax3.scatter(at(closes), z.reindex(closes), marker="x", s=55, linewidths=1.6,
                             color="0.25", zorder=4, label="close")
 
         # Scale the panel to the region that matters -- the bands and the bulk of the
@@ -228,6 +244,22 @@ def plot_pair_legs_with_trades(
 
     # with two panels the caption sits under the pair (unchanged); with three it
     # belongs on top, because the z-score panel carries its own title
+    # --- session separators and date ticks on the positional axis ---------------
+    if x_positional:
+        days = pd.Series(df.index.normalize(), index=df.index)
+        new_day = days.ne(days.shift(1))
+        starts = np.flatnonzero(new_day.to_numpy())
+        if session_lines and len(starts) <= 60:
+            for a in panels:
+                for b in starts[1:]:
+                    a.axvline(b - 0.5, color="0.80", lw=0.6, zorder=0)
+        step = max(1, len(starts) // 10)
+        ticks = starts[::step]
+        panels[-1].set_xticks(ticks)
+        panels[-1].set_xticklabels([df.index[t].strftime("%Y-%m-%d") for t in ticks],
+                                   rotation=30, ha="right")
+        panels[-1].set_xlabel(f"bar ({len(starts)} sessions)")
+
     legs_title = f"Trades superimposed on each leg • {label1} (top), {label2} (bottom)"
     (ax1 if ax3 is not None else ax2).set_title(legs_title)
     plt.tight_layout()

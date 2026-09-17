@@ -55,7 +55,8 @@ from joblib import Parallel, delayed
 import pairs
 from pairs import (load_universe, load_minute_bars, summarize_sessions, find_cointegrated_pairs_dualgate,
                    filter_kf_on_new, generate_pair_signals, evaluate_pair_signals, estimate_halflife,
-                   estimate_halflife_window, session_masks, walk_forward_session_splits)
+                   estimate_halflife_window, session_masks, walk_forward_session_splits,
+                   plot_pair_legs_with_trades)
 from pairs.models.kalman import _kalman_dynamic_hedge
 
 LAKE        = Path(os.environ.get("MINUTE_LAKE", Path.home() / "local/parquet_lake/minute_adj"))
@@ -302,6 +303,52 @@ it would not once costs are paid on more trades. And the 1.5 pooled out-of-fold 
 not carry — with a standard error of 0.7 on that number and 1.3 on this one the two are about 1.2
 standard errors apart: a disappointment, not a contradiction, and what "indistinguishable from zero"
 looks like when the sample is extended.
+""")
+md(r"""
+## 2.5 One pair over the hold-out — what "flat" actually looks like
+
+The table above is a portfolio aggregate over ten pairs. Notebooks 01–04 and 09 open a single position in
+detail; this is that view on intraday bars, for the pair that moved the most over the hold-out.
+
+Two adaptations are needed. The x-axis is **bar number, not calendar time** — a 30-minute bar spans half an
+hour while an overnight gap spans seventeen, so a datetime axis hands a holiday-shortened week the same
+width as a full one. And the z panel is clamped, because a spread that gaps overnight can print a z far
+outside the bands and would otherwise squash them into a sliver.
+""")
+code(r"""
+contrib = res_main["pnl"].sum().sort_values(key=abs, ascending=False)
+print("hold-out P&L by pair ($):")
+display(contrib.round(1).to_frame("P&L ($)"))
+
+PICK = contrib.index[0]
+states_pick = pd.concat([it["states"] for it in by_pair(fits_h)[PICK]])
+sig_pick    = res_main["signals"][PICK]
+t1, t2 = PICK
+print(f"\nshowing {t1}/{t2}: {len(states_pick):,} bars over "
+      f"{states_pick.index.normalize().nunique()} sessions, "
+      f"{int(sig_pick['pos'].ne(0).sum()):,} of them in position "
+      f"({sig_pick['pos'].ne(0).mean():.1%}), P&L ${contrib.iloc[0]:,.0f}")
+""")
+code(r"""
+_ = plot_pair_legs_with_trades(
+    states_pick[["P1", "P2"]], sig_pick, label1=t1, label2=t2,
+    normalize=False, shade_positions=True, size_scale=0.004, min_marker=20, max_marker=220,
+    show_zscore=True, z_entry=CFG["z_entry"], z_exit=CFG["z_exit"], z_stop=CFG["z_stop"],
+    x_positional=True,          # equal width per bar; overnight gaps do not distort the axis
+)
+""")
+md(r"""
+The shading answers a question the aggregate tables cannot: **how much of the hold-out is spent holding
+anything at all.** Barely any of it — the cell above prints the exact share, and it is under a tenth of the
+bars, concentrated in one or two bursts out of 153 sessions. That is why a hold-out this long still yields
+a trade count in the dozens, and why its Sharpe carries a standard error above one.
+
+It is worth sitting with, because the summary table invites the opposite picture. A row reading "ten pairs,
+153 sessions" suggests a book that is continuously invested and diversified across names. What the shading
+shows is a book that is flat almost all the time and, when it is on, is usually on in one pair at a time.
+The capital is committed for the whole window; the *risk* is taken in a handful of episodes. Any annualised
+number computed over the full window — Sharpe included — is describing a strategy that was mostly doing
+nothing.
 
 ## 3. Latency
 
