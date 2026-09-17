@@ -238,6 +238,71 @@ capital base, a dollar-neutral hedge ratio, a \$5 minimum-price filter. A backte
 from one source and position sizes from another is silently wrong, and nothing in the output looks odd.
 """)
 
+code(r"""
+# Before reaching for an outside source: can we at least tell a BASIS difference from a
+# CORRUPT feed?  Yes.  A split rescales price and share count inversely, so price x volume
+# is invariant to it.  If the dollar volumes agree, the two files hold the same trades.
+raw_bk = load_daily_bars(["BKNG", "MA"], START, END, MARKET, price="raw")
+inv = []
+for t in ("BKNG", "MA"):
+    ys = yah.xs(t, level="ticker")
+    ls = raw_bk.xs(t, level="ticker")
+    g2 = ys.index.intersection(ls.index)
+    ys, ls = ys.loc[g2], ls.loc[g2]
+    inv.append({"ticker": t,
+                "price ratio":         float((ys["close"] / ls["close"]).median()),
+                "volume ratio":        float((ys["volume"] / ls["volume"]).median()),
+                "dollar-volume ratio": float(((ys["close"] * ys["volume"]) /
+                                              (ls["close"] * ls["volume"])).median())})
+display(pd.DataFrame(inv).set_index("ticker").round(4))
+
+# the dividend column is denominated in the same basis -- a third, independent check
+for t in ("BKNG", "MA"):
+    d = yah.xs(t, level="ticker")["dividend"]
+    nz = d[d.notna() & d.ne(0.0)]
+    print(f"  {t}: {len(nz):2d} dividends recorded, last ${nz.iloc[-1]:.4f} on {nz.index[-1].date()}")
+""")
+
+md(r"""
+### 3.1 Is one of them simply wrong?
+
+Booking's price ratio is 1/25 and its **volume** ratio is 25, so the dollar volumes match to about a tenth
+of a percent — ordinary vendor disagreement over consolidated against primary-exchange share counts.
+Mastercard, whose price agrees, shows a volume ratio of 1 and the same residual noise. The two files hold
+the **same trades**.
+
+The dividend column says it a third way. Booking initiated a dividend in the first quarter of 2024, so
+eight quarters fall inside this cache; the last is recorded as **\$0.3840**, which is \$9.60 ÷ 25.
+Mastercard's is recorded at **\$0.76**, unscaled and correct. A corrupt feed does not rescale price, volume
+*and* dividends coherently. This is a basis difference rather than an error, and establishing that much
+took nothing but the two files.
+
+**Establishing the reason did require leaving them.** The factor is 1/25; neither file says why. The answer
+is in Booking Holdings' own Form 8-K, filed with the SEC on **2 April 2026**:
+
+> On April 2, 2026, Booking Holdings Inc. filed an amendment to its Restated Certificate of Incorporation
+> with the Delaware Secretary of State to effect the previously announced **twenty-five-for-one forward
+> stock split** of the Company's common stock … The amendment … became effective at 4:01 p.m. Eastern Time
+> on April 2, 2026. Trading is expected to commence on a split-adjusted basis at market open on Monday,
+> April 6, 2026.
+>
+> — [SEC EDGAR, accession 0000950157-26-000465](https://www.sec.gov/Archives/edgar/data/1075531/000095015726000465/form8-k.htm)
+
+The filed ratio and the measured factor agree exactly, and that single date resolves everything above. It
+falls **after the lake's last session**, so the lake is simply reporting what Booking traded at. It falls
+**after the Yahoo cache's own last date**, which is why `split_ratio` is silent about it. And it falls
+**before the cache was downloaded**, which is why the division by twenty-five is nonetheless baked into
+every close in the file.
+
+So the inference was right, and confirming it took a regulatory filing rather than a column of data. That
+is the lesson in its sharpest form: the two files are internally consistent, mutually contradictory, and
+individually insufficient to say which basis either is on.
+
+Both numbers are true. On 2 January 2020 Booking closed at **\$2,074.58** — what you would have paid — and
+Yahoo's **\$82.98** is that same close expressed in the shares you would hold today. Use the first for
+anything carrying units (a price floor, a share count, a notional, an ADV) and the second for returns.
+""")
+
 md("## 4. Corporate actions that are not just a rescaling")
 
 code(r"""
