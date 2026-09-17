@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_12_intraday_portfolio.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_13_intraday_portfolio.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_intraday_portfolio_notebook.py [--out PATH]
 """
@@ -16,9 +16,9 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on minute bars — III. The hold-out, execution realism and the portfolio
 
-## `pairs_trading_12_intraday_portfolio.ipynb`
+## `pairs_trading_13_intraday_portfolio.ipynb`
 
-Notebook 11 chose an intraday design on pooled out-of-fold Sharpe over 2022–2024. This notebook spends the
+Notebook 12 chose an intraday design on pooled out-of-fold Sharpe over 2022–2024. This notebook spends the
 **2025 hold-out once** (2025-01-02 → 2025-08-13, the end of the lake) and asks the questions a desk would
 ask before believing the number:
 
@@ -69,7 +69,7 @@ TRADED_SHARE_MIN, DOLLAR_VOLUME_MIN = 0.95, 20e6
 BARS = {1: 390, 5: 78, 15: 26, 30: 13, "session": 1}
 COMMISSION_BPS, BORROW_BPS, CAP = 1.0, 50, 10_000
 
-# the design chosen in notebook 11 (falls back to its documented result if the file is missing)
+# the design chosen in notebook 12 (falls back to its documented result if the file is missing)
 DEFAULT = dict(lookback=None, z_entry=2.0, z_exit=0.5, z_stop=4.0, flatten=False, no_entry_after=None, exec_lag=1)
 f_design = CACHE / "min_design.json"
 if f_design.exists():
@@ -81,14 +81,14 @@ else:
 HEDGE, K, CFG, CFG_GRID = design["hedge"], design["k"], design["cfg"], design["grid_cfg"]
 TRAIN_SESSIONS, TEST_SESSIONS = int(design["train_sessions"]), int(design["test_sessions"])
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 100})
-print("pairs", pairs.__version__, "| design from notebook 11:", HEDGE, "@", K, "min;", CFG, "| grid best:", CFG_GRID)
+print("pairs", pairs.__version__, "| design from notebook 12:", HEDGE, "@", K, "min;", CFG, "| grid best:", CFG_GRID)
 """)
 
 # ───────────────────────────── 1. data & engine ─────────────────────────────
 md(r"""
 ## 1. Data and the engine
 
-Same caches and the same fold engine as notebook 11 (repeated here so the notebook stands alone), plus the
+Same caches and the same fold engine as notebook 12 (repeated here so the notebook stands alone), plus the
 per-bar dollar volume of each leg for the capacity analysis.
 """)
 code(r"""
@@ -256,10 +256,10 @@ md(r"""
 Four portfolios on 2025-01-02 → 2025-08-13, each pair with $10,000 and every fold refitted on the 250
 sessions before it, positions carried across refits:
 
-* **intraday** — the design notebook 11 carried forward: its best hedge and sampling frequency with the
+* **intraday** — the design notebook 12 carried forward: its best hedge and sampling frequency with the
   untuned rule (3 × half-life look-back, entry 2, exit 0.5, overnight allowed);
 * **intraday, grid best** — the same hedge and frequency with the look-back/entry cell that maximised the
-  training-span pooled Sharpe in notebook 11 (the "tuned" version);
+  training-span pooled Sharpe in notebook 12 (the "tuned" version);
 * **daily bars, same hedge** — the same pairs and hedge on session closes with the same rule: the
   apples-to-apples test of whether minute resolution adds anything;
 * **daily bars, daily Kalman** — session closes with the EM Kalman hedge of the earlier notebooks and
@@ -308,7 +308,7 @@ looks like when the sample is extended.
 `exec_lag=1` fills at the close of the bar the decision was made on — realistic for daily bars, optimistic
 at minute resolution. `exec_lag=2` fills one bar later (the decision must travel, and the order must
 execute in the next bar); `exec_lag=3` two bars later. The session-flattening rule, if any, moves with the
-lag so nothing leaks overnight. Shown on the training-span out-of-fold states from notebook 11 (25 folds,
+lag so nothing leaks overnight. Shown on the training-span out-of-fold states from notebook 12 (25 folds,
 where the estimate is less noisy) and on the hold-out.
 """)
 code(r"""
@@ -328,7 +328,7 @@ md(r"""
 Delaying the fill by one or two 30-minute bars changes nothing: the hold-out stays flat, the
 out-of-fold Sharpe moves from 1.5 to 1.8 — upward, the wrong direction for a latency effect, i.e. noise. That is
 the expected signature of a spread reverting over weeks: the entry price half an hour later is as good a
-price. The corollary matters for the one-minute variant of notebook 11, whose 608 trades over the
+price. The corollary matters for the one-minute variant of notebook 12, whose 608 trades over the
 training span — against 229 at 30-minute bars — would make a one-bar lag a real cost; at 30-minute bars
 the design is execution-insensitive.
 
@@ -359,7 +359,7 @@ md(r"""
 On the training folds the edge is robust to costs: free trading gives 1.7, the base case (≈ 2.9 bps per
 leg-side) 1.5, and even 10 bps — three to four times the measured Roll spread plus commission — leaves
 1.0 and $6.6k of the $11.5k gross. On the hold-out the sweep starts at −0.02 with *zero* cost: whatever
-went wrong in 2025 is a missing gross edge, not microstructure. Costs are part of why one-minute bars trail in notebook 11 — they pay
+went wrong in 2025 is a missing gross edge, not microstructure. Costs are part of why one-minute bars trail in notebook 12 — they pay
 \$4.1k against \$1.5k at thirty-minute bars — though their gross is lower too, so costs are not the whole
 story; short look-backs lose outright. Neither is the reason the hold-out is flat.
 
@@ -457,7 +457,7 @@ display(pd.DataFrame(split).round(2))
 """)
 md(r"""
 Out of fold, half of the P&L was earned over the overnight gap ($5.0k of $10.1k) — more than the 40%
-share of the spread's variance notebook 10 measured — and that is with positions entered and exited
+share of the spread's variance notebook 11 measured — and that is with positions entered and exited
 during the day. The hold-out reverses the sign of the overnight leg (−$0.7k against +$0.2k intraday) on a
 sample too small to say more. Across half hours the last one, 15:30–16:00, loses in both periods ($0.8k
 out of fold, $1.3k on the hold-out) while the middle of the day is mixed. That is a post-hoc reading of a
@@ -488,7 +488,7 @@ their partners, not with TROW.
 
 **What the minute data established.** The clearly negative results are large and consistent across
 periods: a Kalman hedge that updates within the day whitens the spread and loses several units of Sharpe
-(notebook 11 §3.1); look-backs of a session or less lose at every threshold; flattening at the close
+(notebook 12 §3.1); look-backs of a session or less lose at every threshold; flattening at the close
 throws away the overnight 40% of the reversion; one-minute bars pay in costs what they earn in timing. Those
 are the findings this series can stand behind, and they follow from one measurement — the cointegrated
 spread of liquid large caps has a half-life of about twenty sessions at every sampling interval.
@@ -515,7 +515,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_12_intraday_portfolio.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_13_intraday_portfolio.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

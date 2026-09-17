@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_13_daily_cross_sectional.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_10_daily_cross_sectional.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_cross_sectional_notebook.py [--out PATH]
 """
@@ -15,7 +15,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — IV. Leaving pairs behind: the cross-section
 
-## `pairs_trading_13_daily_cross_sectional.ipynb`
+## `pairs_trading_10_daily_cross_sectional.ipynb`
 
 Notebook 08 screened 1.74 million pairs and found that, under false-discovery control, the median
 formation yields **three** tradeable pairs out of 44,850 tested. Notebook 09 traded them and got a Sharpe
@@ -420,7 +420,7 @@ md(r"""
 Short-horizon reversal is the classic place to mistake microstructure for alpha. A stock that closed on
 the bid looks like a loser and "reverts" when it next closes on the ask, and that reversion is not
 tradeable. The break-even costs above sit close to the 3–4 bps effective spreads measured for these names
-in notebook 10, which is exactly what a bounce-driven signal would look like.
+in notebook 11, which is exactly what a bounce-driven signal would look like.
 
 The test is to skip the most recent session, forming the signal from returns over t−6 to t−2 instead of
 t−5 to t−1. The bounce lives in the last close; a genuine multi-day over-reaction does not.
@@ -543,7 +543,7 @@ been badly wrong.
 
 **Where this leaves the Sharpe question.** Three approaches have now been measured in this
 repository: cointegrated pairs under FDR control on the point-in-time day lake (0.40 ± 0.26, but on
-fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 10–12 — a
+fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 11–13 — a
 much shorter span on the minute lake's universe of *today's* index members, so that leg still carries
 the survivorship bias this one removes), and the whole cross-section on the day lake
 (0.05 net, real but dead since 2016). None reaches 1. The common thread is not that the signals are
@@ -562,7 +562,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "pairs_trading_13_daily_cross_sectional.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_10_daily_cross_sectional.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

@@ -22,7 +22,7 @@ Notebooks 01–05 ran the pipeline on daily closes downloaded for the **current*
 and Nasdaq-100. That is convenient and quietly wrong in three ways: the member list is the list of
 survivors, the downloaded prices are dividend-adjusted with hindsight, and a single traded pair is not a
 strategy. This series rebuilds the daily study on a local Polygon-derived **day lake** that fixes all
-three, and notebooks 10–12 then ask the same questions of minute bars.
+three, and notebooks 11–13 then ask the same questions of minute bars.
 
 | notebook | question |
 |---|---|

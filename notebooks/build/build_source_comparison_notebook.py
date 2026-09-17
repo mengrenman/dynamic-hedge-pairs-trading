@@ -18,7 +18,7 @@ md(r"""
 ## `pairs_trading_06_yahoo_vs_day_lake.ipynb`
 
 Notebooks 01–05 ran the whole pipeline on daily closes pulled through OpenBB, which for equities is
-Yahoo Finance. Notebooks 07–09 and 13 rerun it on a Polygon-derived **day lake** held locally. That switch
+Yahoo Finance. Notebooks 07–10 rerun it on a Polygon-derived **day lake** held locally. That switch
 is usually justified in one line — *survivorship bias* — and then never examined.
 
 This notebook examines it. Both sources are loaded for the same 505 tickers over the same span and

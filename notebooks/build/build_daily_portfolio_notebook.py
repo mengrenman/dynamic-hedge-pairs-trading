@@ -62,7 +62,7 @@ from joblib import Parallel, delayed
 import pairs
 from pairs import (load_universe, load_daily_bars, liquidity_screen, generate_pair_signals,
                    evaluate_pair_signals, estimate_halflife, estimate_halflife_window,
-                   fit_kalman_hedge, filter_kf_on_new)
+                   fit_kalman_hedge, filter_kf_on_new, plot_pair_legs_with_trades)
 from pairs.models.kalman import _kalman_dynamic_hedge
 
 LAKE        = Path(os.environ.get("DAY_LAKE", Path.home() / "local/parquet_lake/day_adj"))
@@ -126,7 +126,7 @@ md(r"""
 For one pair and one fold:
 
 1. **Hedge.** Ordinary least squares of $P_1$ on $P_2$ over the formation window, frozen for the trading
-   window. Notebook 11 found on minute bars that a hedge which re-estimates faster than the spread
+   window. Notebook 12 found on minute bars that a hedge which re-estimates faster than the spread
    reverts destroys the signal; the daily equivalent of that caution is a hedge fixed per fold. A Kalman
    alternative is compared in §4.
 2. **Signal.** Robust z-score of the residual, look-back $3\times$ its half-life over the formation
@@ -137,7 +137,7 @@ For one pair and one fold:
    ex-date: long legs receive them, short legs pay them.
 
 Each pair-fold is run independently and starts flat, so a spread still wide at a re-formation is closed
-and reopened rather than held across the boundary. (Notebook 11 stitches folds on minute bars; this one
+and reopened rather than held across the boundary. (Notebook 12 stitches folds on minute bars; this one
 does not, which if anything understates the rule by charging a round-trip it need not pay.)
 """)
 code(r"""
@@ -282,6 +282,138 @@ book at roughly \$100k of deployed capital.
 """)
 
 md(r"""
+## 3.5 One pair, one fold — what the rule is actually trading
+
+The tables above are portfolio aggregates over 287 pair-folds. They say nothing about what a single
+position looks like, which is the view notebooks 01–03 give and the one worth having before trusting any
+of it. This section opens the engine on one pair-fold and shows the same four things those notebooks do:
+the trades on each leg, the z-score that produced them, the equity curve, and the performance summary.
+""")
+code(r"""
+# run_pair() keeps only the aggregated P&L frame; this mirrors it exactly but returns the internals
+def run_pair_detail(pair, formation, hedge="static", cost_bps=COST_BPS):
+    form, trade = fold_frames(pair, formation)
+    alpha, beta = ols(form["P1"].to_numpy(), form["P2"].to_numpy())
+    resid_form  = form["P1"] - alpha - beta * form["P2"]
+    states = trade[["P1", "P2"]].assign(beta=beta, resid=trade["P1"] - alpha - beta * trade["P2"])
+    hl = estimate_halflife(resid_form.dropna())
+    win = int(np.clip(3 * hl, 20, 250)) if np.isfinite(hl) else 60
+    sig = generate_pair_signals(states, z_method="robust", z_window=win, z_history=resid_form.dropna(),
+                                z_entry=Z_ENTRY, z_exit=Z_EXIT, z_stop=Z_STOP, capital_per_pair=CAP)
+    daily, trades, summ = evaluate_pair_signals(states[["P1", "P2"]], sig, cost_bps=cost_bps,
+                                                borrow_bps_per_year=BORROW_BPS, days_per_year=252,
+                                                bars_per_year=252, capital_base=CAP)
+    return states, sig, daily, trades, summ, dict(alpha=alpha, beta=beta, halflife=hl, z_window=win)
+
+# rank the best rule's pair-folds by what they contributed, and take the largest
+best_rule = max(runs, key=lambda k: runs[k]["sharpe"])
+contrib = sorted(runs[best_rule]["results"], key=lambda d: float(d["frame"]["pnl"].sum()), reverse=True)
+top = pd.DataFrame([{"pair": f"{d['pair'][0]}/{d['pair'][1]}", "formation": d["formation"].date(),
+                     "P&L ($)": float(d["frame"]["pnl"].sum()), "trades": d["n_trades"]}
+                    for d in contrib[:8]]).set_index("pair")
+print(f"largest contributors among the {len(contrib)} {best_rule} pair-folds:")
+display(top.round(1))
+
+# the names at the top of that list are worth a second look
+LEVERAGED = set((
+    "TVIX UVXY VXX VIXY SVXY UVIX SVIX TQQQ SQQQ FAS FAZ LABU LABD DUST NUGT JNUG JDST "
+    "SOXL SOXS SPXL SPXS SPXU UPRO SDOW UDOW TZA TNA YINN YANG ERX ERY GUSH DRIP BOIL "
+    "KOLD UCO SCO AGQ ZSL TMF TMV TECL TECS CURE DRN DRV RETL WEBL WEBS NAIL FNGU FNGD "
+    "BNKU UWM TWM QLD QID SSO SDS DDM DXD SAA UYG SKF UYM SMN URE SRS DIG DUG UGL GLL"
+).split())
+is_lev = lambda pr: pr[0] in LEVERAGED or pr[1] in LEVERAGED
+lev  = [d for d in contrib if is_lev(d["pair"])]
+tot  = sum(float(d["frame"]["pnl"].sum()) for d in contrib)
+levp = sum(float(d["frame"]["pnl"].sum()) for d in lev)
+print(f"\npair-folds involving a leveraged / inverse / volatility product: "
+      f"{len(lev)} of {len(contrib)} ({len(lev)/len(contrib):.1%})")
+print(f"  their share of the rule's total P&L: ${levp:,.0f} of ${tot:,.0f} ({levp/tot:.1%})")
+print(f"  distinct such tickers selected: "
+      f"{sorted({t for d in lev for t in d['pair']} & LEVERAGED)}")
+
+PICK = contrib[0]
+states, sig, daily, trades, summ, fit = run_pair_detail(PICK["pair"], PICK["formation"])
+t1, t2 = PICK["pair"]
+print(f"\nshowing {t1}/{t2}, formation {PICK['formation'].date()}, "
+      f"trading {states.index[0].date()} -> {states.index[-1].date()}  "
+      f"({len(states)} sessions)")
+print(f"hedge: P1 = {fit['alpha']:.2f} + {fit['beta']:.4f} x P2  |  "
+      f"residual half-life {fit['halflife']:.1f} sessions -> z look-back {fit['z_window']}")
+""")
+code(r"""
+# 1) trades on each leg -- the same view as notebook 02 section 4.3
+plot_pair_legs_with_trades(states[["P1", "P2"]], sig, label1=t1, label2=t2,
+                           normalize=False, shade_positions=True,
+                           size_scale=0.004, min_marker=20, max_marker=220)
+""")
+code(r"""
+# 2) the z-score that produced them, with the entry/exit/stop bands, and 3) the equity curve
+fig, ax = plt.subplots(2, 1, figsize=(13, 7), sharex=True,
+                       gridspec_kw={"height_ratios": [2, 1]})
+ax[0].plot(sig.index, sig["z"], lw=1.2, color="tab:blue", label="robust z")
+for lv, c, lab in ((Z_ENTRY, "tab:red", "entry ±2"), (Z_EXIT, "tab:green", "exit ±0.5"),
+                   (Z_STOP, "0.3", "stop ±4")):
+    ax[0].axhline(lv, color=c, ls="--", lw=1, label=lab); ax[0].axhline(-lv, color=c, ls="--", lw=1)
+ax[0].axhline(0, color="k", lw=0.8)
+inpos = sig["pos"].ne(0)
+ax[0].fill_between(sig.index, ax[0].get_ylim()[0], ax[0].get_ylim()[1], where=inpos,
+                   color="0.85", alpha=0.35, step="mid")
+ax[0].set_ylabel("z"); ax[0].legend(ncol=4, fontsize=8)
+ax[0].set_title(f"{t1}/{t2} — signal, and the position it implies (shaded)")
+
+eq = daily["pnl_net"].cumsum()
+ax[1].plot(eq.index, eq, lw=1.4, color="tab:purple")
+ax[1].axhline(0, color="k", lw=0.8); ax[1].set_ylabel("cumulative net P&L ($)")
+ax[1].set_title(f"Sharpe {summ['sharpe']:.2f} on ${CAP:,} of capital over this fold")
+plt.tight_layout(); plt.show()
+""")
+code(r"""
+# 4) the performance summary, the same fields notebook 02 reports
+keys = ["start", "end", "bars", "sharpe", "ann_return", "ann_vol", "max_drawdown_pct",
+        "n_trades", "hit_rate", "avg_win", "avg_loss", "profit_factor", "avg_hold_bars",
+        "gross_pnl", "net_pnl", "turnover_annualized"]
+one = pd.Series({k: summ[k] for k in keys if k in summ}, name=f"{t1}/{t2}")
+display(one.to_frame())
+if len(trades):
+    print("\nround trips:")
+    display(trades[["entry", "exit", "side", "bars", "pnl_gross", "cost", "pnl_net"]].round(2))
+""")
+md(r"""
+This is one fold of one pair, and the best one of the 287 — it is the *shape* that is worth reading, not
+the number. Four things in it generalise, and the last one is uncomfortable.
+
+**The position is on for a small fraction of the window.** The shaded spans are where the rule holds
+anything; most of the fold is flat. That is what a Sharpe computed on deployed capital means in §3, and
+why the portfolio holds fewer than ten pairs on average out of twenty selected.
+
+**The z-score is a formation-window object.** Its look-back and its warm-up history both come from before
+the trading window opens, so the bands the signal crosses were fixed before any of these bars were seen.
+That is the whole reason this is an out-of-fold result rather than a fitted one.
+
+**The round-trip table reconciles with the ledger only up to a known defect.** The `cost` column here
+omits each trade's closing print — see the note in the README's gotchas — so the trade-level P&L is
+slightly flattering while the equity curve above, and every Sharpe in this notebook, is computed from the
+daily ledger and is unaffected.
+
+**Look at the names in the contributor table.** TVIX, UVXY, FAZ, LABU, DUST — these are not equities.
+They are daily-rebalanced leveraged, inverse and volatility products, and the count above says
+**112 of the 287 pair-folds (39%) involve one, contributing 39% of the rule's P&L**. Seventeen distinct
+such tickers were selected across the twenty years.
+
+This is a gap in the universe screen, not in the statistics. Notebook 07's liquidity gates ask for price,
+dollar volume, coverage and a volatility *floor*; a 3× inverse ETF clears every one of them comfortably —
+it is liquid, expensive enough, and extremely volatile. Nothing in the screen asks what the instrument
+*is*. The volatility floor was added to keep money-market funds out of the screen; the same reasoning
+should keep leveraged products out, and does not.
+
+Two honest qualifications, in both directions. Their P&L share (39%) is almost exactly their count share
+(39%), so the edge is **not** concentrated in them — strip them out and the result scales down rather
+than collapsing. But a cointegration test on a product with deterministic decay and a daily reset is
+testing something other than a common stochastic trend, and most practitioners would not trade these as
+pairs at all. Read the headline **+0.40** as a number produced on a universe that includes them, and treat
+an equities-only rerun as unfinished work rather than a formality.
+""")
+md(r"""
 ## 4. Does the hedge matter, and do dividends?
 
 Two one-line variations on the best rule: a Kalman hedge in place of the frozen regression, and the same
@@ -304,7 +436,7 @@ print(f"ignoring dividends changes twenty-year P&L by "
 """)
 md(r"""
 The frozen per-fold regression beats the Kalman hedge, 0.40 against 0.28, and the mechanism is the one
-notebook 11 found on minute bars: the filter re-estimates the hedge faster than the spread reverts, so it
+notebook 12 found on minute bars: the filter re-estimates the hedge faster than the spread reverts, so it
 absorbs part of the signal into its state and trades more than twice as often (1,707 round trips against
 723) for less money. On daily bars the effect is milder than intraday, but it points the same way.
 
