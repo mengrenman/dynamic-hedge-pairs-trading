@@ -472,13 +472,18 @@ get(33, "4.3 Visualise in-sample trades").source = "## 4.3 Visualise in-sample t
 get(34, "plot_pair_legs_with_trades(").source = r"""
 from pairs import plot_pair_legs_with_trades
 
-plot_pair_legs_with_trades(
+_ = plot_pair_legs_with_trades(
     df_pair_tuned, signals_tuned,
     label1=ticker1, label2=ticker2,
     normalize=False,
     shade_positions=True,
     size_scale=0.004,
     min_marker=20, max_marker=220,
+    # the z panel uses the TUNED bands, which is the point of this notebook: the tuned
+    # configuration trades a different band than the default does
+    show_zscore=True,
+    z_entry=SIG_TUNED.get("z_entry"), z_exit=SIG_TUNED.get("z_exit"),
+    z_stop=SIG_TUNED.get("z_stop"),
 )
 """
 get(36, "daily_tr, trades_tr, summary_tr = evaluate_pair_signals(").source = r"""
@@ -570,13 +575,18 @@ get(43, "4b.3 Visualise OOS trades").source = "## 4b.3 Visualise OOS trades (tun
 get(44, "plot_pair_legs_with_trades(").source = r"""
 from pairs import plot_pair_legs_with_trades
 
-plot_pair_legs_with_trades(
+_ = plot_pair_legs_with_trades(
     df_pair_te_t, signals_te_t,
     label1=ticker1, label2=ticker2,
     normalize=False,
     shade_positions=True,
     size_scale=0.004,
     min_marker=20, max_marker=220,
+    # the z panel uses the TUNED bands, which is the point of this notebook: the tuned
+    # configuration trades a different band than the default does
+    show_zscore=True,
+    z_entry=SIG_TUNED.get("z_entry"), z_exit=SIG_TUNED.get("z_exit"),
+    z_stop=SIG_TUNED.get("z_stop"),
 )
 
 fig, ax = plt.subplots(figsize=(13, 4))
