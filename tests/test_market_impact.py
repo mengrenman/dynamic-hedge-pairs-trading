@@ -45,17 +45,24 @@ class TestMarketImpactBps:
         assert float(result) == 0.0
 
     def test_larger_order_gives_larger_impact(self):
-        """Doubling shares_traded → impact increases (by √2 factor)."""
+        """Doubling shares_traded → impact increases."""
         small = market_impact_bps(1_000, 50.0, 500_000, 3000, eta=0.14)
         large = market_impact_bps(4_000, 50.0, 500_000, 3000, eta=0.14)
         assert float(large) > float(small)
 
     def test_sqrt_scaling(self):
-        """Impact scales as √(shares) when other inputs are fixed."""
+        """
+        The *per-share concession* scales as √shares, so the whole-order dollar
+        cost — which is the concession paid on every share — scales as
+        shares^{3/2}.  4x the order ⇒ 8x the cost, not 2x.
+        """
         imp_1k = market_impact_bps(1_000, 50.0, 500_000, 3000, eta=0.14)
         imp_4k = market_impact_bps(4_000, 50.0, 500_000, 3000, eta=0.14)
         ratio = float(imp_4k) / float(imp_1k)
-        assert abs(ratio - 2.0) < 1e-9  # 4x shares → 2x impact
+        assert abs(ratio - 8.0) < 1e-9, (
+            f"4x shares gave {ratio:.3f}x cost; 2.0 means the per-share "
+            "concession is being booked as the whole order's cost"
+        )
 
     def test_higher_vol_gives_higher_impact(self):
         """Higher volatility → higher market impact."""
@@ -106,9 +113,12 @@ class TestMarketImpactBps:
         price  = 50.0           # $/share
         vol    = 3000           # bps = 30 %
         # participation = 0.2 %  → √(0.002) ≈ 0.0447
-        # impact ≈ 0.14 × 0.30 × 50 × 0.0447 ≈ $0.094 per share × 1000 = $94
+        # impact ≈ 0.14 × 0.30 × 50 × 0.0447 ≈ $0.094 per share × 1000 = $93.91
         impact = float(market_impact_bps(shares, price, adv, vol, eta=0.14))
-        assert 0.01 < impact < 500.0, f"Impact {impact:.4f} outside plausible range"
+        assert abs(impact - 93.91) < 0.05, (
+            f"Impact {impact:.4f} should be ~$93.91 (18.8 bps of the $50k traded). "
+            "A value near $0.094 means the per-share concession is being returned."
+        )
 
 
 # ── integrate market impact into evaluate_pair_signals ───────────────────────

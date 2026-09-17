@@ -401,12 +401,30 @@ for cap in (10_000, 100_000, 1_000_000):
 display(pd.DataFrame(rows).set_index("capital per pair").round(2))
 """)
 md(r"""
-Capacity is not the constraint. These are large caps on 30-minute bars: a $10,000 execution is a few
-millionths of the bar's dollar volume, the 90th-percentile participation would reach 5% only above
-$100M per pair, and the square-root impact model charges under one basis point of capital even at $1M per
-pair. P&L scales linearly with capital and the Sharpe does not move. The binding constraints are the ones
-above — the size of the edge and its statistical visibility — not the market's ability to absorb the
-trades.
+Two different answers, depending on which measure you take.
+
+**Participation says capacity is ample.** These are large caps on 30-minute bars: a \$10,000 execution is a
+few millionths of the bar's dollar volume, and the 90th-percentile participation would reach 5% only above
+\$135M per pair. On that measure the market absorbs the trades without noticing them.
+
+**The impact model says otherwise above about \$100k a pair.** Because total impact grows as
+$|\Delta q|^{3/2}$ while capital grows as $|\Delta q|$, cost in *bps of capital* rises as $\sqrt{\text{capital}}$:
+**24 bps at \$10k per pair, 77 bps at \$100k, 244 bps at \$1M**. At \$100k impact already exceeds every other
+cost combined (\$7.7k against \$4.8k), and at \$1M it is five times all of them together. So P&L does *not*
+scale linearly — it goes −\$0.75k, −\$12.7k, −\$294k — and the Sharpe moves with it, −0.40 to −0.68 to −1.56.
+
+The two measures disagree because they ask different questions: participation asks whether the order fits
+in the bar, impact asks what it costs to insist on it. For this book the practical ceiling is nearer
+\$100k a pair than \$100M.
+
+None of that rescues or condemns the strategy, because the edge is already zero before impact. The binding
+constraints remain the ones above — the size of the edge and its statistical visibility — but capacity is
+a real constraint at size, not a non-issue.
+
+> **Note.** An earlier version of this notebook reported impact under one basis point at every size and a
+> flat Sharpe. `market_impact_bps` was returning the per-share price concession while the evaluator booked
+> it as the whole order's cost, understating impact by a factor of the share count and making each dollar
+> traded look *cheaper* as the order grew. Fixed; see `tests/test_accounting_invariants.py`.
 
 ## 6. Where the P&L comes from
 

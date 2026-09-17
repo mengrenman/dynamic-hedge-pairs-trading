@@ -127,7 +127,8 @@ repo-root/
 │  ├─ day_*.parquet                     # day-lake notebooks: market bars, universe, screen, selection rules
 │  └─ xs_*.parquet / xs_*.pkl           # cross-sectional notebook: IC panel, daily target weights
 │
-└─ tests/                    # 341 passing tests
+└─ tests/                    # 349 passing, 3 xfail (documented defects)
+   ├─ test_accounting_invariants.py  # conservation laws: ledger/trade-log, split-filter, impact units
    ├─ test_cointegration.py
    ├─ test_evaluate.py
    ├─ test_fdr.py
@@ -453,7 +454,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 |----------|---------|
 | `generate_pair_signals(df_pair, *, z_entry, z_exit, z_stop, ...)` | signals DataFrame with `n1`, `n2`, `pos` |
 | `evaluate_pair_signals(df_pair, signals, *, cost_bps, avg_daily_volume_1, ...)` | `(daily_df, trades_df, summary_dict)` |
-| `market_impact_bps(shares_traded, price, avg_daily_volume, ann_vol_bps, eta)` | `float` or array — dollar impact |
+| `market_impact_bps(shares_traded, price, avg_daily_volume, ann_vol_bps, eta)` | `float` or array — **whole-order** dollar cost (concession × shares; scales as \|Δq\|^1.5) |
 | `zscore_from_spread(spread, method="robust", ...)` | `pd.Series` |
 | `session_masks(index, *, exec_lag, flatten, no_entry_after)` | `(force_flat, block_entry)` boolean Series — session rules for intraday bars, fed to `generate_pair_signals` |
 | `apply_circuit_breaker(signals, df_pair, *, z_halt, cb_cooldown_bars, z_reentry, max_drawdown_pct, ...)` | `(signals_cb, audit_df)` — patched signals + halt window log |
@@ -535,7 +536,11 @@ positive. Single-window metrics for that pair:
 - **Price gates go on the unadjusted close:** split adjustment is backward-looking, so a "$5 minimum price" applied to the adjusted series drops stocks that later split (2008 Apple shows as $4.86) and admits ones that later reverse-split (2008 Sirius shows as $21.30). `liquidity_screen` gates on `raw_close` by default.
 - **A raw market lake is not a curated list:** it contains exchange test symbols (`ZVZZT` and siblings), tickers reused by different companies over time (10% of the lake), and corporate actions the adjustment missed. `load_daily_bars` resolves the reuse; `liquidity_screen` takes `exclude` and `max_abs_return` for the other two.
 - **Minute lake:** `load_minute_bars` treats lake timestamps as UTC (tz-naive), keeps regular hours 09:30–16:00 Eastern (13:00 on rule-based early-close days), forward-fills within a session only, and reads either lake layout — the market layout via the `.idx.parquet` sidecar so one symbol touches only its row groups. The two builds of the lake differ in their dividend/split factors for a few names; never mix layouts in one analysis.
-- **Market impact is additive:** `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
+- **Market impact is a whole-order cost:** `market_impact_bps` returns the square-root price concession *multiplied by the share count*, so total cost scales as |Δq|^1.5 and bps-of-capital rises as √capital. It was returning only the per-share concession until 2026-09; `notebooks/pairs_trading_11_intraday_portfolio.ipynb` §5 is the only place it is exercised, and its capacity conclusion changed. `avg_daily_volume_1/2=None` (default) disables impact modelling; all other cost parameters remain active.
+- **Two accounting defects are known and tracked, not fixed.** Both are pinned by `xfail(strict=True)` tests in `tests/test_accounting_invariants.py`, so fixing either forces the marker to be removed.
+  1. *The per-trade log omits the exit bar's cost* (`evaluate.py`, the round-trip loop slices `sl.iloc[:-1]`). `n_trades`, `hit_rate`, `avg_win`, `avg_loss`, `profit_factor` and hold times are therefore slightly too favourable — about 2% on profit factor at the 1 bp costs these notebooks use. **Every `sharpe`, `ann_return`, `max_drawdown` and P&L figure is computed from the daily ledger and is unaffected.** A reversal additionally double-counts its bar and emits a zero-length trade, but `generate_pair_signals` cannot flip side within a bar, so that path is unreachable from this repo's own signals.
+  2. *The Kalman continuation skips the boundary predict step* (`filter_kf_on_new` hands pykalman a posterior where it expects a prior, so `P ← FPFᵀ + Q` is never applied). Splitting a series therefore does not reproduce an uninterrupted filter; the prior is over-confident by `Q` for one bar at each fold boundary. Median error ≈ 0.7 z against a 2.0 entry threshold, decaying over 2–4 bars. Fixing it re-dates every out-of-sample continuation and invalidates the pickled state caches under `cache/min_wf_*.pkl`.
+
 - **Walk-forward callbacks:** `fit_fn` returns an artefact, `signal_fn(df_test, artefact)` generates signals, `eval_fn(df_test, signals)` returns a flat metrics dict. Any fold where a callback raises is skipped with a warning, never aborts the run.
 - **Walk-forward-driven selection:** In `pairs_trading_02_yahoo.ipynb` (§3.5) the composite stationarity score is only a *pre-filter* yielding a candidate shortlist; the traded pair is selected by **walk-forward cross-fold Sharpe stability** over the training span, with the OOS/test window never consulted during selection. The selection loop is parallelised across candidates with joblib (BLAS threads pinned to 1 to avoid oversubscription).
 - **Visualisation caching:** `visualize_cointegrated_pairs_yahoo.ipynb` writes `cache/viz_prices_<universe>.parquet`, `cache/viz_screen_<universe>.parquet` and `cache/viz_kalman_<universe>.pkl` on first run. Subsequent runs load from cache and are near-instant. Delete the relevant file to force a fresh computation. The `cache/` directory is gitignored — these files are large and data-source specific.

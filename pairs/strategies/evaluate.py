@@ -22,7 +22,7 @@ Three additive cost components are supported:
 4. **Square-root market impact** (``avg_daily_volume_1/2``, ``impact_eta``):
    Implements the Almgren-Chriss / BARRA square-root model::
 
-       impact_bps ≈ η × σ_annual × √(|Δshares| / ADV)
+       impact_$ ≈ η × σ_annual × P × √(|Δshares| / ADV) × |Δshares|
 
    where σ_annual is the 252-day rolling vol of the price (estimated
    internally when not provided) and η (``impact_eta``) is a calibration
@@ -79,10 +79,15 @@ def market_impact_bps(
 
         \\text{impact}_\\$ \\approx \\eta \\cdot
         \\sigma_{\\text{annual}} \\cdot P \\cdot
-        \\sqrt{\\frac{|\\Delta q|}{\\text{ADV}}}
+        \\sqrt{\\frac{|\\Delta q|}{\\text{ADV}}} \\cdot |\\Delta q|
 
     where :math:`\\sigma_{\\text{annual}}` is the *fractional* annualised
     volatility of the stock (e.g. 0.30 for 30 %).
+
+    The leading factor is the square-root **price concession per share**; the
+    dollar cost of the order is that concession paid on every share, hence the
+    trailing :math:`|\\Delta q|`.  Total cost therefore grows as
+    :math:`|\\Delta q|^{3/2}`, which is what makes size expensive.
 
     Parameters
     ----------
@@ -103,14 +108,17 @@ def market_impact_bps(
     Returns
     -------
     impact_dollars : same type as input
-        Dollar cost of the market impact (per-trade, not per-share).
-        Always ≥ 0.
+        Dollar cost of the market impact for the **whole order**, not per
+        share.  Always ≥ 0.
 
     Examples
     --------
-    >>> market_impact_bps(shares_traded=1000, price=50.0,
-    ...                   avg_daily_volume=500_000, ann_vol_bps=3000, eta=0.14)
-    # ~$1.40 impact on a $50,000 trade
+    >>> round(float(market_impact_bps(shares_traded=1000, price=50.0,
+    ...       avg_daily_volume=500_000, ann_vol_bps=3000, eta=0.14)), 2)
+    93.91
+
+    That is 0.14 × 0.30 × $50 × √0.002 ≈ $0.0939 of concession per share,
+    paid on 1,000 shares — 18.8 bps of the $50,000 traded.
     """
     if avg_daily_volume <= 0:
         raise ValueError(
@@ -122,7 +130,9 @@ def market_impact_bps(
     shares_abs = np.abs(shares_traded)
     sigma_frac  = ann_vol_bps / 1e4          # bps → fractional (e.g. 3000→0.30)
     participation = shares_abs / avg_daily_volume   # participation fraction
-    impact_dollars = eta * sigma_frac * price * np.sqrt(participation)
+    per_share = eta * sigma_frac * price * np.sqrt(participation)
+    # the concession is paid on every share in the order, not once per order
+    impact_dollars = per_share * shares_abs
     return impact_dollars
 
 
@@ -198,6 +208,30 @@ def evaluate_pair_signals(
     cols = ["P1", "P2"]
     if not set(cols).issubset(df_pair.columns):
         raise KeyError(f"df_pair must contain {cols}")
+
+    # `pd.concat(axis=1)` unions the indexes, and the NaN-price filter below then
+    # drops anything `signals` contributed that `df_pair` lacks -- so a misaligned
+    # frame would silently evaluate a shorter, mostly-flat book.  Refuse instead.
+    if not signals.index.is_unique:
+        dup = signals.index[signals.index.duplicated()].unique()
+        raise ValueError(
+            f"signals index has {len(dup)} duplicated timestamp(s) "
+            f"(first: {dup[0]!r}); de-duplicate before evaluating."
+        )
+    if not df_pair.index.is_unique:
+        dup = df_pair.index[df_pair.index.duplicated()].unique()
+        raise ValueError(
+            f"df_pair index has {len(dup)} duplicated timestamp(s) "
+            f"(first: {dup[0]!r}); de-duplicate before evaluating."
+        )
+    extra = signals.index.difference(df_pair.index)
+    if len(extra):
+        raise ValueError(
+            f"signals is not aligned to df_pair: {len(extra)} of {len(signals)} "
+            f"signal timestamps have no price row (first: {extra[0]!r}, "
+            f"last: {extra[-1]!r}). Reindex signals onto df_pair.index first -- "
+            "silently dropping them would understate the backtest."
+        )
 
     df = pd.concat([df_pair[cols], signals], axis=1).sort_index().copy()
 
