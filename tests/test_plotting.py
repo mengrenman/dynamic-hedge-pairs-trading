@@ -104,3 +104,66 @@ def test_open_and_close_markers_match_the_position_path(pair_and_signals):
     assert plotted == n_open + n_close, (
         f"z panel drew {plotted} markers for {n_open} opens and {n_close} closes"
     )
+
+
+# ── the z panel must stay readable when the series has outliers ──────────────
+
+def _tape_with(z_values, idx=None):
+    n = len(z_values)
+    idx = idx if idx is not None else pd.date_range("2024-01-01", periods=n, freq="B")
+    rng = np.random.default_rng(1)
+    p2 = 100 + rng.normal(0, 1, n).cumsum()
+    df = pd.DataFrame({"P1": 1.5 * p2, "P2": p2}, index=idx)
+    z = pd.Series(z_values, index=idx)
+    pos = pd.Series(np.where(z > 2, -1.0, np.where(z < -2, 1.0, np.nan)),
+                    index=idx).ffill().fillna(0.0)
+    sig = pd.DataFrame({"n1": pos * 100, "n2": -pos * 200, "pos": pos, "z": z}, index=idx)
+    return df, sig
+
+
+def test_a_single_spike_does_not_squash_the_bands():
+    """One |z|=60 print must not compress entry/exit into an unreadable sliver."""
+    z = np.sin(np.linspace(0, 14, 300)) * 2.4
+    z[150], z[151] = -60.0, 41.0
+    df, sig = _tape_with(z)
+    _, (_, _, ax3) = plot_pair_legs_with_trades(
+        df, sig, show_zscore=True, z_entry=2.0, z_exit=0.5, z_stop=4.0)
+    lo, hi = ax3.get_ylim()
+    assert hi < 8.0, f"panel opened to ±{hi:.1f}; the spike dominated the scale"
+    assert hi > 4.0, "the stop band at ±4 must still be inside the panel"
+    assert lo == pytest.approx(-hi), "the panel must stay symmetric about zero"
+
+
+def test_hard_cap_binds_when_z_is_genuinely_large():
+    """However wild the series, the panel never opens past ±z_clip."""
+    df, sig = _tape_with(np.sin(np.linspace(0, 14, 300)) * 30.0)
+    _, (_, _, ax3) = plot_pair_legs_with_trades(
+        df, sig, show_zscore=True, z_entry=2.0, z_exit=0.5, z_stop=4.0)
+    lo, hi = ax3.get_ylim()
+    assert (lo, hi) == pytest.approx((-15.0, 15.0))
+
+
+def test_z_clip_is_configurable():
+    df, sig = _tape_with(np.sin(np.linspace(0, 14, 300)) * 30.0)
+    _, (_, _, ax3) = plot_pair_legs_with_trades(
+        df, sig, show_zscore=True, z_entry=2.0, z_clip=8.0)
+    assert ax3.get_ylim() == pytest.approx((-8.0, 8.0))
+
+
+def test_every_band_stays_inside_the_panel():
+    """A band drawn outside the visible range would be worse than not drawing it."""
+    df, sig = _tape_with(np.sin(np.linspace(0, 14, 300)) * 0.4)   # tiny z, wide bands
+    _, (_, _, ax3) = plot_pair_legs_with_trades(
+        df, sig, show_zscore=True, z_entry=2.0, z_exit=0.5, z_stop=4.0)
+    _, hi = ax3.get_ylim()
+    assert hi >= 4.0, f"stop band at ±4 fell outside a ±{hi:.2f} panel"
+
+
+def test_clipping_is_disclosed_not_silent():
+    z = np.sin(np.linspace(0, 14, 300)) * 2.4
+    z[150] = -60.0
+    df, sig = _tape_with(z)
+    _, (_, _, ax3) = plot_pair_legs_with_trades(
+        df, sig, show_zscore=True, z_entry=2.0, z_exit=0.5, z_stop=4.0)
+    notes = " ".join(t.get_text() for t in ax3.texts)
+    assert "beyond" in notes, "bars left the panel with no note saying so"

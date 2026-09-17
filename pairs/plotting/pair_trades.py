@@ -63,6 +63,7 @@ def plot_pair_legs_with_trades(
     z_entry: float | None = None,
     z_exit: float | None = None,
     z_stop: float | None = None,
+    z_clip: float = 15.0,
     shade_color: str = "0.85",
     shade_alpha: float = 0.25,  # robust, light shading
     size_scale: float = 0.002,
@@ -199,6 +200,26 @@ def plot_pair_legs_with_trades(
             if len(closes):
                 ax3.scatter(closes, z.reindex(closes), marker="x", s=55, linewidths=1.6,
                             color="0.25", zorder=4, label="close")
+
+        # Scale the panel to the region that matters -- the bands and the bulk of the
+        # series -- rather than to the extremes.  One spike to |z| = 60 would otherwise
+        # squash the entry/exit bands into an unreadable sliver.  Hard-capped at z_clip.
+        finite = z[np.isfinite(z)]
+        span = 1.0
+        if len(finite):
+            span = max(abs(float(finite.quantile(0.005))), abs(float(finite.quantile(0.995))))
+        for lv in (z_entry, z_exit, z_stop):
+            if lv is not None:
+                span = max(span, abs(float(lv)))
+        span = float(min(span * 1.18, abs(z_clip)))
+        ax3.set_ylim(-span, span)
+
+        # say so when the series leaves the panel, rather than clipping silently
+        n_out = int((z.abs() > span).sum())
+        if n_out:
+            ax3.text(0.995, 0.04, f"{n_out} bar(s) beyond ±{span:.1f}",
+                     transform=ax3.transAxes, ha="right", va="bottom",
+                     fontsize=8, color="0.35")
 
         ax3.set_ylabel("z")
         ax3.grid(True, alpha=0.3)
