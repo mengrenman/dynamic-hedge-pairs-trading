@@ -32,8 +32,10 @@ Everything runs on the package API. Two additions were made for minute data:
 (Roll spread, signature plot, Epps effect, bounce autocorrelation).
 
 **Data span.** Sessions from 2022-01-03 to 2025-08-13 (the last day in the lake). The **training span**
-is 2022-01-03 → 2024-12-31; 2025 is reserved as the hold-out for notebook 11 and is *not* used to choose
-anything here or in notebook 10.
+is 2022-01-03 → 2024-12-31; 2025 is reserved as the hold-out for notebook 11. The cointegration screen
+below, and every design choice in notebook 10, use the training span only. One caveat worth stating: the
+liquidity universe is built from session statistics over the *whole* span, and requires full coverage of
+it, so hold-out information does reach ticker **eligibility** — though not pair selection.
 
 **Caching.** The universe pass and the screen are cached under `notebooks/cache/` (gitignored). A cold run
 takes about 3 minutes on 16 cores; a warm run about 20 seconds. The lake is read-only; set the environment
@@ -92,7 +94,8 @@ files — hence the market layout. For a 500-name universe the ticker layout is 
 is what the rest of the series uses.
 
 Every row carries the raw close, split-adjusted (`close_split`) and split-and-dividend-adjusted
-(`close_tr`, total return) prices with their factors, the same three variants of open/high/low, raw and
+(`close_tr`, total return) prices with their factors, split-adjusted and total-return variants of
+open/high/low (there is no raw open/high/low), raw and
 split-adjusted volume, and a Bloomberg FIGI. Timestamps are **UTC without a timezone marker** and label the
 **start** of the minute. The bars run 04:00–20:00 Eastern, so pre- and post-market prints are included.
 """)
@@ -290,11 +293,11 @@ The cointegration screen runs on **session closes over the training span** with 
 as the daily notebooks (`find_cointegrated_pairs_dualgate`: Engle–Granger with Benjamini–Hochberg FDR *and*
 Johansen). Two reasons not to screen on minute bars directly:
 
-1. cointegration is a statement about the *long-run* relation; ninety thousand minute observations over
-   the same three years carry the same low-frequency information as 750 daily closes, plus a great deal of
-   microstructure noise (§6);
-2. the cost — the ADF regressions inside Engle–Granger scale with the sample, and 125k pairs × 90k
-   observations is not a screen, it is a weekend.
+1. cointegration is a statement about the *long-run* relation; the roughly 290,000 minute observations
+   over the same three years carry the same low-frequency information as 750 daily closes, plus a great
+   deal of microstructure noise (§6);
+2. the cost — the ADF regressions inside Engle–Granger scale with the sample, and the 58k pairs this
+   screen actually tests, at 290k observations each, is not a screen, it is a weekend.
 
 The candidates handed to notebooks 10 and 11 are the passing pairs with the smallest BH-corrected
 Engle–Granger p-value, at most `N_CANDIDATES`. The 2025 hold-out is not part of the screen.
@@ -365,7 +368,8 @@ For these diagnostics the spread of each candidate is the **static** Engle–Gra
 $s_t = P_{1,t} - \hat\beta P_{2,t} - \hat\alpha$ with $\hat\alpha, \hat\beta$ from OLS on the training-span
 session closes — the same hedge the screen implicitly tested. It is deliberately not the Kalman hedge:
 a filter that re-estimates the hedge every minute would absorb part of what we want to measure (notebook 10
-fits the Kalman filter at each candidate sampling frequency and compares).
+compares Kalman hedges against this static one at five-minute bars, then sweeps frequency with the
+static hedge).
 
 Four questions, each answered by sampling the same minute series every $k$ minutes:
 
@@ -517,7 +521,7 @@ md(r"""
   slow reversion into its state and leave a residual that is white at the bar scale (notebook 10 shows this
   directly). The hedge should move at most daily.
 
-Notebook 07 turns these into a walk-forward comparison: hedge cadence, sampling frequency, session rule,
+Notebook 10 turns these into a walk-forward comparison: hedge cadence, sampling frequency, session rule,
 look-back and threshold — chosen on pooled out-of-fold Sharpe over 2022–2024 with 2025 untouched.
 """)
 

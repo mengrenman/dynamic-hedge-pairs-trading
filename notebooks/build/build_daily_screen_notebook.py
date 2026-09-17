@@ -23,7 +23,8 @@ liquid US equities, are there actually cointegrated pairs — more than a multip
 produce?**
 
 The design is a standing screen: at each of 39 semi-annual formation dates from 2006 to 2025, take the
-300 most traded eligible names, test all 44,850 pairs with the Engle–Granger and Johansen dual gate, and
+300 most traded eligible names, test every pair of them — up to 44,850 — with the Engle–Granger and
+Johansen dual gate, and
 keep the whole p-value distribution rather than only the winners. Twenty years and 1.7 million tests are
 enough to answer the question with the null hypothesis stated properly.
 
@@ -222,14 +223,16 @@ print(f"raw dual-gate 'discoveries' per formation: median {int(per_form['raw_dua
       f"the same screen without the correction")
 """)
 md(r"""
-Mostly it is not. The median formation yields **3** dual-gate survivors out of 44,850 pairs tested, nine
-of the 39 formations yield none at all, and the distribution is violently uneven: a handful of dates —
-2010-12, 2017-12, 2023-12 — produce hundreds while their neighbours produce nothing. Those spikes line up
+Mostly it is not. The median formation yields **3** dual-gate survivors out of roughly 44,000 pairs
+tested, nine of the 39 formations yield none at all, and the distribution is violently uneven: a handful
+of dates — 2010-12, 2017-12, 2023-12 — produce hundreds while most of the rest produce nothing or a
+handful. Those spikes line up
 with periods when the whole market moved together, which is precisely when spurious common trends are
 easiest to find and least likely to persist.
 
-The lower panel is the same point in a different currency. The raw rejection rate hovers just above the
-5% line the null predicts, formation after formation, for twenty years. Without the correction the same
+The lower panel is the same point in a different currency. The raw rejection rate sits above the 5% line the
+null predicts in most formations and averages about 7% — but it is noisy, running from under 4% to over
+9% depending on the date. Without the correction the same
 screen reports a median of **1,451 "cointegrated" pairs per formation** — a number that looks like a rich
 opportunity set and is very close to what pure noise would produce. Notebook 03 runs the whole pipeline
 that way as an ablation; this is what it is ablating.
@@ -345,7 +348,7 @@ else:
 distance["pair"] = distance["ticker1"] + "/" + distance["ticker2"]
 print("pairs the distance method picks most often:")
 display(distance["pair"].value_counts().head(15).rename("formations in the top 20").to_frame())
-key = lambda df: set(zip(df["formation"], df["ticker1"], df["ticker2"]))
+key = lambda df: {(f, *sorted((a, b))) for f, a, b in zip(df["formation"], df["ticker1"], df["ticker2"])}
 overlap = len(key(distance) & key(passed))
 print(f"\noverlap between the distance top-20 and the BH survivors: {overlap} of {len(distance):,} "
       f"distance selections and {len(passed):,} BH survivors")
@@ -353,7 +356,7 @@ print(f"\noverlap between the distance top-20 and the BH survivors: {overlap} of
 md(r"""
 The distance method arrives at the same place from a different direction, and more bluntly: its most
 frequent picks are `EEM/VWO`, `SPY/IVV`, `GOOGL/GOOG`, `EEM/IEMG` and `IYR/VNQ` — index clones and two
-share classes of the same company. It agrees with the BH screen on only 20 of 780 selections, so the two
+share classes of the same company. It agrees with the BH screen on only 43 of 780 selections, so the two
 rules are close to independent, which makes them a genuine comparison rather than a re-run.
 """)
 
@@ -362,7 +365,8 @@ md(r"""
 
 Three rules, deliberately spanning the range from strict to none:
 
-* **`bh_dual`** — the FDR-controlled survivors. Median 6 per formation, nothing at all in nine of them;
+* **`bh_dual`** — the FDR-controlled survivors. Nothing at all in nine of the thirty-nine formations; a
+  median of 3 per formation across all of them, 6 across the thirty that produce anything;
   the statistically defensible candidate set, and very thin.
 * **`raw_dual_top20`** — the 20 smallest raw $p$-values that also clear Johansen, with no correction.
   Always full, and on the evidence above largely noise. If cointegration testing adds value this should

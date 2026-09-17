@@ -18,7 +18,7 @@ md(r"""
 
 ## `pairs_trading_10_intraday_backtest.ipynb`
 
-Notebook 06 established the candidates and the facts that matter: the cointegrated spreads of liquid
+Notebook 09 established the candidates and the facts that matter: the cointegrated spreads of liquid
 large caps revert over **weeks** (half-life ≈ 20 sessions) at every sampling interval, microstructure
 noise is mild, about 40% of the spread's variance happens overnight, and a round trip costs ≈ 8 bps
 against a reversion worth 16 bps with a one-hour look-back or 130 bps with a five-session one.
@@ -148,8 +148,8 @@ frequency, including "session closes", which makes the daily-bar baseline exactl
 | `bar_kalman` | the same state-space model on the bars themselves, with the transition noise scaled to the bar frequency (`q = 1e-5 / bars per session`, so the hedge random walk has the same variance *per day*) and no EM |
 | `bar_kalman_naive` | the daily settings (`q=1e-5`, EM 5) applied to the bars unchanged — what a straight port of notebook 02 would do |
 
-The z-score look-back is chosen from the training residual (3 × half-life, clipped to 1–30 sessions of
-bars) and warmed up on the last 60 sessions of that residual — the robust estimator chains two rolling
+The z-score look-back is chosen from the training residual (3 × half-life, clipped below at one session
+or twenty bars, whichever is longer, and above at thirty sessions) and warmed up on the last 60 sessions of that residual — the robust estimator chains two rolling
 medians and needs two windows of history — so a test fold never informs its own z-score; the same robust
 z-score, next-bar execution and dollar-neutral $10{,}000 sizing as notebook 02 apply. Folds are
 **stitched**: the position held at the end of one fold is carried into the next (`initial_position`),
@@ -361,7 +361,7 @@ plot_equity(res_rule, f"3.3 Session rule ({BEST_HEDGE} @ {BEST_K} min)")
 md(r"""
 Forcing positions flat by the close and blocking entries after 15:30 turns 1.5 into 0.1: two and a
 half times the trades, twice the costs, a median hold of under a session against 2.7, and four positive
-pairs instead of eight. Notebook 06 measured 40% of the spread's variance overnight; an intraday-only rule
+pairs instead of eight. Notebook 09 measured 40% of the spread's variance overnight; an intraday-only rule
 gives that reversion up and pays to re-establish the position the next morning. These spreads are not an
 intraday strategy, whatever the bar size.
 

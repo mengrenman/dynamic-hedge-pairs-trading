@@ -306,14 +306,16 @@ print(f"of the {len(elig[ds[0]])} names liquid in {ds[0].date()}, {survivors} ({
 md(r"""
 ## 6. Why the volatility floor is not optional
 
-Rank a liquid universe by dollar volume and the top of the list is not companies — it is ETFs, and near
-the very top sit the money-market and ultra-short bond funds: BIL, SGOV, SHV, BOXX. Their prices move a
-fraction of a percent a year. A cointegration test asks whether some linear combination of two series is
+Rank a liquid universe by dollar volume and the top is a mix of index ETFs and mega caps — SPY, NVDA,
+TSLA, QQQ. The problem is elsewhere in the list: a pure liquidity screen also admits the money-market and
+ultra-short bond funds — BOXX, SGOV, SHV, BIL — whose prices move a fraction of a percent a year. A cointegration test asks whether some linear combination of two series is
 stationary, and a series that is *already* nearly constant makes that true against almost anything.
 
-Screening the 2024 universe without the floor, BIL alone passes the dual gate with 266 partners and SGOV
-with 85. Those are not trades; they are an artifact of testing a stationarity hypothesis against a series
-that is stationary by construction. The floor removes them and costs nothing else.
+A pair containing one of them is close to a free pass: the test asks whether *some* linear combination of
+the two is stationary, and one of the two already is. Those would not be trades; they would be an
+artifact of testing a stationarity hypothesis against a series that is stationary by construction. At the
+2025-07-01 formation the floor removes 139 of the 1,860 otherwise-eligible names — the money-market funds,
+and with them genuine low-volatility bond ETFs like LQD and HYG.
 """)
 code(r"""
 d = FORMATIONS[-1]
@@ -394,7 +396,9 @@ print(f"restricting to today's index members adds {mem['CAGR'] - pit['CAGR']:+.2
 md(r"""
 ## 8. What this fixes
 
-Five defects in how notebooks 01–05 read their data, each now measured rather than assumed.
+Five data defects, each now measured rather than assumed. Three are in how notebooks 01–05 read their
+data; two — ticker reuse and exchange test symbols — are hazards of working from the whole market that a
+curated index list hides.
 
 * **Dividend look-ahead.** `close_tr` marks the 2003 Apple price down by 16%, and the 2015 price by 11%,
   using dividends that had not been announced. The fix costs nothing: trade `close_split` and accrue the
@@ -402,8 +406,9 @@ Five defects in how notebooks 01–05 read their data, each now measured rather 
 * **Ticker reuse.** 3,452 tickers — 10% of the lake — name more than one instrument over the sample.
   Left unresolved, a price series can jump between two companies mid-window, which is a structural break
   invented out of nothing.
-* **Exchange test symbols.** Thirteen of them are in the lake, and they produce the four largest one-day
-  returns in twenty years — up to two billion times. `ZVZZT` has a \$17 median price and passes a naive
+* **Exchange test symbols.** Thirteen of them are in the lake, and they produce three of the four largest
+  one-day returns in twenty years — up to two billion times. The remaining one, an 80-million-fold move in
+  AAZST, comes from a symbol the `Z[A-Z]ZZT` pattern does not match; the return cap catches that one. `ZVZZT` has a \$17 median price and passes a naive
   liquidity screen comfortably.
 * **The split-adjustment price trap.** A \$5 minimum price on the adjusted series drops 2008 Apple, which
   traded at \$136, and keeps 2008 Sirius, which traded at \$2. The gate belongs on the unadjusted close.
@@ -414,8 +419,8 @@ Five defects in how notebooks 01–05 read their data, each now measured rather 
   from that head start.
 
 One more rule falls out of the data rather than from principle: the **volatility floor**. Ranked by
-dollar volume, the liquid universe is led by ETFs, and money-market funds like BIL and SGOV sit near the
-top with annualised volatilities under 1.5%. A series that is already nearly constant satisfies a
+dollar volume, the liquid universe is led by index ETFs and mega caps — but a pure liquidity screen also
+admits money-market funds like BIL and SGOV, at annualised volatilities under 1.5%. A series that is already nearly constant satisfies a
 stationarity test against almost anything, so without the floor they dominate the screen.
 
 Notebook 07 now applies all of this to the question the strategy depends on.

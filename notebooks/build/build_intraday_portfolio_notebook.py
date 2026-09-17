@@ -18,7 +18,7 @@ md(r"""
 
 ## `pairs_trading_11_intraday_portfolio.ipynb`
 
-Notebook 07 chose an intraday design on pooled out-of-fold Sharpe over 2022–2024. This notebook spends the
+Notebook 10 chose an intraday design on pooled out-of-fold Sharpe over 2022–2024. This notebook spends the
 **2025 hold-out once** (2025-01-02 → 2025-08-13, the end of the lake) and asks the questions a desk would
 ask before believing the number:
 
@@ -292,7 +292,7 @@ per_pair.index = [f"{a}/{b}" for a, b in per_pair.index]
 display((per_pair / 1e3).round(2).T)
 """)
 md(r"""
-All four portfolios finish within one standard error of zero: −$0.5k to −$1.7k on $100k of capital
+All four portfolios finish within one standard error of zero: −$0.1k to −$1.7k on $100k of capital
 over seven months, four to six pairs positive out of ten, and no pair positive in all four runs.
 Three readings survive the noise. The **grid's best cell** — the "tuned" design — is the worst of the
 four, as notebook 05 found on daily bars: a sharp optimum on the training folds is the winner's curse,
@@ -328,8 +328,9 @@ md(r"""
 Delaying the fill by one or two 30-minute bars changes nothing: the hold-out stays flat, the
 out-of-fold Sharpe moves from 1.5 to 1.8 — upward, the wrong direction for a latency effect, i.e. noise. That is
 the expected signature of a spread reverting over weeks: the entry price half an hour later is as good a
-price. The corollary matters for the one-minute variant of notebook 10, where 750 trades a year would
-make a one-bar lag a real cost; at 30-minute bars the design is execution-insensitive.
+price. The corollary matters for the one-minute variant of notebook 10, whose 608 trades over the
+training span — against 229 at 30-minute bars — would make a one-bar lag a real cost; at 30-minute bars
+the design is execution-insensitive.
 
 ## 4. Costs
 
@@ -351,15 +352,16 @@ display(cost_tab.round(2))
 fig, ax = plt.subplots(figsize=(7, 4))
 ax.plot(COSTS, cost_tab["hold-out P&L ($k)"], marker="o", label="hold-out 2025")
 if "OOF P&L ($k)" in cost_tab: ax.plot(COSTS, cost_tab["OOF P&L ($k)"], marker="s", label="out-of-fold 2022–24")
-ax.axhline(0, color="k", lw=0.8); ax.axvline(np.mean(list(cost_bps.values())), color="r", ls="--", label="base case"); ax.set_xlabel("cost per leg per side (bps)"); ax.set_ylabel("P&L ($k)"); ax.legend(); ax.set_title("Break-even cost")
+ax.axhline(0, color="k", lw=0.8); ax.axvline(np.mean(list(cost_bps.values())), color="r", ls="--", label="base case"); ax.set_xlabel("cost per leg per side (bps)"); ax.set_ylabel("P&L ($k)"); ax.legend(); ax.set_title("Cost sweep: out-of-fold break-even lies beyond 10 bps")
 plt.tight_layout(); plt.show()
 """)
 md(r"""
 On the training folds the edge is robust to costs: free trading gives 1.7, the base case (≈ 2.9 bps per
 leg-side) 1.5, and even 10 bps — three to four times the measured Roll spread plus commission — leaves
 1.0 and $6.6k of the $11.5k gross. On the hold-out the sweep starts at −0.02 with *zero* cost: whatever
-went wrong in 2025 is a missing gross edge, not microstructure. Costs are the reason one-minute bars and
-short look-backs lose in notebook 10; they are not the reason the hold-out is flat.
+went wrong in 2025 is a missing gross edge, not microstructure. Costs are part of why one-minute bars trail in notebook 10 — they pay
+\$4.1k against \$1.5k at thirty-minute bars — though their gross is lower too, so costs are not the whole
+story; short look-backs lose outright. Neither is the reason the hold-out is flat.
 
 ## 5. Capacity
 
@@ -445,8 +447,8 @@ noisy histogram, recorded here because it is testable on new data, not as a rule
 
 ## 7. The portfolio: how many bets?
 
-Ten pairs on fourteen tickers, four of them with TROW and three with PYPL. Correlated pair P&Ls mean the
-portfolio Sharpe is closer to that of a few bets than of ten.
+Ten pairs on fourteen tickers, four of them with TROW and three with PYPL. That overlap ought to make the
+ten behave like rather fewer than ten bets. The question is how many.
 """)
 code(r"""
 pnl_sess = res_main["pnl"].groupby(res_main["pnl"].index.normalize()).sum()

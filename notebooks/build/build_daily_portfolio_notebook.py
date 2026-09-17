@@ -136,8 +136,9 @@ For one pair and one fold:
 3. **Costs.** 5 bps per leg per side, 50 bp/year borrow on the short leg, and dividends accrued on the
    ex-date: long legs receive them, short legs pay them.
 
-Positions are carried across fold boundaries when a pair is re-selected, so a spread that is still wide
-at a re-formation is not forced to round-trip for free.
+Each pair-fold is run independently and starts flat, so a spread still wide at a re-formation is closed
+and reopened rather than held across the boundary. (Notebook 10 stitches folds on minute bars; this one
+does not, which if anything understates the rule by charging a round-trip it need not pay.)
 """)
 code(r"""
 def ols(y, x):
@@ -199,7 +200,7 @@ def run_pair(pair, formation, hedge="static", cost_bps=COST_BPS, carry=None, wit
 
 def backtest(rule, hedge="static", cost_bps=COST_BPS, universe_filter=None, with_dividends=True,
              limit=MAX_PAIRS, n_jobs=-1):
-    jobs, carry = [], {}
+    jobs = []
     for d in FORMATIONS:
         for p in selections(rule, d, limit):
             if universe_filter is not None and not universe_filter(p, d):
@@ -334,9 +335,10 @@ ax.set_xlabel("cost per leg per side (bps)"); ax.set_ylabel("Sharpe"); ax.legend
 plt.tight_layout(); plt.show()
 """)
 md(r"""
-At zero cost every rule is positive, and at 5 bps only the BH rule still is. That is the clearest
-statement of how thin this is: costs consume about a quarter of the BH rule's gross Sharpe (0.54 to 0.40)
-and all of the other two. The BH rule stays above water out to roughly 15 bps per leg per side, which is
+At zero cost every rule is positive; at 5 bps the distance rule is well under water and the raw-$p$ rule
+is all but (0.04). That is the clearest statement of how thin this is: costs consume about a quarter of
+the BH rule's gross Sharpe (0.54 to 0.40), four-fifths of the raw-$p$ rule's (0.18 to 0.04), and rather
+more than all of the distance rule's (0.17 to −0.41). The BH rule stays above water out to roughly 15 bps per leg per side, which is
 a comfortable margin against the 1–3 bps that liquid US equities actually cost on daily closes — but the
 margin is on a number that is not statistically distinguishable from zero to begin with.
 """)
@@ -370,7 +372,8 @@ print(f"2006–2015 Sharpe {sh(first):.2f} (s.e. {np.sqrt(252/len(first)):.2f}) 
 """)
 md(r"""
 The P&L is not a stream, it is three years. **2022 alone contributed \$22.7k of the \$43.6k total**, with
-2018 (\$5.2k), 2025 (\$4.4k) and 2008 (\$4.1k) most of the rest; eight of the nineteen years are negative.
+2018 (\$5.2k), 2025 (\$4.4k) and 2008 (\$4.1k) most of the rest; eight of the eighteen years that carry a
+position at all are negative.
 A strategy whose twenty-year record is more than half one year is not one that a Sharpe ratio describes
 well, and the rolling three-year line makes the same point — long flat stretches punctuated by short
 bursts, which is what a convergence trade looks like when convergence is rare.
@@ -416,10 +419,12 @@ plt.tight_layout(); plt.show()
 md(r"""
 The effect is large, and it is not uniform. Restricting to today's index members throws away 85% of the
 BH rule's pair-folds (44 of 287) and 60% of its P&L, while leaving the Sharpe almost unchanged — the
-surviving names were not where the money came from. The distance rule is the striking case: it loses
-money on the point-in-time universe (−0.41) and *makes* money on the survivors (+0.23). Selecting pairs by
-co-movement and then only trading the ones that are still in the index twenty years later is close to a
-definition of survivorship bias, and it flips the sign of the result.
+surviving names were not where the money came from. The distance rule is the striking case: its Sharpe goes from
+−0.41 on the point-in-time universe to +0.23 on the survivors. It still loses money in dollars either way
+(−\$12.6k against −\$1.1k), so what the restriction flips is the sign of the ratio, not of the P&L.
+Selecting pairs by co-movement and then only trading the ones that are still in the index twenty years
+later is close to a definition of survivorship bias, and it is enough to turn a visibly losing rule into
+one that looks respectable.
 
 As flagged above, this understates the full effect, because the candidate pairs were still chosen by a
 screen run on the point-in-time universe. A study that had screened today's members from the start — the
@@ -434,7 +439,7 @@ rare. Against a uniform null, 7.2% of 1.74 million tests reject at 5% where 5% i
 estimator puts 93% of pairs in the null. Under FDR control the median formation yields three tradeable
 pairs out of 44,850 tested, and nine of thirty-nine yield none. Trading what survives returns **+0.40
 Sharpe (± 0.26) and 2.2% on deployed capital over 2006–2025**, with more than half the P&L from 2022 and
-fewer than ten pairs live at a time.
+fewer than ten pairs live on average — though the yearly average runs from 1 to 20.
 
 **The one thing that is clearly established** is the value of the multiple-testing correction. The three
 selection rules order themselves exactly as the statistics say they should — BH +0.40, raw $p$ +0.04,

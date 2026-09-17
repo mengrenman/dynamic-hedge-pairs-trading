@@ -13,8 +13,8 @@ diffed and reviewed like source:
 | `build_daily_screen_notebook.py` | `../pairs_trading_07_daily_cointegration.ipynb` | scratch (cold run ≈ 1 h — 39 formations × 44,850 pair-tests; caches `cache/day_screen.parquet`, `day_screen_power.parquet`, `day_distance.parquet` and `day_rule_*.parquet`) |
 | `build_daily_portfolio_notebook.py` | `../pairs_trading_08_daily_portfolio.ipynb` | scratch (needs notebook 07's `day_rule_*.parquet`; cold run ≈ 5 min) |
 | `build_minute_data_notebook.py` | `../pairs_trading_09_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
-| `build_intraday_backtest_notebook.py` | `../pairs_trading_10_intraday_backtest.ipynb` | scratch (reads notebook 06's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
-| `build_intraday_portfolio_notebook.py` | `../pairs_trading_11_intraday_portfolio.ipynb` | scratch (reads notebook 07's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
+| `build_intraday_backtest_notebook.py` | `../pairs_trading_10_intraday_backtest.ipynb` | scratch (reads notebook 09's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
+| `build_intraday_portfolio_notebook.py` | `../pairs_trading_11_intraday_portfolio.ipynb` | scratch (reads notebook 10's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
 | `build_cross_sectional_notebook.py` | `../pairs_trading_12_daily_cross_sectional.ipynb` | scratch (needs the local **day** lake; cold run ≈ 11 min on 16 cores; caches `cache/xs_ic_panel.parquet` and `cache/xs_targets.pkl`) |
 
 Regenerate a notebook (cells only, outputs cleared) and then execute it:
