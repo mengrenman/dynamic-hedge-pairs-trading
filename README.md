@@ -20,7 +20,7 @@ validation and capacity analysis.
 - **Day lake, done properly** — loader for an adjusted Polygon day lake (both layouts, ticker-reuse resolution, explicit price basis, dividends recovered from the adjustment factors) and a point-in-time liquidity screen; a three-notebook series rebuilds the daily study without survivorship bias, without dividend look-ahead and as a portfolio ([`06`](notebooks/pairs_trading_07_daily_lake.ipynb) universe & data quality, [`07`](notebooks/pairs_trading_08_daily_cointegration.ipynb) does cointegration exist, [`08`](notebooks/pairs_trading_09_daily_portfolio.ipynb) twenty-year portfolio backtest)
 - **Minute bars** — loader for an adjusted Polygon minute lake (two layouts, sidecar-pruned reads, regular-session grid with rule-based early closes), microstructure diagnostics (Roll spread, signature plot, Epps effect), session rules and session-counted walk-forward folds; a three-notebook series takes the pipeline intraday ([`09`](notebooks/pairs_trading_11_minute_data.ipynb) data & microstructure, [`10`](notebooks/pairs_trading_12_intraday_backtest.ipynb) intraday walk-forward, [`11`](notebooks/pairs_trading_13_intraday_portfolio.ipynb) hold-out, latency, costs, capacity)
 - **Cross-sectional statistical arbitrage** — the Avellaneda–Lee design on the same day lake: monthly PCA eigenportfolios as risk factors, a residual signal on every eligible name, factor-neutral dollar-neutral weights, and information coefficients measured before any portfolio is built ([`12`](notebooks/pairs_trading_10_daily_cross_sectional.ipynb) breadth instead of pair selection — and why it is not enough)
-- Plotting of trades over price legs
+- Plotting of trades over price legs, optionally with the spread's z-score as a third x-aligned panel (`show_zscore=True`) so an entry, the trades it caused and the reversion that closed it line up vertically
 
 <p align="center">
     <img src="figures/signals.png" alt="Left figure" height="290">
@@ -102,7 +102,7 @@ repo-root/
 │  │  └─ walk_forward.py     # walk_forward_splits(), walk_forward_session_splits(), walk_forward_backtest(), summarize_walk_forward()
 │  │
 │  └─ plotting/
-│     └─ pair_trades.py      # plot_pair_legs_with_trades()
+│     └─ pair_trades.py      # plot_pair_legs_with_trades() — legs, and optionally the z-score panel
 │
 ├─ notebooks/
 │  ├─ pairs_trading_01_yahoo.ipynb                   # 01–05: daily closes via OpenBB/yfinance
@@ -130,8 +130,9 @@ repo-root/
 │  ├─ day_*.parquet                     # day-lake notebooks: market bars, universe, screen, selection rules
 │  └─ xs_*.parquet / xs_*.pkl           # cross-sectional notebook: IC panel, daily target weights
 │
-└─ tests/                    # 349 passing, 3 xfail (documented defects)
+└─ tests/                    # 356 passing, 3 xfail (documented defects)
    ├─ test_accounting_invariants.py  # conservation laws: ledger/trade-log, split-filter, impact units
+   ├─ test_plotting.py        # the z-score panel, and that the 2-panel default never moves
    ├─ test_cointegration.py
    ├─ test_evaluate.py
    ├─ test_fdr.py
@@ -474,7 +475,7 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 ### Plotting
 | Function | Returns |
 |----------|---------|
-| `plot_pair_legs_with_trades(df_pair, signals, ...)` | `(Figure, (Axes, Axes))` |
+| `plot_pair_legs_with_trades(df_pair, signals, *, show_zscore=False, z_entry=None, z_exit=None, z_stop=None, ...)` | `(Figure, (Axes, Axes))`, or `(Figure, (Axes, Axes, Axes))` with `show_zscore=True` |
 
 ---
 

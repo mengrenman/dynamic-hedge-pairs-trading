@@ -19,7 +19,8 @@ signals : DataFrame indexed by the same datetime with columns
 
 Returns
 -------
-matplotlib.figure.Figure, (Axes, Axes)
+matplotlib.figure.Figure, (Axes, Axes) -- or (Axes, Axes, Axes) when
+``show_zscore=True`` adds the spread's z-score as a third, x-aligned panel.
 """
 
 from __future__ import annotations
@@ -58,6 +59,10 @@ def plot_pair_legs_with_trades(
     normalize: bool = True,
     base_value: float = 100.0,
     shade_positions: bool = True,
+    show_zscore: bool = False,
+    z_entry: float | None = None,
+    z_exit: float | None = None,
+    z_stop: float | None = None,
     shade_color: str = "0.85",
     shade_alpha: float = 0.25,  # robust, light shading
     size_scale: float = 0.002,
@@ -84,7 +89,7 @@ def plot_pair_legs_with_trades(
         if col not in df_pair.columns:
             raise ValueError(f"df_pair must contain '{col}' column.")
     # Align on index and bring in any available signal fields
-    extra_cols = [c for c in ["pos", "n1", "n2", "entry", "exit", "stop"] if c in signals.columns]
+    extra_cols = [c for c in ["pos", "n1", "n2", "entry", "exit", "stop", "z"] if c in signals.columns]
     df = pd.concat([df_pair[["P1", "P2"]], signals[extra_cols]], axis=1).dropna(subset=["P1", "P2"]).copy()
 
     # --- Compute trade deltas (Δshares) on the plotting index ---
@@ -120,12 +125,22 @@ def plot_pair_legs_with_trades(
     s2_series = pd.Series(s2, index=buy2_idx.union(sell2_idx))
 
     # --- Figure & axes ---
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 8), sharex=True)
+    if show_zscore:
+        if "z" not in df.columns:
+            raise KeyError("show_zscore=True requires a 'z' column in `signals`.")
+        fig, (ax1, ax2, ax3) = plt.subplots(
+            3, 1, figsize=(13, 10.5), sharex=True,
+            gridspec_kw={"height_ratios": [2.0, 2.0, 1.7]},
+        )
+        panels = (ax1, ax2, ax3)
+    else:
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(13, 8), sharex=True)
+        ax3, panels = None, (ax1, ax2)
 
-    # --- Shading of position spans on both axes ---
+    # --- Shading of position spans on every axis ---
     if shade_positions and "pos" in df.columns:
         pos_mask = df["pos"].astype(float).fillna(0.0).ne(0)
-        for a in (ax1, ax2):
+        for a in panels:
             for start, end in _spans_from_bool(pos_mask):
                 a.axvspan(start, end, color=shade_color, alpha=shade_alpha, zorder=0)
 
@@ -153,6 +168,46 @@ def plot_pair_legs_with_trades(
     ax2.grid(True, alpha=0.3)
     ax2.legend(loc="upper left")
 
-    ax2.set_title(f"Trades superimposed on each leg • {label1} (top), {label2} (bottom)")
+    # --- Spread z-score: the signal the trades above are a consequence of -------
+    if ax3 is not None:
+        z = df["z"].astype(float)
+        ax3.plot(z.index, z, linewidth=1.2, color="tab:blue", label="z of spread", zorder=2)
+        ax3.axhline(0.0, color="k", linewidth=0.9, zorder=1)
+        for lv, colour, name in ((z_entry, sell_color, "entry"),
+                                 (z_exit, buy_color, "exit"),
+                                 (z_stop, "0.35", "stop")):
+            if lv is None:
+                continue
+            ax3.axhline(lv, color=colour, linestyle="--", linewidth=1.0,
+                        label=f"{name} ±{lv:g}", zorder=1)
+            ax3.axhline(-abs(lv), color=colour, linestyle="--", linewidth=1.0, zorder=1)
+
+        # mark where the position opens and closes, so one trade can be followed
+        # down the three panels: z leaves the band -> legs are traded -> z reverts
+        if "pos" in df.columns:
+            pos  = df["pos"].astype(float).fillna(0.0)
+            prev = pos.shift(1).fillna(0.0)
+            opens  = df.index[(pos.ne(0)) & (prev.eq(0))]
+            closes = df.index[(pos.eq(0)) & (prev.ne(0))]
+            if len(opens):
+                long_spread = opens[pos.reindex(opens) > 0]
+                short_spread = opens[pos.reindex(opens) < 0]
+                ax3.scatter(long_spread, z.reindex(long_spread), marker="^", s=55,
+                            color=buy_color, zorder=4, label="open long spread")
+                ax3.scatter(short_spread, z.reindex(short_spread), marker="v", s=55,
+                            color=sell_color, zorder=4, label="open short spread")
+            if len(closes):
+                ax3.scatter(closes, z.reindex(closes), marker="x", s=55, linewidths=1.6,
+                            color="0.25", zorder=4, label="close")
+
+        ax3.set_ylabel("z")
+        ax3.grid(True, alpha=0.3)
+        ax3.legend(loc="upper left", ncol=3, fontsize=8)
+        ax3.set_title("Spread z-score — entries when it leaves the band, exits as it reverts")
+
+    # with two panels the caption sits under the pair (unchanged); with three it
+    # belongs on top, because the z-score panel carries its own title
+    legs_title = f"Trades superimposed on each leg • {label1} (top), {label2} (bottom)"
+    (ax1 if ax3 is not None else ax2).set_title(legs_title)
     plt.tight_layout()
-    return fig, (ax1, ax2)
+    return (fig, (ax1, ax2, ax3)) if ax3 is not None else (fig, (ax1, ax2))

@@ -341,30 +341,23 @@ print(f"hedge: P1 = {fit['alpha']:.2f} + {fit['beta']:.4f} x P2  |  "
       f"residual half-life {fit['halflife']:.1f} sessions -> z look-back {fit['z_window']}")
 """)
 code(r"""
-# 1) trades on each leg -- the same view as notebook 02 section 4.3
-plot_pair_legs_with_trades(states[["P1", "P2"]], sig, label1=t1, label2=t2,
-                           normalize=False, shade_positions=True,
-                           size_scale=0.004, min_marker=20, max_marker=220)
+# trades on each leg, plus the z-score that caused them on a shared x-axis, so a single
+# round trip can be followed down the panels: z leaves the band -> the legs are traded
+# -> z reverts to the exit line -> the position closes
+_ = plot_pair_legs_with_trades(states[["P1", "P2"]], sig, label1=t1, label2=t2,
+                               normalize=False, shade_positions=True,
+                               size_scale=0.004, min_marker=20, max_marker=220,
+                               show_zscore=True, z_entry=Z_ENTRY, z_exit=Z_EXIT, z_stop=Z_STOP)
 """)
 code(r"""
-# 2) the z-score that produced them, with the entry/exit/stop bands, and 3) the equity curve
-fig, ax = plt.subplots(2, 1, figsize=(13, 7), sharex=True,
-                       gridspec_kw={"height_ratios": [2, 1]})
-ax[0].plot(sig.index, sig["z"], lw=1.2, color="tab:blue", label="robust z")
-for lv, c, lab in ((Z_ENTRY, "tab:red", "entry ±2"), (Z_EXIT, "tab:green", "exit ±0.5"),
-                   (Z_STOP, "0.3", "stop ±4")):
-    ax[0].axhline(lv, color=c, ls="--", lw=1, label=lab); ax[0].axhline(-lv, color=c, ls="--", lw=1)
-ax[0].axhline(0, color="k", lw=0.8)
-inpos = sig["pos"].ne(0)
-ax[0].fill_between(sig.index, ax[0].get_ylim()[0], ax[0].get_ylim()[1], where=inpos,
-                   color="0.85", alpha=0.35, step="mid")
-ax[0].set_ylabel("z"); ax[0].legend(ncol=4, fontsize=8)
-ax[0].set_title(f"{t1}/{t2} — signal, and the position it implies (shaded)")
-
+# the equity curve for the same fold
+fig, ax = plt.subplots(figsize=(13, 3.2))
 eq = daily["pnl_net"].cumsum()
-ax[1].plot(eq.index, eq, lw=1.4, color="tab:purple")
-ax[1].axhline(0, color="k", lw=0.8); ax[1].set_ylabel("cumulative net P&L ($)")
-ax[1].set_title(f"Sharpe {summ['sharpe']:.2f} on ${CAP:,} of capital over this fold")
+ax.plot(eq.index, eq, lw=1.4, color="tab:purple")
+ax.fill_between(eq.index, 0, eq, color="tab:purple", alpha=0.12)
+ax.axhline(0, color="k", lw=0.8)
+ax.set_ylabel("cumulative net P&L ($)")
+ax.set_title(f"{t1}/{t2} — Sharpe {summ['sharpe']:.2f} on ${CAP:,} of capital over this fold")
 plt.tight_layout(); plt.show()
 """)
 code(r"""
