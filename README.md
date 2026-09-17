@@ -18,6 +18,7 @@ validation and capacity analysis.
 - **Time-varying cointegration tests** — is the dynamic hedge spurious? Eroğlu–Miller–Yiğit (2021) state-space tests with bootstrap inference, applied to the Kalman hedge ([`tv_cointegration_kalman_yahoo.ipynb`](notebooks/tv_cointegration_kalman_yahoo.ipynb))
 - **Day lake, done properly** — loader for an adjusted Polygon day lake (both layouts, ticker-reuse resolution, explicit price basis, dividends recovered from the adjustment factors) and a point-in-time liquidity screen; a three-notebook series rebuilds the daily study without survivorship bias, without dividend look-ahead and as a portfolio ([`06`](notebooks/pairs_trading_06_daily_lake.ipynb) universe & data quality, [`07`](notebooks/pairs_trading_07_daily_cointegration.ipynb) does cointegration exist, [`08`](notebooks/pairs_trading_08_daily_portfolio.ipynb) twenty-year portfolio backtest)
 - **Minute bars** — loader for an adjusted Polygon minute lake (two layouts, sidecar-pruned reads, regular-session grid with rule-based early closes), microstructure diagnostics (Roll spread, signature plot, Epps effect), session rules and session-counted walk-forward folds; a three-notebook series takes the pipeline intraday ([`09`](notebooks/pairs_trading_09_minute_data.ipynb) data & microstructure, [`10`](notebooks/pairs_trading_10_intraday_backtest.ipynb) intraday walk-forward, [`11`](notebooks/pairs_trading_11_intraday_portfolio.ipynb) hold-out, latency, costs, capacity)
+- **Cross-sectional statistical arbitrage** — the Avellaneda–Lee design on the same day lake: monthly PCA eigenportfolios as risk factors, a residual signal on every eligible name, factor-neutral dollar-neutral weights, and information coefficients measured before any portfolio is built ([`12`](notebooks/pairs_trading_12_daily_cross_sectional.ipynb) breadth instead of pair selection — and why it is not enough)
 - Plotting of trades over price legs
 
 <p align="center">
@@ -57,6 +58,7 @@ lake**, neither of which touches the network.
 | [`pairs_trading_09_minute_data.ipynb`](notebooks/pairs_trading_09_minute_data.ipynb) | **Minute bars I — the lake and the microstructure of the spread.** The two lake layouts and their sidecar (and where the two builds disagree), the regular-session grid (UTC→Eastern, early closes, forward-fill within session), a universe pass at session resolution with a liquidity screen (traded-minute share, dollar volume, Roll spread), the dual-gate screen on 2022–2024 session closes (10 BH passes), and the intraday microstructure of the candidate spreads: signature plot, Epps effect, bounce autocorrelation, half-life by sampling interval (≈ 20 sessions at every interval), intraday seasonality, overnight share of variance (≈ 40%), and what a 2σ reversion is worth against the round-trip cost |
 | [`pairs_trading_10_intraday_backtest.ipynb`](notebooks/pairs_trading_10_intraday_backtest.ipynb) | **Minute bars II — which intraday design survives out of fold.** Session-counted walk-forward (250 sessions fit / 20 trade, positions carried across refits) on the 2022–2024 training span, pooled out-of-fold Sharpe as the single objective: hedge estimation (static vs daily-cadence Kalman vs frequency-scaled intraday Kalman vs the naive port of the daily settings — every faster hedge whitens the spread and churns), sampling frequency (1 min to session closes), session rule (overnight vs flat by the close), and a look-back × entry grid read with the winner's curse in mind. Carries forward the untuned rule on a static hedge at 30-minute bars |
 | [`pairs_trading_11_intraday_portfolio.ipynb`](notebooks/pairs_trading_11_intraday_portfolio.ipynb) | **Minute bars III — the hold-out, execution realism and the portfolio.** 2025 touched once: the chosen design, the grid's "tuned" cell, and the same pairs on daily bars (same hedge, and notebook 02's daily Kalman) — all within one standard error of zero; latency (1–3 bars), cost sweep to 10 bps (break-even above 10 bps out of fold; the hold-out is flat even at zero cost), capacity (participation and square-root impact at $10k–$1M per pair), overnight-vs-intraday and time-of-day attribution, and the effective number of independent bets in a hub-dominated candidate set |
+| [`pairs_trading_12_daily_cross_sectional.ipynb`](notebooks/pairs_trading_12_daily_cross_sectional.ipynb) | **Day lake IV — leaving pairs behind.** Notebook 07's discovery step is the breadth bottleneck, so this one removes it: hold every eligible name every day, sized by its residual against a 15-factor monthly PCA model fitted on trailing data only. Information coefficients are measured *before* any portfolio is built — plain five-day reversal forecasts next-day residual returns at IC 0.033, $t$ = 8.6 over 986 probe days, while the Avellaneda–Lee s-score is dominated and its $\kappa$ filter passes 99% of names. The book holds ~500 positions on \$1M, but turnover of 15–65% a session leaves a break-even cost of only 0.7–5.7 bps a side: best net Sharpe at 5 bps is 0.05. A skip-a-day test rules out bid-ask bounce (−4% of gross Sharpe), and a decade split shows the edge is real and gone — gross Sharpe 0.77 in 2006–2015 against 0.02 in 2016–2025 |
 
 ---
 
@@ -114,16 +116,18 @@ repo-root/
 │  ├─ pairs_trading_09_minute_data.ipynb            # minute lake, session grid, liquidity, intraday microstructure of the spread
 │  ├─ pairs_trading_10_intraday_backtest.ipynb      # intraday walk-forward: hedge cadence, sampling frequency, session rule, thresholds
 │  ├─ pairs_trading_11_intraday_portfolio.ipynb     # 2025 hold-out once, latency, costs, capacity, P&L attribution, portfolio
-│  └─ build/                               # scripts that generate nb04–nb08, the tv and the visualisation notebooks + execute.py runner
+│  ├─ pairs_trading_12_daily_cross_sectional.ipynb  # PCA eigenportfolios, residual reversal on the whole cross-section, cost sweep
+│  └─ build/                               # scripts that generate nb04–nb12, the tv and the visualisation notebooks + execute.py runner
 │
 ├─ cache/                               # auto-created; gitignored
 │  ├─ viz_prices_<universe>.parquet     # cached price data (visualisation nb)
 │  ├─ viz_screen_<universe>.parquet     # cached screening results
 │  ├─ viz_kalman_<universe>.pkl         # cached Kalman states
 │  ├─ min_*.parquet / min_*.pkl         # minute-bar notebooks: session frame, screen, candidates, fitted fold states
-│  └─ day_*.parquet                     # day-lake notebooks: market bars, universe, screen, selection rules
+│  ├─ day_*.parquet                     # day-lake notebooks: market bars, universe, screen, selection rules
+│  └─ xs_*.parquet / xs_*.pkl           # cross-sectional notebook: IC panel, daily target weights
 │
-└─ tests/                    # 337 passing tests
+└─ tests/                    # 341 passing tests
    ├─ test_cointegration.py
    ├─ test_evaluate.py
    ├─ test_fdr.py
