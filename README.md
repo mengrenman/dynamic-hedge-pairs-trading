@@ -250,7 +250,7 @@ candidates = list(screen.index)   # list of (ticker1, ticker2)
 ```python
 states_tr, params_tr = fit_kalman_hedge(
     df_train, pairs=candidates,
-    mode="smooth", em_iters=5, q=1e-5,
+    mode="filter", em_iters=5, q=1e-5,   # causal; never "smooth" for anything a signal reads
     return_params=True,
 )
 ```
@@ -506,31 +506,14 @@ positive. Single-window metrics for that pair:
 > score favoured pairs whose *smoothed* residual looked stationary — and the replacement scores
 > better out of fold. See the note on `mode` in **Notes & gotchas**.
 
---------|----------------------|----------------|
-| Sharpe ratio | 2.45 | 2.23 |
-| Ann. return | 41% | 14% |
-| Max drawdown | 4.5% | 0.9% |
-| Trades | 86 | 3 |
-
-> **Read the fold distribution, not the single OOS window.** The OOS Sharpe (2.23) looks
-> strong, but it rests on just **3 trades with no losers** (hit rate 100%, profit factor ∞) —
-> statistically meaningless, and an even smaller sample than earlier runs. The honest headline
-> figure is the **walk-forward median fold Sharpe of ≈ 1.0** across 15 folds, which is what
-> actually drove selection. Treat the single-window 2.23 as high-variance noise, not evidence
-> of a ~2.2 live Sharpe.
->
-> **Selection is now causal:** the pair (CCL/STT) is chosen by walk-forward cross-fold
-> stability on the training span, with H1 2026 held out — re-running may surface a different
-> pair as data is extended.
-
 ---
 
 ## Limitations
 
 | Gap | Notes |
 |-----|-------|
-| **Selection bias** | Candidates screened from a large universe; even with walk-forward-based selection (§3.5), picking the best pair on validation folds inflates expectations. The 2025 test window is held out, but validation-set selection bias remains |
-| **Single-pair OOS** | only 3 OOS trades in H1 2026; need ≥50 for statistical power — the single-window OOS Sharpe is essentially noise |
+| **Selection bias** | Candidates screened from a large universe; even with walk-forward-based selection (§3.5), picking the best pair on validation folds inflates expectations. The H1 2026 test window is held out, but validation-set selection bias remains |
+| **Single-pair OOS** | only 13 OOS trades in H1 2026; need ≥50 for statistical power — the single-window OOS Sharpe is essentially noise |
 | **Portfolio weights are heuristic** | Inverse-variance ignores off-diagonal covariance; a minimum-variance optimizer would be more precise |
 | **Circuit breaker is back-tested** | Thresholds calibrated in-sample may over-fit; validate OOS before deploying |
 | **Market impact is estimated** | Square-root model calibrated to median US equities; illiquid names need higher η |

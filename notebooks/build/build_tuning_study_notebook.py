@@ -29,9 +29,12 @@ the tuning objective and the pair set — under a protocol that can actually tel
   Aggregating across pairs at equal capital ($10k each) is what gives enough trades to distinguish
   procedures; a single pair cannot.
 * **Walk-forward folds** on 2020–2025 (train 504 / test 126 / step 63 bars); each fold contributes the
-  bars before the next refit, so every bar from 2022 on has exactly one out-of-fold return per
-  (pair, model, configuration), from a model fitted strictly before it.
-* **Tune period** = out-of-fold bars in 2022–2024: configurations are *chosen* here.
+  bars before the next refit, so every out-of-fold bar has exactly one return per (pair, model,
+  configuration), from a model fitted strictly before it. The first such bar sits at index `train_bars`,
+  so the span starts in 2022 for the 504-bar blocks and later for the longer windows.
+* **Tune period** = every out-of-fold bar before 2025: configurations are *chosen* here. The slice has no
+  lower bound, so where it starts follows the block's training window — 2022 for the 504-bar blocks, later
+  for the long-window variants.
 * **Validation period** = out-of-fold bars in 2025: procedures are *compared* here.
 * **Hold-out** = 2026 (174 bars to mid-September): each model is refit on the trailing 504 bars of 2025
   (756 for the two long-window variants), and the hold-out is evaluated **once**, at the end, for every
@@ -71,7 +74,7 @@ TRAIN_START, TRAIN_END = "2020-01-01", "2025-12-31"
 VALID_START, HOLDOUT_START, HOLDOUT_END = "2025-01-01", "2026-01-01", "2026-09-12"
 CAP = 10_000
 EVAL_KW = dict(cost_bps=1, borrow_bps_per_year=50, days_per_year=252, bars_per_year=252, capital_base=CAP)
-MIN_TRADES = 8                                    # a configuration must trade at least this often in the tune period
+MIN_TRADES = 8                                    # minimum trades across ALL folds (not per period) for a (pair, config)
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3})
 print("pairs", pairs.__version__)
 """)
@@ -568,7 +571,7 @@ ax = axes[1]
 for lbl, color in ((f"{K0_NAME} | default", "steelblue"), (f"{K0_NAME} | per-pair tuned", "darkorange"),
                    ("OLS static per fold | pooled tuned", "seagreen"), ("OLS rolling 252 | pooled tuned", "purple")):
     tot, sh = portfolio(hold_series[lbl]); ax.plot(tot.index, tot.cumsum() / 1e3, color=color, lw=1.4, label=f"{lbl}  (Sharpe {sh:.2f})")
-ax.axhline(0, color="black", lw=0.8); ax.set_ylabel(f"portfolio P&L ($k, {len(pairs_all)} pairs × ${CAP:,.0f})"); ax.set_title("Hold-out equity, 2026"); ax.legend(fontsize=8)
+ax.axhline(0, color="black", lw=0.8); ax.set_ylabel(f"portfolio P&L (\\$k, {len(pairs_all)} pairs × \\${CAP:,.0f})"); ax.set_title("Hold-out equity, 2026"); ax.legend(fontsize=8)
 plt.tight_layout(); plt.show()
 """)
 md(r"""
@@ -609,8 +612,9 @@ being tuned protects you from the winner's curse, not from the model being wrong
 
 **Do we need to change how the Kalman filter is fitted?** Not on this evidence. EM on beats EM off with
 default thresholds; the noise level `q` matters in validation but non-monotonically, and no setting is
-distinguishable on the hold-out. The one fitting change with a clear *diagnostic* justification — a
-static hedge, since the σ_η tests found no moving coefficient — is the most volatile thing in the study:
+distinguishable on the hold-out. The one fitting change that is often argued for on diagnostic
+grounds — a static hedge — is the most volatile thing in the study (no σ_η test was run on these 40 pairs;
+the time-varying-cointegration tests in `tv_cointegration_kalman_yahoo.ipynb` cover a different pair):
 0.21 on validation, 1.72 on the hold-out, ρ = −0.71 between its own tune period and validation, and a
 hub-pair figure of 0.65 in 2025 against 2.06 in 2026. Whatever it is measuring, one year of it does not
 predict the next, and its edge sits on the hub pairs in both.
@@ -631,8 +635,9 @@ reverses once the thresholds are tuned. It is a second-order lever.
    44 pairs to 40, the hub group lost its CCL half, and the static hedge went from *worst* procedure on
    the hold-out to *best*. Nothing about the tuning machinery changed. Separate hub pairs from
    pair-specific ones, and read any procedure whose edge sits on one side of that split as a regime bet.
-3. **Consider the static hedge where the σ_η test does not reject**, but treat its results on hub pairs
-   as regime bets.
+3. **Consider the static hedge**, but test for a moving coefficient on *these* pairs first — the σ_η
+   machinery in `tv_cointegration_kalman_yahoo.ipynb` has not been run on them — and treat its results on
+   hub pairs as regime bets.
 4. **Stop expecting a 174-bar hold-out to settle anything.** The honest deliverable of tuning is a
    configuration that is *not worse* than defaults across pairs and years, evaluated on a portfolio; the
    evidence for "better" needs years of hold-out or many more independent pairs.
