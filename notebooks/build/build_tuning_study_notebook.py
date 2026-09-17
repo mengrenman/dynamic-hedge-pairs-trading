@@ -205,11 +205,12 @@ Prices and the dual-gate screen for the combined S&P 500 + Nasdaq-100 universe c
 `visualize_cointegrated_pairs_yahoo.ipynb` (recomputed here if absent). The hold-out prices are downloaded once.
 """)
 code(r"""
-# nb02's §3.4 shortlist, pinned. Regenerate from pairs_trading_02_yahoo.ipynb §3.4 if that notebook is
-# re-run: the composite score behind it depends on nb02's Kalman states, so it moves when nb02 does.
-NB02_SHORTLIST = [("BKNG","MA"),("AVGO","RL"),("NCLH","REG"),("HSIC","PLD"),("NCLH","ZBH"),("BA","JKHY"),
-                  ("CRM","EQIX"),("NCLH","SBAC"),("NCLH","VRSN"),("NCLH","WEC"),("NCLH","SJM"),("NCLH","WTW"),
-                  ("NCLH","PNW"),("NCLH","SPG"),("NCLH","NTRS")]
+# nb02's §3.4 shortlist, pinned. nb02 now prints this list in copy-pasteable form at the end of its §3.4
+# cell; paste it here whenever nb02 is re-run, because the composite score behind it depends on nb02's
+# Kalman states and therefore moves when nb02 does.
+NB02_SHORTLIST = [("BKNG","MA"),("NCLH","REG"),("NCLH","SPG"),("NCLH","RCL"),("NCLH","NTRS"),("AVGO","RL"),
+                  ("NCLH","PSX"),("NCLH","WAT"),("CRM","EQIX"),("NCLH","ZBH"),("NCLH","SBAC"),("NCLH","SWK"),
+                  ("NCLH","VRSN"),("BA","JKHY"),("NCLH","WTW")]
 
 px_file, sc_file = CACHE / "viz_prices_spx_ndx_combined.parquet", CACHE / "viz_screen_spx_ndx_combined.parquet"
 if px_file.exists() and sc_file.exists():
@@ -229,13 +230,18 @@ pairs_all = non_hub + [p for p in NB02_SHORTLIST if p not in non_hub]
 hub = [p for p in pairs_all if p not in non_hub]
 tickers = sorted({t for p in pairs_all for t in p})
 
+# The cache is topped up rather than trusted wholesale: NB02_SHORTLIST changes whenever nb02 is
+# re-run, and a bare exists() check would load a file that silently lacks the new names.
 hold_file = CACHE / "study_holdout_prices.parquet"
-if hold_file.exists():
-    hold = pd.read_parquet(hold_file)
-else:
-    dfh, failed = load_prices("openbb", tickers, HOLDOUT_START, HOLDOUT_END, return_failed=True, show_progress=False)
+hold = pd.read_parquet(hold_file) if hold_file.exists() else pd.DataFrame()
+missing = [t for t in tickers if t not in hold.columns]
+if missing:
+    print(f"hold-out cache missing {len(missing)} ticker(s): {missing} — downloading")
+    dfh, failed = load_prices("openbb", missing, HOLDOUT_START, HOLDOUT_END, return_failed=True, show_progress=False)
     assert not failed, failed
-    hold = dfh["close"].unstack("ticker"); hold.to_parquet(hold_file)
+    add = dfh["close"].unstack("ticker")
+    hold = add if hold.empty else hold.join(add, how="outer")
+    hold.to_parquet(hold_file)
 px, hold = px[tickers], hold[tickers]
 print(f"{len(pairs_all)} pairs: {len(non_hub)} non-hub dual-gate pairs + {len(hub)} from nb02's shortlist ({len(tickers)} tickers)")
 print(f"training window {px.index[0].date()} → {px.index[-1].date()} ({len(px)} bars); hold-out {hold.index[0].date()} → {hold.index[-1].date()} ({len(hold)} bars)")
@@ -246,7 +252,7 @@ md(r"""
 ## 3. Out-of-fold returns for every (pair, model, configuration)
 
 Stored compactly (one float32 matrix of configurations × bars per pair) and cached, because the cold
-computation is about eight minutes on 16 cores.
+computation is about nine minutes on 16 cores.
 """)
 code(r"""
 OOF_CACHE = CACHE / "tuning_study_oof.pkl"
@@ -297,7 +303,7 @@ are scored on the **validation** period as a portfolio:
   but a reference for how much a tuner leaves on the table. Read it as a reference and not a strict
   bound: the oracle and the pooled pick are both chosen on the pairs clearing `MIN_TRADES` and then
   reported over all 40, so a tuned row can occasionally print above its own oracle — `OLS static per
-  fold | train 504` shows per-pair tuned at 1.49 against an oracle of 0.94.
+  fold | train 504` shows per-pair tuned at 1.48 against an oracle of 0.63.
 """)
 code(r"""
 def cfg_index(grid, cfg): return next(i for i, g in enumerate(grid) if g == cfg)
@@ -368,22 +374,24 @@ plt.tight_layout(); plt.show()
 md(r"""
 **Reading.** Three things stand out.
 
-1. **Tuning nb02's model helps on validation.** With the default Kalman (EM, `q=1e-5`, train 504) both
-   procedures beat the hand-set thresholds: pooled tuning 1.06 and per-pair 0.88 against a default of
-   0.58, with per-pair lifting profitable pairs from 23 of 40 to 29. The oracle that peeks at validation
-   reaches 1.50, so a good deal is still left on the table. The warning sign is the "tune Sharpe" column:
-   the default scores −0.65 over 2022–2024 and +0.58 in 2025, so the two periods disagree in sign even
-   for the configuration nobody chose, and §5 measures how little the first tells you about the second.
-2. **The static hedge is the least stable model, in both directions.** OLS refit per fold (train 504)
-   posts 1.10 on the tune period but only 0.21 on validation with default thresholds; per-pair tuning
-   rescues it to 1.49 while pooled tuning does not (0.10). §5 shows why none of this should be trusted:
-   for this model the rank correlation between tune period and validation is *negative*. §7 then has it
-   finishing first on the hold-out. Best of the eleven models on the tune period, mid-table on
-   validation, best again in 2026: a ranking that swings that far between adjacent years is telling you
-   about the years, not the model.
-3. **Kalman noise and window length move the needle in validation** — `q=1e-4` (0.94) and `q=1e-6` (0.65)
-   both beat `q=1e-5` (0.58), and a 756-bar window (1.01) beats 504 (0.58) and 252 (0.18) — but with no
-   monotone pattern in `q`, which is itself a warning that these differences are noisy.
+1. **Tuning nb02's model barely moves it.** With the default Kalman (EM, `q=1e-5`, train 504) pooled
+   tuning reaches 1.00 against a default of 0.65, and per-pair tuning 0.68 — a difference of 0.03, on
+   *fewer* profitable pairs (22 of 40 against the default's 24). The oracle that peeks at validation
+   reaches 2.02, so most of what was available went uncollected. The warning sign is the "tune Sharpe"
+   column: the default scores −1.01 over 2022–2024 and +0.65 in 2025, so the two periods disagree in
+   sign even for the configuration nobody chose, and §5 measures how little the first tells you about
+   the second.
+2. **The static hedge swings furthest between periods.** OLS refit per fold (train 504) posts 1.14 on the
+   tune period but only 0.21 on validation with default thresholds; per-pair tuning lifts it to 1.48
+   while pooled tuning picks the default configuration outright and lands on the same 0.21. §7 then has
+   it finishing first on the hold-out at 1.77. Best of the eleven models on the tune period, mid-table
+   on validation, best again in 2026: a ranking that swings that far between adjacent years is telling
+   you about the years, not the model. §5 adds that its tune period carries no usable signal about
+   validation at all (ρ = −0.03).
+3. **Kalman noise level does not separate, but window length does** — with default thresholds `q=1e-5`
+   (0.65) beats both `q=1e-4` (0.60) and `q=1e-6` (0.37), so nb02's hand-set value happens to be the
+   best of the three and there is no monotone pattern to exploit. The window is the one lever with a
+   clean ordering: 756 bars (1.06) beats 504 (0.65) beats 252 (0.28).
 
 Whether any of this survives the hold-out is the question of §7.
 """)
@@ -396,7 +404,7 @@ Every configuration's portfolio Sharpe on the tune period against its Sharpe on 
 models. A tuner can only work if the cloud slopes upward.
 """)
 code(r"""
-RHOS = {}
+RHOS, N_PLOTTED = {}, {}
 fig, axes = plt.subplots(1, 3, figsize=(17, 4.8), sharey=True)
 for ax, name in zip(axes, [K0_NAME, "K em5 q1e-4", "OLS static per fold"]):
     block = blocks[(name, 504)]; grid = block["grid"]; d_idx = cfg_index(grid, DEFAULT_SIG)
@@ -408,7 +416,7 @@ for ax, name in zip(axes, [K0_NAME, "K em5 q1e-4", "OLS static per fold"]):
         pts.append((portfolio(ser_t)[1], portfolio(ser_v)[1], i == d_idx))
     pts = pd.DataFrame(pts, columns=["tune", "valid", "is_default"]).dropna()
     rho = spearmanr(pts["tune"], pts["valid"]).correlation
-    RHOS[name] = float(rho)
+    RHOS[name] = float(rho); N_PLOTTED[name] = int(len(pts))
     ax.scatter(pts["tune"], pts["valid"], s=12, alpha=0.6, color="steelblue")
     d = pts[pts["is_default"]]; ax.scatter(d["tune"], d["valid"], s=80, color="red", zorder=3, label="nb02 default thresholds")
     ax.axhline(0, color="black", lw=0.6); ax.axvline(0, color="black", lw=0.6)
@@ -418,20 +426,23 @@ axes[0].set_ylabel("portfolio Sharpe, validation 2025"); axes[0].legend(fontsize
 plt.tight_layout(); plt.show()
 print("Spearman ρ, tune period vs validation year:",
       {k: round(v, 2) for k, v in RHOS.items()})
+# printed because the prose below quotes these counts: a grid whose configurations stop clearing
+# MIN_TRADES silently changes how many points each ρ is computed over.
+print("configurations plotted:", N_PLOTTED)
 """)
 md(r"""
 The three models do not behave alike. For nb02's Kalman the rank correlation between the tune period and
-validation is ρ = 0.46, and for `q=1e-4` it is 0.72 — positive, but carried largely by the gap between
-configurations that fail in *both* periods (those that exit only at the mean) and everything else. Inside
-the cluster of sensible configurations the slope is much flatter, so a tuner choosing among them is
-choosing mostly noise.
+validation is ρ = 0.36 over 246 configurations, and for `q=1e-4` it is 0.55 over 11 — positive, but
+carried largely by the gap between configurations that fail in *both* periods (those that exit only at
+the mean) and everything else. Inside the cluster of sensible configurations the slope is much flatter,
+so a tuner choosing among them is choosing mostly noise.
 
-The static hedge is the exception, and it points the wrong way: **ρ = −0.71**, over the six
-configurations of its grid that clear the trade minimum on enough pairs to be plotted. The
-configurations that did best over 2022–2024 are systematically the ones that did worst in 2025. Six
-points is thin evidence and the correlation is not significant on its own, but the sign matters for how
-§4 should be read: the static hedge's tuned validation scores were selected fairly, on tune-period
-information alone, yet the period they were selected on carries no usable signal about the next one.
+The static hedge is the exception, and it carries nothing at all: **ρ = −0.03**, over the six
+configurations of its grid that clear the trade minimum on enough pairs to be plotted. Six points is thin
+evidence either way, but a correlation this close to zero is the cleanest statement in the notebook:
+the static hedge's tuned validation scores in §4 were selected fairly, on tune-period information alone,
+and the period they were selected on says nothing whatsoever about the next one. §4's 1.48 for its
+per-pair tuning is therefore a draw from a lottery, not a return on the tuning.
 """)
 
 # ───────────────────────────── 6. robust objectives & hub split ─────────────────────────────
@@ -442,10 +453,10 @@ md(r"""
 the best *worst year* (2022, 2023 or 2024), or average the P&L of the top-5 configurations (an ensemble).
 Both are a-priori sensible ways to avoid a single lucky year.
 
-**Hub vs non-hub pairs.** nb02's shortlist is dominated by NCLH — 10 of its 15 members pair against it —
-so the "hub" group here is those 10 plus HSIC/PLD; the 29 non-hub pairs are
-the ones with pair-specific relationships. If tuning "works" only on the hub pairs, it is fitting the
-COVID recovery, not a strategy.
+**Hub vs non-hub pairs.** nb02's shortlist is dominated by NCLH — 11 of its 15 members pair against it —
+so the "hub" group here is exactly those 11; the 29 non-hub pairs are the ones with pair-specific
+relationships. If tuning "works" only on the hub pairs, it is fitting the COVID recovery, not a
+strategy.
 """)
 code(r"""
 def year_sharpes(ser_by_pair):
@@ -487,21 +498,25 @@ split_tab = pd.DataFrame(rows).set_index(["model", "procedure"])
 split_tab.style.format("{:.2f}").background_gradient(cmap="RdYlGn", vmin=-1.5, vmax=2.5).set_caption("Validation Sharpe, hub pairs vs non-hub pairs")
 """)
 md(r"""
-**Reading.** For nb02's model the plain argmax is the best of the objectives here (1.07 against a 0.58
-default), with the ensemble close behind (0.91) and the *robust* worst-year objective the worst of the
-three (0.49) — the opposite of what a winner's-curse story predicts, and a reminder that with one
-validation year these orderings are themselves noisy. Robustness does earn its keep for the static hedge,
-whose 0.10 default is beaten by the worst-year objective (0.77) and the ensemble (0.45) while the plain
-argmax is negative (−0.24). The worst-year objective almost always picks a *wider* entry (3.0). (The "default"
-column of the objectives table is computed on the pairs where the default trades at least `MIN_TRADES`
-times, so it can differ from §4.)
+**Reading.** For nb02's model the plain argmax and the worst-year objective tie at 1.01 against a 0.65
+default, with the ensemble just behind at 0.91 — so all three beat the hand-set thresholds and none of
+them separates from the others. The static hedge is the opposite case: argmax, worst-year and default
+all land on the *same* configuration and therefore the same 0.11, and only the ensemble moves at all
+(0.34). Robustness neither helps nor hurts it, because there is nothing in its grid for a robust
+objective to prefer. The worst-year objective picks the widest entry (3.0) for the three plain
+Kalman rows and something narrower for the other three (2.0 for the static hedge, 1.5 for rolling-252
+and 2.5 for the z-window variant, itself a Kalman model), so "robust ⇒ wider" is a property of those
+three grids rather than of the objective. (The "default" column of the objectives table is computed
+on the pairs where the default trades at least `MIN_TRADES` times, so it can differ from §4.)
 
-The hub split is more telling. With default thresholds the static hedge's validation edge is entirely
-hub-driven — 0.65 on the hub pairs against 0.04 on the rest — and nb02's Kalman leans the same way,
-though less steeply (0.59 hub, 0.28 non-hub, and 0.89 / 0.40 pooled-tuned). Two procedures go the other
-way: rolling-252 pooled tuning is −1.20 on the hubs against 0.58 elsewhere, and the z-window-from-static
-variant's per-pair edge is wholly non-hub (2.05 against −0.87). Whenever a procedure's edge lives on one
-side of this split, it is a bet on the regime rather than on the strategy.
+The hub split is more telling. With default thresholds **nb02's Kalman is entirely hub-driven** — 1.01 on
+the 11 NCLH pairs against −0.09 on the other 29 — and the static hedge leans the same way, less steeply
+(0.41 hub, 0.04 non-hub), as does `q=1e-4` (0.85 against 0.01). Three procedures go the other way, and
+they are all tuned ones: nb02's Kalman *pooled*-tuned reverses its own default (0.58 hub, 1.03 non-hub),
+rolling-252 pooled tuning is −1.61 on the hubs against 0.40 elsewhere, and the z-window-from-static
+variant's per-pair edge is wholly non-hub (2.10 against −0.66). That a model's default and its tuned
+version sit on opposite sides of the split is the sharpest single warning in the notebook: whenever a
+procedure's edge lives on one side, it is a bet on the regime rather than on the strategy.
 """)
 
 # ───────────────────────────── 7. hold-out, once ─────────────────────────────
@@ -576,65 +591,75 @@ plt.tight_layout(); plt.show()
 """)
 md(r"""
 **Reading.** The validation ranking carries a little information about the hold-out this time, but not
-much: ρ = 0.28 across 33 procedures, with sign agreement of 52% — a coin flip. The grey band says why an
-honest reading stops there: an annualised Sharpe measured on 174 bars carries a standard error of about
-1.2, so every procedure in the table sits inside the noise. The top three on validation do survive —
-static per-pair tuned (1.49 in 2025) at 1.05, `q=1e-4` per-pair tuned (1.09) at 1.32 and nb02's Kalman
-pooled-tuned (1.06) at 1.40 — but the best hold-out score of all, 1.72, belongs to the **static hedge
-with default thresholds**, which managed only 0.21 on validation and whose tune period anti-predicts it
-(§5). Its hub-pair figure is 2.06, so it is again riding the hub regime, this time in the right
-direction. nb02's untuned Kalman comes 13th of 35 at 0.88, against a table median of 0.58. Nothing here
-can be called "good out-of-sample performance" with a straight face, and nothing can be called bad
-either; the window is too short to know.
+much: ρ = 0.34 across 33 procedures, with sign agreement of 70%. The grey band says why an honest reading
+stops there: an annualised Sharpe measured on 174 bars carries a standard error of about 1.2, so every
+procedure in the table sits inside the noise. Validation's leader does *not* repeat — static per-pair
+tuned, 1.48 in 2025, comes 6th at 1.07 — and the next two fade outright: `K em0 q1e-5` pooled-tuned
+(1.16 on validation) is 19th at 0.27 and the z-window variant's per-pair tuning (1.12) is 16th at 0.46.
+The best hold-out score of all, **1.77, belongs to the static hedge** — in both its default and its
+pooled-tuned row, because pooled tuning picked the default configuration — which managed only 0.21 on
+validation and whose tune period tells you nothing about either (§5). Its hub-pair figure is 1.90 against
+0.93 elsewhere, so it is again leaning on the hub regime, this time in the right direction. nb02's
+untuned Kalman comes 10th of 35 at 0.88, against a table median of 0.34. Nothing here can be called
+"good out-of-sample performance" with a straight face, and nothing can be called bad either; the window
+is too short to know.
 """)
 
 # ───────────────────────────── 8. conclusions ─────────────────────────────
 md(r"""
 ## 8. Answers
 
-**Why do tuned configurations underperform?** On this evidence, largely they don't — which is itself the
-answer. nb04 saw one pair lose after tuning; across 40 pairs both procedures beat the hand-set defaults on
-validation for nb02's model (pooled 1.06 and per-pair 0.88 against 0.58, §4), and the validation leaders
-hold up on the hold-out (§7). "Tuning always hurts" was an artifact of a single pair and a single window.
+**Why do tuned configurations underperform?** On this evidence they mostly don't — but neither do they
+help enough to notice. nb04 saw one pair lose after tuning; across 40 pairs both procedures beat the
+hand-set defaults on validation for nb02's model, and by very little: pooled 1.00 and per-pair 0.68
+against a default of 0.65 (§4). Per-pair tuning's margin is 0.03 of Sharpe, on *fewer* profitable pairs
+than the default managed. "Tuning always hurts" was an artifact of a single pair and a single window;
+"tuning helps" is not the replacement claim.
 
 What does *not* hold up is the link a tuner depends on. For nb02's Kalman the tune-to-validation rank
-correlation is 0.46 and is carried by the obviously broken configurations; for the static hedge it is
-−0.71, actively misleading (§5). Validation to hold-out is ρ = 0.28 with coin-flip sign agreement (§7).
-So when tuning wins it is mostly a lucky draw, and the same machinery that produced a win here produced a
-loss in nb04. The sharpest illustration is the static hedge: best of the models on the tune period,
-mid-table on validation with default thresholds (0.21), first on the hold-out (1.72), with a tune period
-that anti-predicts validation throughout.
+correlation is 0.36 and is carried by the obviously broken configurations; for the static hedge it is
+−0.03, i.e. nothing at all (§5). Validation to hold-out is ρ = 0.34 (§7), and validation's own leader
+finishes 6th. So when tuning wins it is mostly a lucky draw, and the same machinery that produced a win
+here produced a loss in nb04. The sharpest illustration is the static hedge: best of the models on the
+tune period (1.14), mid-table on validation with default thresholds (0.21), first on the hold-out (1.77),
+with a tune period that carries no information about validation whatsoever.
 
 The hand-set defaults are not smarter; they are simply not selected, so they carry no optimism bias and no
 selection penalty either. That does not make them safe: on the hold-out the twelve default rows span ranks
-1 to 31 and include both the best procedure in the table and one of the worst (`K em0 q1e-6`, −0.65). Not
-being tuned protects you from the winner's curse, not from the model being wrong.
+2 to 32 and include both the best procedure in the table and the worst of the Kalman rows (`K em5 q1e-6`,
+−0.56). Not being tuned protects you from the winner's curse, not from the model being wrong.
 
 **Do we need to change how the Kalman filter is fitted?** Not on this evidence. EM on beats EM off with
-default thresholds; the noise level `q` matters in validation but non-monotonically, and no setting is
-distinguishable on the hold-out. The one fitting change that is often argued for on diagnostic
-grounds — a static hedge — is the most volatile thing in the study (no σ_η test was run on these 40 pairs;
-the time-varying-cointegration tests in `tv_cointegration_kalman_yahoo.ipynb` cover a different pair):
-0.21 on validation, 1.72 on the hold-out, ρ = −0.71 between its own tune period and validation, and a
-hub-pair figure of 0.65 in 2025 against 2.06 in 2026. Whatever it is measuring, one year of it does not
-predict the next, and its edge sits on the hub pairs in both.
+default thresholds (0.65 against −0.14 at `q=1e-5`), and nb02's hand-set `q=1e-5` happens to be the best
+of the three noise levels in validation (0.65 against 0.60 at `q=1e-4` and 0.37 at `q=1e-6`) with no
+monotone pattern and nothing distinguishable on the hold-out. The one fitting change that is often argued
+for on diagnostic grounds — a static hedge — is the most volatile thing in the study (no σ_η test was run
+on these 40 pairs; the time-varying-cointegration tests in `tv_cointegration_kalman_yahoo.ipynb` cover a
+different pair): 0.21 on validation, 1.77 on the hold-out, ρ = −0.03 between its own tune period and
+validation, and a hub-pair figure of 0.41 in 2025 against 1.90 in 2026. Whatever it is measuring, one
+year of it does not predict the next, and its edge sits on the hub pairs in both.
 
 **What about the training window?** Longer helps the Kalman model in validation with default thresholds
-(1.01 at 756 against 0.58 at 504 and 0.18 at 252) but not detectably on the hold-out, and the ordering
-reverses once the thresholds are tuned. It is a second-order lever.
+(1.06 at 756 against 0.65 at 504 and 0.28 at 252) but not detectably on the hold-out, where the 756-bar
+default comes 12th at 0.61 against the 504-bar default's 10th at 0.88. It is a second-order lever.
 
 **Adjustments that are worth making**, in order:
 
 1. **Tune at the portfolio level with a restricted grid.** A robust objective (worst year, or an
-   ensemble of the top few) cuts the winner's curse and costs nothing, but neither is reliably better
-   here: for nb02's Kalman the ensemble beats the defaults (0.91 against 0.58) while the worst-year
-   objective does not (0.49), and for the static hedge the ordering is the other way round (0.77 against
-   0.45). With one validation year these orderings are noise.
+   ensemble of the top few) cuts the winner's curse and costs nothing, and here it does no harm: for
+   nb02's Kalman the worst-year objective and the plain argmax tie at 1.01 with the ensemble at 0.91,
+   all above the 0.65 default. For the static hedge all three objectives land on the default's own
+   configuration, so there is nothing to choose. With one validation year these orderings are noise, but
+   a robust objective is the cheap side of the bet.
 2. **Fix the pair set before tuning anything, and report how sensitive the answer is to it.** This
-   notebook's own history is the argument: rebuilt on nb02's corrected shortlist the portfolio went from
-   44 pairs to 40, the hub group lost its CCL half, and the static hedge went from *worst* procedure on
-   the hold-out to *best*. Nothing about the tuning machinery changed. Separate hub pairs from
-   pair-specific ones, and read any procedure whose edge sits on one side of that split as a regime bet.
+   notebook's own history is the argument, twice over. Rebuilt on nb02's corrected shortlist the
+   portfolio went from 44 pairs to 40 and the hub group lost its CCL half. Re-running nb02 again then
+   swapped 4 of its 15 shortlist members (HSIC/PLD, NCLH/WEC, NCLH/SJM and NCLH/PNW out; NCLH/RCL,
+   NCLH/PSX, NCLH/WAT and NCLH/SWK in) — and on that alone the static hedge's tune-to-validation ρ moved
+   from −0.71 to −0.03, per-pair tuning of nb02's Kalman fell from 0.88 to 0.68, and the hub/non-hub
+   split for that model's default flipped from mildly hub-leaning to entirely hub-driven. Nothing about
+   the tuning machinery changed in either step. Separate hub pairs from pair-specific ones, and read any
+   procedure whose edge sits on one side of that split as a regime bet.
 3. **Consider the static hedge**, but test for a moving coefficient on *these* pairs first — the σ_η
    machinery in `tv_cointegration_kalman_yahoo.ipynb` has not been run on them — and treat its results on
    hub pairs as regime bets.

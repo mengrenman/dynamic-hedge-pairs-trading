@@ -191,7 +191,12 @@ def _process(raw: pd.DataFrame, *, price: str, freq: str, tz: str, early: pd.Dat
     Returns a (ticker, datetime) frame on the regular session grid aggregated to ``freq``.
     """
     if raw.empty:
-        return pd.DataFrame(columns=["close", "volume", "n_traded"]).rename_axis(["ticker", "datetime"])
+        # a plain RangeIndex cannot take two names; build the empty MultiIndex explicitly so that
+        # "no rows in the lake for this request" surfaces as an empty frame of the right shape
+        # rather than a ValueError from rename_axis.
+        idx = pd.MultiIndex.from_arrays(
+            [pd.Index([], dtype=object), pd.DatetimeIndex([])], names=["ticker", "datetime"])
+        return pd.DataFrame(columns=["close", "volume", "n_traded"], index=idx, dtype=float)
 
     df = pd.DataFrame({
         "ticker": raw["ticker"].astype(str).to_numpy(),

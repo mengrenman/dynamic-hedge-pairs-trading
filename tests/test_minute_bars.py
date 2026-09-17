@@ -187,3 +187,16 @@ def test_summarize_sessions(lakes):
     assert summ.loc["BBB", "traded_share"] == 1.0
     assert 0.98 < summ.loc["AAA", "traded_share"] < 1.0
     assert summ.loc["AAA", "first"] == pd.Timestamp("2024-07-01") and summ.loc["BBB", "last"] == pd.Timestamp("2024-12-02")
+
+
+def test_empty_request_returns_a_well_formed_frame(tmp_path):
+    """A request the lake cannot satisfy must return an empty frame, not raise.
+
+    The empty path used to call rename_axis(["ticker", "datetime"]) on a frame carrying a
+    plain RangeIndex, so "no data" surfaced as a ValueError about index name lengths.
+    """
+    (tmp_path / "NOSUCH").mkdir()
+    out = load_minute_bars(["NOSUCH"], "2024-01-02", "2024-01-05", tmp_path, layout="ticker")
+    assert out.empty
+    assert list(out.index.names) == ["ticker", "datetime"]
+    assert list(out.columns) == ["close", "volume", "n_traded"]
