@@ -344,6 +344,15 @@ def filter_kf_on_new(
     R = np.asarray(frozen["R"], dtype=np.float64)
 
     init_mean, init_covm = _coerce_last_state(last_state, init_cov)
+    if last_state is not None:
+        # pykalman treats initial_state_mean/covariance as the PRIOR for bar 0: it applies
+        # the measurement update without first advancing the state.  `last_state` is the
+        # POSTERIOR at the end of the previous window, so advance it one transition here or
+        # the continuation silently omits one injection of process noise and the boundary
+        # bar is filtered from an over-confident prior.  With F = I the mean is unchanged;
+        # the covariance term is the one that matters.
+        init_mean = F @ np.asarray(init_mean, dtype=np.float64).reshape(-1)
+        init_covm = F @ np.asarray(init_covm, dtype=np.float64) @ F.T + Q
 
     # 3) Run KF
     kf = KalmanFilter(

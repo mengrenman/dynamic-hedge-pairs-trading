@@ -280,11 +280,26 @@ def evaluate_pair_signals(
     dn2 = n2.diff().fillna(n2)
     traded_notional = (dn1.abs() * df["P1"]) + (dn2.abs() * df["P2"])
 
+    # A bar's print can both close the previous position and open the next one (a reversal
+    # does exactly that).  Split the traded notional per leg so the closing part can be
+    # charged to the trade being closed and the opening part to the one being opened --
+    # otherwise a reversal bar's cost is booked against both.
+    def _close_open(nser: pd.Series, price: pd.Series):
+        a, b = nser.shift(1).fillna(0.0), nser
+        same = (a * b) >= 0                    # no sign flip: the smaller |.| is the overlap
+        closed = np.where(same, np.maximum(0.0, a.abs() - b.abs()), a.abs())
+        opened = np.where(same, np.maximum(0.0, b.abs() - a.abs()), b.abs())
+        return pd.Series(closed, index=nser.index) * price, pd.Series(opened, index=nser.index) * price
+
+    _c1, _o1 = _close_open(n1, df["P1"].astype(float))
+    _c2, _o2 = _close_open(n2, df["P2"].astype(float))
+    close_notional, open_notional = _c1 + _c2, _o1 + _o2
+
     cost_comm_slip  = (cost_bps / 1e4) * traded_notional
     cost_per_share  = fee_per_share_1 * dn1.abs() + fee_per_share_2 * dn2.abs()
 
-    short_notional = (np.where(n1 < 0, -n1 * df["P1"], 0.0)
-                    + np.where(n2 < 0, -n2 * df["P2"], 0.0))
+    short_notional = pd.Series(np.where(n1 < 0, -n1 * df["P1"], 0.0)
+                               + np.where(n2 < 0, -n2 * df["P2"], 0.0), index=df.index)
     # accrue borrow daily on short market value
     cost_borrow = short_notional * (borrow_bps_per_year / 1e4) / float(days_per_year)
 
@@ -319,6 +334,13 @@ def evaluate_pair_signals(
     cost_impact  = impact_leg1 + impact_leg2
 
     cost_total = cost_comm_slip + cost_per_share + cost_borrow + cost_impact
+
+    # Costs paid to trade, versus costs that accrue for holding.  Only the first kind
+    # splits between a closing and an opening trade; borrow is carry.
+    trade_cost = cost_comm_slip + cost_per_share + cost_impact
+    _denom = (close_notional + open_notional).replace(0.0, np.nan)
+    close_cost = (trade_cost * (close_notional / _denom)).fillna(0.0)
+
     pnl_net = pnl_gross - cost_total
 
     # --- exposures & returns --------------------------------------------------
@@ -383,25 +405,32 @@ def evaluate_pair_signals(
 
     trade_rows = []
     for start in entries:
-        after = exits[exits >= start]  # include same-bar for reversal
+        # An exit is never the entry bar itself: `entries` requires pos != 0 and `exits`
+        # requires pos == 0.  The only way `>=` could match `start` was the degenerate
+        # self-match on a reversal bar, which emitted a zero-length trade and swallowed
+        # the real one that followed.
+        after = exits[exits > start]
         if len(after) == 0:
             break
         end = after[0]
 
-        # slice the interval where position was held; exclude the bar when flat after exit
-        sl = daily.loc[start:end]
-        # if this is a normal flat exit, last bar is flat; for reversals, it’s still in-pos.
-        if (end in exits) and (end not in entries) and (sl["in_pos"].iloc[-1] == 0):
-            sl = sl.iloc[:-1]
+        # The position is held over [start, end): at `end` it is either flat or already
+        # the opposite position, so that bar's gross P&L belongs to the next trade.
+        sl = daily.loc[start:end].iloc[:-1]
 
         if sl.empty:
             continue
 
         sgn = int(np.sign(n1.loc[start]) or np.sign(n2.loc[start]))  # +1 long-spread, -1 short-spread
         pnl_g = float(sl["pnl_gross"].sum())
-        cst   = float(sl["cost"].sum())
-        pnl_n = float(sl["pnl_net"].sum())
-        ret   = float(sl["ret_net"].sum())
+        # every print made while held, minus the part of the entry bar that closed the
+        # PREVIOUS trade, plus this trade's own closing print at `end`, plus borrow held
+        cst = (float(trade_cost.loc[sl.index].sum())
+               - float(close_cost.loc[start])
+               + float(close_cost.loc[end])
+               + float(cost_borrow.loc[sl.index].sum()))
+        pnl_n = pnl_g - cst
+        ret   = pnl_n / capital_base if capital_base else float("nan")
         hold  = int(sl.shape[0])
         z_e   = float(df["z"].loc[start]) if "z" in df.columns and pd.notna(df["z"].loc[start]) else np.nan
         # decision z the day before the exit execution (next-bar safe)
@@ -416,7 +445,7 @@ def evaluate_pair_signals(
             "bars": hold, "pnl_gross": pnl_g, "cost": cst, "pnl_net": pnl_n, "ret_on_cap": ret,
             "z_at_entry": z_e, "z_prev_exit": z_prev_exit,
             "pae": pae,
-            "turnover": float(sl["turnover"].sum())
+            "turnover": float(sl["turnover"].sum()) + float(close_notional.loc[end]) / capital_base
         })
 
     trades = pd.DataFrame(trade_rows)

@@ -14,10 +14,11 @@ The tests here assert *equalities that must hold by construction* instead:
   * an order's impact cost must be the per-share concession times the shares,
   * a signals frame that does not line up with the prices must be refused.
 
-Two of these are marked ``xfail(strict=True)`` because they describe known,
-documented defects that have not been fixed yet.  Strict means the suite fails
-if they ever start passing — so whoever fixes the defect is forced to come here
-and remove the marker rather than leaving a stale exemption behind.
+All of these now pass.  Three of them were added as ``xfail(strict=True)`` while
+the defects they describe were still open; strict meant the suite failed the
+moment a fix made one pass, which is what brought whoever fixed it back here to
+remove the marker.  That is the intended lifecycle — a known defect is a failing
+invariant with a name, not a silent exemption.
 """
 import numpy as np
 import pandas as pd
@@ -60,13 +61,6 @@ def _synthetic_pair(n=400, seed=7):
 
 # ── the trade log must reconcile with the daily ledger ───────────────────────
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN DEFECT: the per-trade loop drops the exit bar (`sl.iloc[:-1]`), "
-           "so a closed trade is never charged its closing print. Trade-log cost "
-           "and pnl_net are systematically too favourable. Affects hit_rate, "
-           "avg_win, avg_loss and profit_factor; the daily ledger is correct.",
-)
 def test_trade_log_reconciles_with_daily_ledger():
     """Closed trades must account for every dollar the ledger charged."""
     df, sig = _flat_tape([0, 1, 1, 1, 0, 0])
@@ -80,15 +74,6 @@ def test_trade_log_reconciles_with_daily_ledger():
     assert float(trades["cost"].sum()) == pytest.approx(float(daily["cost"].sum()))
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN DEFECT: a reversal bar is added to both `entries` and `exits`, so "
-           "`exits[exits >= start]` matches the entry bar itself. That emits a "
-           "zero-duration trade, double-counts the reversal bar's cost and gross "
-           "P&L, and loses the real trade that follows. Unreachable via "
-           "generate_pair_signals (it cannot flip side in one bar) but live for any "
-           "other signal source.",
-)
 def test_reversal_does_not_double_count_or_drop_trades():
     """A long → short reversal is two trades, and costs are charged once each."""
     df, sig = _flat_tape([0, 1, 1, -1, -1, 0])
@@ -114,15 +99,6 @@ def test_open_position_at_end_is_not_silently_dropped():
 
 # ── splitting a filter must not change it ────────────────────────────────────
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="KNOWN DEFECT: filter_kf_on_new passes the previous window's POSTERIOR as "
-           "pykalman's initial_state_mean/covariance, which pykalman uses verbatim as "
-           "the PRIOR for bar 0. The boundary predict (m←Fm, P←FPFᵀ+Q) is skipped, so "
-           "the prior is over-confident by Q and the first bars of every continuation "
-           "differ from an uninterrupted run. Fix: advance last_state by one predict "
-           "step inside filter_kf_on_new, guarded on last_state is not None.",
-)
 def test_kalman_continuation_equals_uninterrupted_filter():
     """Filtering [0:n] must equal filtering [0:k] then continuing on [k:n]."""
     P1, P2 = _synthetic_pair()
@@ -142,12 +118,12 @@ def test_kalman_continuation_equals_uninterrupted_filter():
     )
 
 
-def test_kalman_continuation_is_exact_once_the_predict_is_applied():
+def test_kalman_predict_is_applied_once_not_twice():
     """
-    The companion to the xfail above: applying the missing predict step by hand
-    makes the continuation bit-for-bit identical. This pins the *mechanism*, so
-    if the defect is ever fixed inside filter_kf_on_new this test still holds and
-    documents why.
+    filter_kf_on_new now advances `last_state` internally, so advancing it again by
+    hand must double-count the process noise and NO LONGER match. This pins the fix
+    from the other side: if someone removes the internal predict, the hand-advanced
+    version starts matching and this test fails.
     """
     P1, P2 = _synthetic_pair()
     F, Q = np.eye(2), np.diag([1e-5, 1e-5])
@@ -157,12 +133,28 @@ def test_kalman_continuation_is_exact_once_the_predict_is_applied():
 
     whole, _ = filter_kf_on_new(P1, P2, frozen=frozen, last_state=start)
     _, mid = filter_kf_on_new(P1[:k], P2[:k], frozen=frozen, last_state=start)
-    advanced = {"mean": F @ mid["mean"], "cov": F @ mid["cov"] @ F.T + Q}
-    second, _ = filter_kf_on_new(P1[k:], P2[k:], frozen=frozen, last_state=advanced)
+    twice = {"mean": F @ mid["mean"], "cov": F @ mid["cov"] @ F.T + Q}
+    second, _ = filter_kf_on_new(P1[k:], P2[k:], frozen=frozen, last_state=twice)
 
-    np.testing.assert_allclose(
-        second["beta"].to_numpy(), whole["beta"].iloc[k:].to_numpy(), rtol=0, atol=1e-12
+    gap = np.abs(second["beta"].to_numpy() - whole["beta"].iloc[k:].to_numpy()).max()
+    assert gap > 1e-9, (
+        "advancing last_state by hand matched the uninterrupted run, which means "
+        "filter_kf_on_new is no longer applying the boundary predict itself"
     )
+
+
+def test_diffuse_start_is_not_advanced():
+    """
+    `last_state=None` means "start diffusely" and is already a prior, so the guard
+    must leave it alone. Adding Q to a 1e6 prior is numerically invisible, which is
+    exactly why this needs pinning rather than eyeballing.
+    """
+    P1, P2 = _synthetic_pair()
+    frozen = {"F": np.eye(2), "Q": np.diag([1e-5, 1e-5]), "R": np.array([[0.25]])}
+    a, _ = filter_kf_on_new(P1, P2, frozen=frozen, last_state=None, init_cov=1e6)
+    b, _ = filter_kf_on_new(P1, P2, frozen=frozen, last_state=None, init_cov=1e6)
+    np.testing.assert_array_equal(a["beta"].to_numpy(), b["beta"].to_numpy())
+    assert np.isfinite(a["beta"].to_numpy()).all()
 
 
 # ── market impact is a whole-order cost ──────────────────────────────────────
