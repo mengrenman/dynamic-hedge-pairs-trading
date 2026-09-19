@@ -71,6 +71,11 @@ __all__ = [
     "realized_variance_signature",
     "epps_correlation",
     "autocorr_by_interval",
+    # statistics (market networks)
+    "tmfg",
+    "pmfg",
+    "pozzi_xy",
+    "classify_nodes",
     # strategies (signals & evaluation)
     "estimate_halflife_window",
     "zscore_from_spread",
@@ -141,6 +146,11 @@ _LAZY_MAP = {
     "realized_variance_signature": ("pairs.stats.microstructure", "realized_variance_signature"),
     "epps_correlation": ("pairs.stats.microstructure", "epps_correlation"),
     "autocorr_by_interval": ("pairs.stats.microstructure", "autocorr_by_interval"),
+    # statistics (market networks)
+    "tmfg": ("pairs.stats.network", "tmfg"),
+    "pmfg": ("pairs.stats.network", "pmfg"),
+    "pozzi_xy": ("pairs.stats.network", "pozzi_xy"),
+    "classify_nodes": ("pairs.stats.network", "classify_nodes"),
     # strategies (signals & evaluation)
     "estimate_halflife_window": ("pairs.strategies.signals", "estimate_halflife_window"),
     "zscore_from_spread": ("pairs.strategies.signals", "zscore_from_spread"),
@@ -225,6 +235,7 @@ if TYPE_CHECKING:  # pragma: no cover
         epps_correlation,
         autocorr_by_interval,
     )
+    from .stats.network import tmfg, pmfg, pozzi_xy, classify_nodes
     from .strategies.signals import (
         estimate_halflife_window,
         zscore_from_spread,
