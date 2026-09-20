@@ -1488,12 +1488,15 @@ what is left after costs. That is the whole discipline.
    null by median per-fold Sharpe and the **2nd** by mean. Cointegration screening widens the outcome
    distribution rather than shifting it — and it is selected out of 1.74 million tests, of which 86,950
    would pass uncorrected (§8).
-7. Measured rather than assumed, execution costs **2.9 bps** a transaction, not 5, and consume 8% of
+7. Measured rather than assumed, execution costs **2.2 bps** a transaction, not 5, and consumes 7% of
    the gross profit. The average round trip earns 33.9 bps of the notional it turns over, so the first
-   clause of a tradeable edge passes by a factor of twelve. The other four fail: 87% of the P&L comes
-   from 5% of the trades, the $t$ falls to 2.1 once trades are clustered on formations, and on the
-   2023–2025 hold-out the net edge is 3.7 bps with $t=0.16$. **Costs are not what is wrong with this
-   strategy; breadth is** (§9).
+   clause of a tradeable edge passes by a factor of fifteen, and running the whole book at zero cost
+   would add only 0.055 of Sharpe. The rest do not pass. 87% of the P&L comes from 5% of the trades;
+   the $t$ falls from 3.89 to **2.16** once trades are clustered on the 30 formations that varied
+   independently, which is the boundary rather than the far side of it; a rule selected from 1.74
+   million screened tests needs 5.54; and the 2023–2025 hold-out is **unconfirmed rather than failed**
+   — 13.1 bps against the development sample's 19.3, on a test with 14% power against that effect.
+   **Costs are not what is wrong with this strategy; breadth is** (§9).
 
 **So, is there alpha here?** Under the market model, on allocated sessions, with the pooled estimator:
 1.59% a year, $t=1.39$ — positive, unconfirmed, and smaller than the round-trip cost of the trades that

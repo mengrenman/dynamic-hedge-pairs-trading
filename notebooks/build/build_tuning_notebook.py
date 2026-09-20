@@ -628,47 +628,60 @@ Numbers refer to the run stored in this notebook (deterministic given the cached
 download shifts them slightly). The objective is the pooled out-of-fold Sharpe of §3.6; nb02's per-fold
 median is reported alongside.
 
-* **The grid finds "better" configurations easily.** The best pooled out-of-fold Sharpe is **1.36**
-  against **0.66** for nb02's defaults — but the defaults already rank **227 of 1,802** valid
-  configurations, inside the top 13%, and sit above the median of every marginal group in §3.6.1. By the
-  grid's own standards they are a good configuration, not a straw man. The winner changes only three
-  knobs: `q` 1e-5 → **1e-3**, `em_iters` 5 → **0**, `z_stop` 4.0 → **5.0**. Note the direction — 1e-3 is
-  the *largest* transition noise on the grid, so the winner is a **freer**, not a stiffer, hedge, and it
-  keeps the robust z-score and the 2.0 / 0.5 entry-exit pair unchanged.
-* **The gain does not come from trading less.** The tuned configuration makes **117** fold trades against
-  the default's **122**, and **83** against **85** in the full in-sample run; it is in position for
-  **186** of the 1,004 out-of-fold bars against **172**. It trades marginally *more*, not a third as
-  often. On nb02's per-fold median objective it also wins, 1.387 against 1.167, so the two objectives
-  agree — though by a much smaller margin than the pooled one suggests.
-* **The pooled equity curve (§3.6.4) is the honest in-sample comparison.** Both configurations make money
-  out of fold on a \$10k base over 2021-12 → 2025-12: the default ends at **+\$1,586**, the tuned one at
-  **+\$3,253**.
+* **The grid finds "better" configurations easily.** The best pooled out-of-fold Sharpe is **1.338**
+  against **0.508** for nb02's defaults, and the defaults rank **406 of 1,831** configurations with at
+  least 12 trades — the top 22%. Respectable, so not a straw man, but not the "already near-optimal"
+  reading either: §3.6.1's marginals show the default sitting *below* the median of its group on `q`
+  (+0.244 against +0.271 at both ends of the grid), `em_iters` (+0.245 against +0.277), `z_stop`
+  (+0.223, the worst of the three values) and `cooldown_bars` (+0.243 against +0.272). Those are
+  exactly the four knobs the winner changes: `q` 1e-5 → **1e-3**, `em_iters` 5 → **0**, `z_stop`
+  4.0 → **3.5**, `cooldown_bars` 0 → **5**. It keeps the robust z-score and the 2.0 / 0.5 entry-exit
+  pair, which are the two settings the default already has right.
+* **The gain does come, in part, from trading less.** The tuned configuration makes **87** fold trades
+  against the default's **124**, **56** against **85** in the full in-sample run, and holds a position
+  for **134** of the 1,004 out-of-fold bars against **188**. That is roughly a third less trading on
+  every measure, for a higher pooled Sharpe. On nb02's per-fold median objective it also wins, 1.323
+  against 1.222 — a far narrower margin than the pooled 1.338-against-0.508, which is itself a warning
+  about how much of the pooled gap is a few large days rather than a consistently better rule.
+* **The pooled equity curve (§3.6.4) is the honest in-sample comparison.** Both configurations make
+  money out of fold on a \$10k base over 2021-12-31 → 2025-12-31: the default ends at **+\$1,223**, the
+  tuned one at **+\$2,425**.
 * **The ranking is not reproducible across fold halves.** Configurations ranked on the odd folds have a
-  median even-fold rank of **969 of 1,786**, against **893** for pure noise, and the Spearman correlation
-  across the whole grid is **ρ = 0.10**. The ordering is very nearly random: with a handful of trades per
-  63-bar segment, a pooled Sharpe is dominated by a few large days.
-* **Transfer is mixed, not uniformly poor.** On the three runner-up pairs (§3.6.3) the tuned configuration
-  *helps* NCLH/REG (0.09 → 0.72) and NCLH/NTRS (0.64 → 0.92) and *hurts* NCLH/SPG (0.62 → 0.10). Two of
-  three improve — which, given ρ = 0.10 on the split-half check, is as consistent with noise as with a
-  real setting.
-* **Out of sample it did not help.** On the 2026 hold-out the default made **13** trades at Sharpe
-  **3.50**, the tuned configuration **11** at **2.28**. Both are positive and neither is meaningful on a
-  dozen trades in half a year, but the tuned one is the worse of the two — the direction selection bias
-  predicts.
+  median even-fold rank of **914 of 1,823**, against **≈912** for pure noise, and the Spearman
+  correlation across the whole grid is **ρ = 0.044**. The ordering is indistinguishable from random:
+  with a handful of trades per 63-bar segment, a pooled Sharpe is dominated by a few large days.
+* **Transfer to the runner-up pairs fails, on all three.** Carrying the tuned configuration to the
+  next three candidates of §3.6.3 makes every one of them worse: NCLH/REG **0.364 → −0.021**,
+  NCLH/SPG **0.377 → 0.338**, NCLH/RCL **0.440 → 0.273**. Nothing here survives contact with a pair it
+  was not fitted to, which is what ρ = 0.044 on the split-half check already implied.
+* **Out of sample it bought nothing.** On the 2026 hold-out the default made **12** trades at Sharpe
+  **2.642**, the tuned configuration **8** at **2.635** — a dead heat on a dozen trades in half a year.
+  The tuned run is tidier on the secondary statistics (hit rate 0.875 against 0.750, profit factor 11.5
+  against 4.0, half the drawdown) but that is eight trades' worth of evidence and means very little. The
+  honest summary is not that tuning hurt out of sample; it is that a 2.6× improvement in the in-sample
+  objective produced **no detectable difference** where it counted.
 
-The honest reading: tuning bought a large apparent gain on BKNG/MA (0.66 → 1.36 pooled) that is not
-evidence about the *strategy*. The grid's ranking is barely better than random across fold halves, the
-winner is worse than the default on the one window never used to choose it, and the three knobs it
-changes are not individually the best values — `em_iters=0` has a *lower* marginal median (+0.283) than
-`em_iters=5` (+0.343), so the winner is an interaction the grid found, not a stack of good choices.
+The honest reading: tuning bought a large apparent gain on BKNG/MA (0.508 → 1.338 pooled) that is not
+evidence about the *strategy*. The grid's ranking is barely distinguishable from random across fold
+halves, the winner degrades all three runner-up pairs, and on the one window never used to choose
+anything the two configurations are indistinguishable.
 
-What the exercise does establish is *which* knobs matter on this pair (§3.6.1, medians now printed under
-the chart): the exit threshold dominates — exiting only at the mean (`z_exit=0`, median +0.074) is far
-worse than 0.5 (+0.355) or 1.0 (+0.362); the entry threshold has a clear optimum at **2.0** (+0.467) and
-collapses at 3.0 (+0.014); **robust** z-scores beat rolling (+0.346 vs +0.280); larger `q` is mildly
-better (+0.373 at 1e-3 vs +0.298 at 1e-6); a holding cap costs a little (+0.291 vs +0.357) and a cooldown
-barely registers. A sensible next step is a much smaller search over `z_exit` and `z_entry` only, pooled
-across the shortlist rather than fitted to one pair.
+Note what this run does *not* show, because the previous version of this section claimed the opposite:
+the four knobs the winner changes are each individually above the default's value on the §3.6.1
+marginals, so the winner is a stack of locally good choices rather than an interaction the grid stumbled
+on. That makes the result easier to believe as a description of *this pair* and no easier to believe as
+a description of anything else — a stack of individually mild preferences is exactly what a
+split-half-random ranking would also produce.
+
+What the exercise does establish is *which* knobs matter on this pair (§3.6.1, medians printed under the
+chart): the exit threshold dominates — exiting only at the mean (`z_exit=0`, median **−0.042**) is far
+worse than 0.5 (**+0.340**) or 1.0 (**+0.312**); the entry threshold has a clear optimum at **2.0**
+(+0.387), falling away at 2.5 (+0.245) and turning negative at 3.0 (**−0.020**); **robust** z-scores beat
+rolling (+0.301 against +0.206); a holding cap costs something real (+0.219 with, +0.310 without); and
+`q` barely matters at all — both ends of the grid tie at +0.271 while the middle sits lower, which is
+noise, not a trend, and is worth remembering next to the winner's `q` change. A sensible next step is a
+much smaller search over `z_exit` and `z_entry` only, pooled across the shortlist rather than fitted to
+one pair.
 """)
 
 # ───────────────────────── §8 limitations: add tuning caveats ─────────────────────────
