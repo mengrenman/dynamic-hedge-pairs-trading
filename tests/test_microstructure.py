@@ -52,6 +52,49 @@ class TestRollSpread:
         bps, dollars = roll_spread(sim["bounce"]), roll_spread(sim["bounce"], as_bps=False)
         assert np.isclose(dollars / sim["bounce"].mean() * 1e4, bps)
 
+    def test_signed_keeps_the_cells_that_would_otherwise_be_dropped(self):
+        """Discarding non-negative covariances keeps only the draws that looked expensive.
+
+        A pure random walk has no spread at all. Averaging the cells that survive the NaN filter
+        returns a firmly positive number; averaging the signed estimates returns roughly zero,
+        which is the truth.
+        """
+        rng = np.random.default_rng(3)
+        walks = [pd.Series(100 + np.cumsum(rng.normal(0, 0.05, 400))) for _ in range(300)]
+        dropped = np.array([roll_spread(w) for w in walks])
+        signed = np.array([roll_spread(w, signed=True) for w in walks])
+        assert np.isnan(dropped).mean() > 0.3, "the filter should be discarding a lot"
+        # 1.83 bps of spread on a series that has none, against 0.23 for the signed mean
+        assert np.nanmean(dropped) > 1.5, "what survives the filter looks expensive"
+        assert abs(np.mean(signed)) < 0.5, "the signed mean should sit near zero"
+
+    def test_session_grouping_excludes_the_overnight_gap(self, sim):
+        """An overnight jump is not a bid-ask bounce and must not enter the covariance.
+
+        At one-minute sampling the guard barely matters -- 60 gaps among 23,400 changes cannot
+        move a covariance far. It matters once the sampling coarsens, because each gap then sits
+        among far fewer ordinary changes: at five minutes the ungrouped estimate is inflated by
+        half. Five minutes is exactly where this repository measures its costs.
+        """
+        day = sim["bounce"].index.normalize()
+        jump = pd.Series(np.cumsum(np.where(np.arange(N_SESSIONS) % 2, 5.0, -5.0)),
+                         index=pd.DatetimeIndex(sorted(day.unique())))
+        gapped = sim["bounce"] + day.map(jump).to_numpy()
+        for every in (1, 5, 15):
+            assert abs(roll_spread(gapped, session=day, every=every)
+                       - roll_spread(sim["bounce"], session=day, every=every)) < 0.2
+        assert abs(roll_spread(gapped.iloc[::1]) - 4.0) < 0.4          # ungrouped, still fine
+        assert roll_spread(gapped.iloc[::5]) > 5.5                      # ungrouped, inflated 50%
+
+    def test_every_pools_across_sessions_so_coarse_sampling_stays_usable(self, sim):
+        day = sim["bounce"].index.normalize()
+        # sampling every fifth bar leaves the bounce at the sampled endpoints untouched, so the
+        # estimate should not move; what changes is how many observations are left to see it
+        assert abs(roll_spread(sim["bounce"], session=day, every=5, min_obs=200) - 4.0) < 0.4
+        one = sim["bounce"].iloc[:N_BARS]
+        assert np.isnan(roll_spread(one, session=day[:N_BARS], every=5, min_obs=200)), \
+            "76 pairs in a single session is not enough; 4,560 pooled across 60 is"
+
 
 class TestSignature:
     def test_random_walk_is_flat_and_noise_inflates_fine_sampling(self, sim):

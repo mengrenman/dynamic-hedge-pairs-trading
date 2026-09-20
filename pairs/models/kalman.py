@@ -69,8 +69,28 @@ def _kalman_dynamic_hedge(
     init_cov: float = 1e6,
     mode: Literal["smooth", "filter"] = "filter",
     em_iters: int = 0,
+    em_vars=None,
     return_params: bool = False,
 ):
+    """Fit a random-walk hedge ratio by Kalman filter. Private: use ``fit_kalman_hedge``.
+
+    Two things about this function surprise people, so they are written down rather than
+    discovered:
+
+    **``mode="smooth"`` looks ahead.** The smoother conditions every state on the *whole* sample,
+    including bars after it, so a spread built from smoothed betas knows the future. It is the
+    right choice for describing how a hedge ratio behaved and the wrong one for deciding a trade.
+    The default is ``"filter"`` for that reason; notebooks 01-04 were built before the distinction
+    was drawn and the correction is documented in their prose.
+
+    **``em_iters > 0`` silently overrides ``init_cov``.** pykalman's ``em_vars`` defaults to
+    re-estimating ``initial_state_mean`` and ``initial_state_covariance`` along with Q and R, so a
+    deliberately diffuse ``init_cov=1e6`` comes back at around 1e-4 and the prior this function
+    validates has no effect. The behaviour is not worse -- EM also learns a sensible starting
+    beta, where the diffuse prior starts at zero and takes ~20 bars to converge -- but it is not
+    what the signature implies. Pass ``em_vars=("transition_covariance",
+    "observation_covariance")`` to learn only Q and R and keep the prior.
+    """
     if df is None or len(df) < 5:
         return k1, k2, None, None
 
@@ -101,7 +121,7 @@ def _kalman_dynamic_hedge(
     )
 
     if em_iters and em_iters > 0:
-        kf = kf.em(y, n_iter=em_iters)
+        kf = kf.em(y, n_iter=em_iters, **({"em_vars": list(em_vars)} if em_vars else {}))
 
     if mode == "smooth":
         state_means, state_covs = kf.smooth(y)

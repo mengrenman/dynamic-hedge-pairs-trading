@@ -200,6 +200,15 @@ def summarize_spread_stationarity_joblib(
 
     Returns an index (ticker1, ticker2) DataFrame with columns:
       ["adf_stat","adf_p","kpss_stat","kpss_p","halflife","resid_sigma","shapre","verdict"]
+
+    .. warning::
+       The Sharpe column is spelled **``shapre``**, not ``sharpe``. The misspelling is kept
+       because notebooks 01-05 and their cached parquet files depend on it, but it has already
+       cost this repository once: notebooks 01-04 score candidates with
+       ``final_df.get("sharpe_train", pd.Series(0.0, ...))``, which never matches, so the
+       documented five-metric composite score has only ever had four live terms. A ``.get`` with
+       a default is what turns the typo into silence. Index the column directly, or assert it is
+       present, so a rename fails loudly rather than scoring every candidate zero.
     """
     os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
     os.environ.setdefault("MKL_NUM_THREADS",      "1")

@@ -5,7 +5,8 @@ pairs: Utilities for market data access, universes, plotting, statistics, strate
 Public entry points (lazy-loaded):
 - Data:         load_prices(), load_polygon_lake(), download_openbb(),
                 load_minute_bars(), detect_lake_layout(), nyse_early_closes(), summarize_sessions(),
-                load_daily_bars(), detect_day_lake_layout(), recover_dividends(), liquidity_screen()
+                load_daily_bars(), detect_day_lake_layout(), recover_dividends(), liquidity_screen(),
+                measure_ticker_window_costs(), pair_fold_costs()
 - Universe:     load_universe(), list_universes()
 - Plotting:     plot_pair_legs_with_trades()
 - Statistics:   find_cointegrated_pairs_executor(), find_cointegrated_pairs_dualgate(),
@@ -46,6 +47,9 @@ __all__ = [
     "detect_day_lake_layout",
     "recover_dividends",
     "liquidity_screen",
+    "CostSpec",
+    "measure_ticker_window_costs",
+    "pair_fold_costs",
     "scaled_instrument_report",
     "detect_scaled_instruments",
     # universes
@@ -123,6 +127,9 @@ _LAZY_MAP = {
     "detect_day_lake_layout": ("pairs.market_data.daily_bars", "detect_day_lake_layout"),
     "recover_dividends": ("pairs.market_data.daily_bars", "recover_dividends"),
     "liquidity_screen": ("pairs.market_data.daily_bars", "liquidity_screen"),
+    "CostSpec": ("pairs.market_data.execution_costs", "CostSpec"),
+    "measure_ticker_window_costs": ("pairs.market_data.execution_costs", "measure_ticker_window_costs"),
+    "pair_fold_costs": ("pairs.market_data.execution_costs", "pair_fold_costs"),
     "scaled_instrument_report": ("pairs.market_data.instruments", "scaled_instrument_report"),
     "detect_scaled_instruments": ("pairs.market_data.instruments", "detect_scaled_instruments"),
     # universes
@@ -212,6 +219,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from .market_data.minute_bars import load_minute_bars, detect_lake_layout, nyse_early_closes, summarize_sessions
     from .market_data.daily_bars import load_daily_bars, detect_day_lake_layout, recover_dividends, liquidity_screen
     from .market_data.instruments import scaled_instrument_report, detect_scaled_instruments
+    from .market_data.execution_costs import (CostSpec, measure_ticker_window_costs,
+                                              pair_fold_costs)
     from .universes import load_universe, list_universes
     from .plotting.pair_trades import plot_pair_legs_with_trades
     from .stats.cointegration import (

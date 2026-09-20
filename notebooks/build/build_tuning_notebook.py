@@ -40,7 +40,7 @@ What nb02 fixes by hand and what is tuned here:
 | group | hyperparameter | nb02 default | note |
 |---|---|---|---|
 | Kalman | `q` (transition noise) | 1e-5 | with `em_iters>0` it is only the EM starting value |
-| Kalman | `em_iters` | 5 | EM re-estimates Q and R on each training window |
+| Kalman | `em_iters` | 5 | EM re-estimates Q, R **and the initial state** on each training window — pykalman's default `em_vars` includes `initial_state_covariance`, so the diffuse `init_cov=1e6` prior is discarded and re-learned as ~1e-4 |
 | signals | `z_method` | robust | robust / rolling |
 | signals | `z_entry`, `z_exit`, `z_stop` | 2.0 / 0.5 / 4.0 | thresholds on \|z\| |
 | signals | `max_hold_bars`, `cooldown_bars` | None / 0 | holding cap, re-entry cooldown |

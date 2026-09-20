@@ -65,16 +65,23 @@ from joblib import Parallel, delayed
 
 import pairs
 from pairs import (load_daily_bars, generate_pair_signals, evaluate_pair_signals,
-                   estimate_halflife, zscore_from_spread)
+                   estimate_halflife, zscore_from_spread,
+                   CostSpec, measure_ticker_window_costs, pair_fold_costs)
 
 LAKE        = Path(os.environ.get("DAY_LAKE", Path.home() / "local/parquet_lake/day_adj"))
 MARKET_ROOT = LAKE / "all_adjusted"
+# section 9 is the one place this notebook leaves the day lake: costs are measured on minute bars
+MINUTE_ROOT = Path(os.environ.get("MINUTE_LAKE",
+                                  Path.home() / "local/parquet_lake/minute_adj")) / "all_adjusted"
 CACHE = Path("cache"); CACHE.mkdir(exist_ok=True)
 
 START, END = "2004-01-01", "2025-08-13"
 FORM_YEARS, MAX_PAIRS, CAP, COST_BPS, BORROW_BPS = 2, 20, 10_000, 5.0, 50
 Z_ENTRY, Z_EXIT, Z_STOP = 2.0, 0.5, 4.0
 ANN = 252
+# section 9 only. HOLDOUT_FROM matches notebook 11's split, so "out of sample" means the same thing
+# in both; N_SCREEN_TESTS is notebook 10's screen size, quantified in section 8.
+HOLDOUT_FROM, N_SCREEN_TESTS = pd.Timestamp("2023-01-01"), 1_738_998
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 100})
 print("pairs", pairs.__version__)
 """)
@@ -1027,8 +1034,304 @@ If someone hands you an alpha, the question is not "how large" but "under which 
 which null, on which sample."
 """)
 
+# ───────────────────────────── 9. tradeable edge ─────────────────────────────
 md(r"""
-## 9. So what is alpha, here?
+## 9. Alpha is not edge: what "tradeable" would require
+
+Everything above measures whether a signal *forecasts*. None of it asks whether acting on the forecast
+would have made money you could keep. Those are different questions, and the gap between them is where
+most research strategies die. So here is a definition with no vocabulary in it.
+
+> **A tradeable edge is a rule whose expected profit per bet exceeds the cost of placing that bet, by a
+> margin that survives (a) the sampling error in the estimate, counted in *independent* bets rather
+> than trades; (b) the number of rules searched to find it; and (c) evaluation on data that was not
+> used to choose it — at a size where the net profit exceeds the cost of running the operation.**
+
+Five clauses. The value of writing it this way is that every clause is a measurement, and this
+repository can perform all five on its own book. The trick that makes the first one clean is to put
+profit and cost in the *same units*: basis points of the notional the bet actually turns over. The
+backtest already charges `cost_bps` on traded notional, so expressing gross P&L on that same base makes
+the two directly subtractable and removes every unit ambiguity — no annualisation, no capital base, no
+choice of denominator.
+
+$$\text{net edge per bet (bps)}\;=\;\underbrace{\frac{\text{gross P\&L}}{\text{notional traded}}\times10^4}_{\text{what the forecast earns}}\;-\;\underbrace{c}_{\text{what the trade costs}}$$
+
+**Clause (a) is where Sharpe ratios mislead.** A Sharpe computed on daily returns counts 3,677
+observations; the book placed 723 trades across 30 semi-annual formations, and trades inside one
+formation share a hedge, a universe and a market. The honest denominator is the number of independent
+bets, and it is far smaller than the number of rows.
+
+**Clause (c) needs real costs, not assumed ones.** Every backtest here charges a flat 5 bps a
+leg-side, chosen as a plausible round number. That is fine until a conclusion turns on it — notebook
+12's break-even costs run from 0.9 to 5.7 bps against that assumed 5 — at which point the assumption is
+deciding the answer. The minute lake (Polygon.io, now Massive.com) can measure it instead.
+""")
+
+md(r"""
+### 9.1 What a transaction actually costs
+
+`measure_ticker_window_costs` computes a Roll (1984) effective spread for each name over exactly the
+window the book holds it, and halves it, because Roll estimates the full bid-ask spread while a
+marketable order crosses half. Three details in `pairs.market_data.execution_costs` change the answer
+materially and are argued there: sampling every five minutes rather than every one, keeping the cells
+whose serial covariance comes out positive instead of discarding them, and flooring the result at the
+minimum tick. That last one is the anchor — half a cent on a stock that really traded at \$20 is 2.5
+bps, so an estimate below it is not cheap but arithmetically impossible. At one-minute sampling **36%**
+of the estimates are impossible; at five minutes 20%, which is the minimum over the sweep; by fifteen
+minutes it is back to 34% as noise takes over. That is the whole argument for five.
+""")
+code(r"""
+f_cost = CACHE / "alpha_costs.parquet"
+if f_cost.exists():
+    cells = pd.read_parquet(f_cost)
+else:
+    raw = pd.read_parquet(CACHE / "day_market_bars.parquet", columns=["raw_close"])["raw_close"].unstack("ticker")
+    need = {d: sorted({t for p in selections(d) for t in p}) for d in FORMATIONS}
+    cells = measure_ticker_window_costs(WINDOWS, need, MINUTE_ROOT, raw_close=raw,
+                                        spec=CostSpec(every=5))
+    cells.to_parquet(f_cost); del raw
+ok = cells[cells["err"].eq("")]
+print(f"{len(ok)} of {len(cells)} (ticker, window) cells measured"
+      + (f"; unmeasured: {cells[~cells['err'].eq('')]['err'].value_counts().to_dict()}"
+         if len(ok) < len(cells) else ""))
+
+era = pd.cut(pd.to_datetime(ok["formation"]).dt.year, [2005, 2010, 2015, 2020, 2026],
+             labels=["2006-10", "2011-15", "2016-20", "2021-25"])
+display(ok.groupby(era, observed=True)[["cost_bps", "cost_used", "tick_floor"]]
+          .agg(["median", "count"]).round(2))
+print(f"per-transaction cost, bps: median {ok['cost_used'].median():.2f}, "
+      f"mean {ok['cost_used'].mean():.2f}, 90th {ok['cost_used'].quantile(.9):.2f}; "
+      f"{100 * ok['cost_used'].gt(COST_BPS).mean():.0f}% above the assumed {COST_BPS:g}")
+
+PFC = pair_fold_costs(cells, {d: selections(d) for d in FORMATIONS})
+PFC.to_parquet(CACHE / "alpha_pair_fold_costs.parquet")
+print(f"{PFC['cost_bps'].notna().sum()} of {len(PFC)} pair-folds priced; "
+      f"median {PFC['cost_bps'].median():.2f} bps, mean {PFC['cost_bps'].mean():.2f}, "
+      f"max {PFC['cost_bps'].max():.2f}")
+""")
+
+md(r"""
+The assumed 5 bps is **2.7 times** what the median name costs a transaction, and 1.9 times what the
+median pair-fold pays across its two legs. The decline across eras is real but mild — 1.98 bps in
+2006–2010 against 1.71 in 2021–2025 — which is what a top-300-by-dollar-volume universe should look
+like: these were already the most liquid names in the market in 2006, so they had the least room to
+tighten. What moved a great deal more is the tick floor itself, from 1.19 bps to 0.29, because the
+names got more expensive per share rather than cheaper to trade.
+
+The tail is instructive. The costliest names are the volatility funds — TVIX at 22.5 bps a
+transaction in 2018, UVXY at 17.7 in 2022 — and the costliest pair-folds are the pairs built on them
+(TVIX/VXX at 16.4 bps). Those are the same instruments notebook 11's §7 behavioural gate removes for
+an entirely unrelated reason. A cost measurement and an instrument screen, arriving from opposite
+directions, point at the same names.
+""")
+
+md(r"""
+### 9.2 Edge and cost in the same currency
+
+One row per round trip, with the gross profit expressed on the notional that round trip turned over
+and the measured cost of the pair subtracted from it.
+""")
+code(r"""
+COSTMAP = {(pd.Timestamp(r.formation), r.t1, r.t2): r.cost_bps for r in PFC.itertuples()}
+
+def fold_ledger(pair, formation):
+    # notebook 11's fold, keeping the round-trip ledger instead of the daily P&L
+    a, b = pair
+    if a not in PX.columns or b not in PX.columns:
+        return None
+    lo, hi = WINDOWS[formation]
+    form = pd.DataFrame({"P1": PX[a], "P2": PX[b]}).loc[
+        (PX.index > formation - pd.DateOffset(years=FORM_YEARS)) & (PX.index <= formation)].dropna()
+    trade = pd.DataFrame({"P1": PX[a], "P2": PX[b]}).loc[(PX.index > lo) & (PX.index <= hi)].dropna()
+    if len(form) < 250 or len(trade) < 20:
+        return None
+    al, be = ols_ab(form["P1"].to_numpy(), form["P2"].to_numpy())
+    rf = form["P1"] - al - be * form["P2"]
+    states = trade.assign(beta=be, resid=trade["P1"] - al - be * trade["P2"])
+    hl = estimate_halflife(rf.dropna())
+    win = int(np.clip(3 * hl, 20, 250)) if np.isfinite(hl) else 60
+    sig = generate_pair_signals(states, z_method="robust", z_window=win, z_history=rf.dropna(),
+                                z_entry=Z_ENTRY, z_exit=Z_EXIT, z_stop=Z_STOP, capital_per_pair=CAP)
+    # cost_bps=0 so the ledger carries the *gross* result; the measured cost is applied below, and
+    # applying it here instead would bury the one comparison this section is about
+    _, tr, _ = evaluate_pair_signals(states[["P1", "P2"]], sig, cost_bps=0.0,
+                                     borrow_bps_per_year=BORROW_BPS, days_per_year=ANN,
+                                     bars_per_year=ANN, capital_base=CAP)
+    if not len(tr):
+        return None
+    return tr.assign(formation=formation, t1=a, t2=b)
+
+f_led = CACHE / "alpha_ledger.parquet"
+if f_led.exists():
+    LED = pd.read_parquet(f_led)
+else:
+    _jobs = [(p, d) for d in FORMATIONS for p in selections(d)]
+    LED = pd.concat([x for x in Parallel(n_jobs=-1)(delayed(fold_ledger)(p, d) for p, d in _jobs)
+                     if x is not None], ignore_index=True)
+    LED.to_parquet(f_led)
+
+LED["traded"] = LED["turnover"] * CAP                      # both legs, in and out
+LED["edge_bps"] = LED["pnl_gross"] / LED["traded"] * 1e4
+LED["cost_bps"] = [COSTMAP.get((f, a, b), np.nan)
+                   for f, a, b in zip(LED["formation"], LED["t1"], LED["t2"])]
+LED["net_bps"] = LED["edge_bps"] - LED["cost_bps"]
+print(f"{len(LED):,} round trips, ${LED['traded'].mean():,.0f} of notional turned over by each "
+      f"(${LED['traded'].sum() / 1e6:.1f}M in total)")
+display(LED[["edge_bps", "cost_bps", "net_bps"]].describe(
+    percentiles=[.1, .25, .5, .75, .9]).round(2))
+""")
+
+md(r"""
+### 9.3 The five clauses, scored
+
+Each row is one clause of the definition, the statistic that tests it, and what the book scores.
+""")
+code(r"""
+n = len(LED)
+years = (LED["exit"].max() - LED["entry"].min()).days / 365.25
+e, c, net = LED["edge_bps"], LED["cost_bps"], LED["net_bps"]
+t_naive = net.mean() / (net.std(ddof=1) / np.sqrt(n))
+by_form = LED.groupby("formation")["net_bps"].mean()          # the independent unit
+t_clust = by_form.mean() / (by_form.std(ddof=1) / np.sqrt(len(by_form)))
+dev, hold = LED[LED["formation"] < HOLDOUT_FROM], LED[LED["formation"] >= HOLDOUT_FROM]
+t_hold = hold["net_bps"].mean() / (hold["net_bps"].std(ddof=1) / np.sqrt(len(hold)))
+ir_bet = net.mean() / net.std(ddof=1)
+per_year = n / years
+# Sidak: what a t must clear for one rule out of N searched to mean what t=1.96 means for one rule
+n_tests = int(N_SCREEN_TESTS)
+t_needed = float(stats.norm.ppf(1 - (1 - 0.95 ** (1 / n_tests)) / 2))
+
+verdict = pd.DataFrame([
+    {"clause": "(0) profit per bet beats cost per bet",
+     "test": "mean gross edge vs measured cost, bps of traded notional",
+     "value": f"{e.mean():.1f} vs {c.mean():.1f}",
+     "verdict": "passes, by 12x"},
+    {"clause": "(a) survives its own sampling error",
+     "test": f"t of mean net edge, clustered on {len(by_form)} formations",
+     "value": f"{t_clust:.2f}  (t = {t_naive:.2f} if trades were independent)",
+     "verdict": "marginal"},
+    {"clause": "(b) survives the search that found it",
+     "test": f"t required for one rule out of {n_tests:,} screened (Sidak)",
+     "value": f"{t_needed:.2f} needed, {t_clust:.2f} achieved",
+     "verdict": "fails"},
+    {"clause": "(c) survives out of sample",
+     "test": f"net edge on formations from {HOLDOUT_FROM.year}, never used to choose anything",
+     "value": f"{hold['net_bps'].mean():.1f} bps, t = {t_hold:.2f} "
+              f"(development: {dev['net_bps'].mean():.1f}, t = "
+              f"{dev['net_bps'].mean() / (dev['net_bps'].std(ddof=1) / np.sqrt(len(dev))):.2f})",
+     "verdict": "fails"},
+    {"clause": "(d) large enough to be worth running",
+     "test": f"net P&L over {years:.0f} years, and the return on capital deployed",
+     # on the sessions it held an allocation, which is the sample section 3 argues for; over all
+     # 5,438 sessions in the lake the same P&L reads 1.5% because it is diluted by the nine
+     # formations that produced no pairs at all
+     "value": f"${LED['pnl_gross'].sum() - (c * LED['traded'] / 1e4).sum():,.0f}, "
+              f"{100 * book.loc[book['active'] > 0, 'ret'].mean() * ANN:.1f}% a year",
+     "verdict": "too small at this size"},
+]).set_index("clause")
+display(verdict)
+
+print(f"breadth: {ir_bet:.3f} net edge per unit of its own sd, {per_year:.0f} bets a year "
+      f"-> annual IR {ir_bet * np.sqrt(per_year):.2f}; "
+      + ", ".join(f"IR {t:.1f} would need {int((t / ir_bet) ** 2):,} bets a year" for t in (1.0, 2.0)))
+g = LED["pnl_gross"].sort_values(ascending=False)
+print(f"concentration: the best {int(0.05 * n)} round trips of {n:,} "
+      f"({100 * g.head(int(0.05 * n)).sum() / g.sum():.0f}% of gross P&L); "
+      f"win rate {100 * (LED['pnl_gross'] > 0).mean():.0f}% gross, {100 * (net > 0).mean():.0f}% net")
+""")
+
+code(r"""
+fig, ax = plt.subplots(1, 2, figsize=(12.4, 3.7), gridspec_kw={"width_ratios": [1.4, 1]})
+
+# An empirical CDF rather than a histogram: the tails run to ±1,100 bps and the bulk sits in a
+# few bins around zero, so a histogram of this either clips the tails into spikes or flattens the
+# middle into nothing. The CDF shows both, and reads off the one number that matters here --
+# where the cost line crosses it is the share of round trips that never covered their own cost.
+a = ax[0]
+xs = np.sort(e.to_numpy())
+ys = np.arange(1, n + 1) / n * 100
+a.plot(xs, ys, lw=1.8, color="steelblue")
+a.set_xlim(-80, 80)
+a.axvline(0, color="k", lw=0.8)
+for x, col, ls, lab in [(c.median(), "firebrick", "--", f"measured cost, median {c.median():.1f} bps"),
+                        (COST_BPS, "darkorange", ":", f"assumed cost, {COST_BPS:g} bps")]:
+    a.axvline(x, color=col, lw=1.7, ls=ls, label=lab)
+    a.plot([x], [(e < x).mean() * 100], "o", ms=5, color=col)
+# two readings, and the arrow must point at the one it names: the marker is the share below the
+# *median* cost, while the share that fails against each pair's own cost is the real quantity and
+# cannot be read off a single vertical line
+a.annotate(f"{(e < c.median()).mean() * 100:.0f}% earn less than\nthe median cost",
+           xy=(c.median(), (e < c.median()).mean() * 100), xytext=(-72, 74), fontsize=8.4,
+           arrowprops=dict(arrowstyle="->", lw=0.9, color="firebrick"))
+a.annotate(f"against each pair's own cost, {(net < 0).mean() * 100:.0f}% fail",
+           xy=(-76, 93), fontsize=8.4, color="firebrick")
+a.annotate(f"{(e.abs() > 80).mean() * 100:.0f}% lie outside this window,\n"
+           f"from {e.min():.0f} to {e.max():+.0f} bps", xy=(-76, 8), fontsize=8, color="dimgrey")
+a.set_xlabel("gross edge, bps of the notional the round trip turned over")
+a.set_ylabel("round trips at or below (%)")
+a.set_title("The typical round trip barely clears its own cost", fontsize=10)
+a.legend(fontsize=8, loc="lower right")
+
+a = ax[1]
+srt = np.sort(LED["pnl_gross"].to_numpy())[::-1]
+cum = np.cumsum(srt) / srt.sum() * 100
+pct = np.arange(1, n + 1) / n * 100
+a.plot(pct, cum, lw=1.8, color="steelblue")
+a.axhline(100, color="k", lw=0.9, ls=":")
+top5 = cum[int(0.05 * n) - 1]
+a.plot([5], [top5], "o", ms=5, color="firebrick")
+a.annotate(f"the best 5% of round trips\nhave earned {top5:.0f}% of the total",
+           xy=(5, top5), xytext=(17, 38), fontsize=8.4,
+           arrowprops=dict(arrowstyle="->", lw=0.9, color="firebrick"))
+k = int(np.argmax(cum))
+a.plot([pct[k]], [cum[k]], "o", ms=5, color="seagreen")
+a.annotate(f"peak {cum[k]:.0f}% at the {pct[k]:.0f}th percentile:\n"
+           f"the losing {100 - pct[k]:.0f}% give back {cum[k] - 100:.0f}%",
+           xy=(pct[k], cum[k]), xytext=(20, 215), fontsize=8.4,
+           arrowprops=dict(arrowstyle="->", lw=0.9, color="seagreen"))
+a.set_xlabel("round trips, best first (%)"); a.set_ylabel("cumulative gross P&L (% of total)")
+a.set_title("Where the money came from, and went", fontsize=10)
+fig.tight_layout()
+""")
+
+md(r"""
+### What the five clauses say
+
+**The first clause passes, and passes easily.** The average round trip earns 33.9 bps of the notional it
+turns over and costs 2.9 bps to place. Costs consume 8% of the gross profit; the strategy would still be
+gross-profitable at twelve times the measured cost. This is worth stating plainly because it contradicts
+a reasonable prior — including the one this repository held until the costs were measured. **Execution is
+not what is wrong with this strategy.** Re-running notebook 11's engine with per-pair measured costs
+instead of the flat 5 bps moves its Sharpe from 0.402 to 0.476, and even at *zero* cost it only reaches
+0.537. The distance from "free" to "realistic" is 0.06 of Sharpe, against a standard error of 0.26.
+
+**The remaining four fail, and they fail on the same underlying fact.** The median round trip earns 2.9
+bps gross against a 2.1 bps cost — the *typical* trade barely covers its own commission. The mean is
+33.9 because a handful of trades were enormous: 5% of the round trips carry 87% of the gross P&L. A
+strategy whose average is carried by 36 observations out of 723 does not have 723 pieces of evidence for
+itself, and once the trades are clustered on the 30 formations that actually varied independently, the
+$t$ falls from 3.8 to 2.1. Against the $t$ of 5.5 that a single rule selected from 1.74 million screened
+would need, 2.1 is not close. And on the formations from 2023 — the only data in this repository that
+was never used to choose anything — the net edge is 3.7 bps with a $t$ of 0.16.
+
+**The arithmetic of clause (a) is worth keeping.** Per round trip the net edge is 31 bps against a
+standard deviation of 219, an information ratio of 0.14 per bet. The Fundamental Law then says the
+annual information ratio is that times the square root of the bets per year: $0.14\times\sqrt{38}=0.87$,
+which is roughly what the book delivers. Read the other way, it is a specification: at this edge quality,
+an IR of 1.0 needs 49 independent bets a year and an IR of 2.0 needs 198. The book places 38. **The
+binding constraint is breadth, not cost and not signal quality** — which is the same conclusion §6
+reached from the Fundamental Law, arrived at from the opposite direction.
+
+**Why this is a useful definition even though the answer is no.** It converts "is there an edge" from a
+matter of judgement into five arithmetic questions, and it localises the failure. A strategy that failed
+clause (0) would need cheaper execution or a coarser horizon. This one fails (a) through (c), which
+cannot be fixed by trading better — only by finding more, and more nearly independent, opportunities.
+That is a different research programme from the one notebooks 01–17 have been running, and knowing
+which one you are on is most of the value of measuring at all.
+""")
+
+md(r"""
+## 10. So what is alpha, here?
 
 **The short answer to the terminological question.** "Alpha" names four things (§1) and the ambiguity
 is not sloppiness — it is that the four are genuinely linked, so a practitioner moving between them
@@ -1065,12 +1368,23 @@ what is left after costs. That is the whole discipline.
    null by median per-fold Sharpe and the **2nd** by mean. Cointegration screening widens the outcome
    distribution rather than shifting it — and it is selected out of 1.74 million tests, of which 86,950
    would pass uncorrected (§8).
+7. Measured rather than assumed, execution costs **2.9 bps** a transaction, not 5, and consume 8% of
+   the gross profit. The average round trip earns 33.9 bps of the notional it turns over, so the first
+   clause of a tradeable edge passes by a factor of twelve. The other four fail: 87% of the P&L comes
+   from 5% of the trades, the $t$ falls to 2.1 once trades are clustered on formations, and on the
+   2023–2025 hold-out the net edge is 3.7 bps with $t=0.16$. **Costs are not what is wrong with this
+   strategy; breadth is** (§9).
 
 **So, is there alpha here?** Under the market model, on allocated sessions, with the pooled estimator:
 1.59% a year, $t=1.39$ — positive, unconfirmed, and smaller than the round-trip cost of the trades that
 produce it for much of its range. Under a mean-per-fold estimator against a random-pair null: no. The
 two answers are both correct, which is the point the word "alpha" conceals every time it is used
 without its qualifiers.
+
+**Alpha and edge are not the same claim.** Everything above §9 asks whether the signal forecasts.
+Section 9 asks whether acting on it would have made money worth keeping, and gives that question a
+definition with five arithmetic clauses rather than a judgement. The two answers differ: the forecast
+is real enough to survive some of the tests in §5, and the edge fails four of the five in §9.
 
 **The practical rule.** A claim of alpha is incomplete unless it names four things: the **factor model**
 it is residual to, the **sample** it was measured on, the **estimator** used to aggregate, and the

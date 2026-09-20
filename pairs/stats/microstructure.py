@@ -52,22 +52,61 @@ def _sample_every(s: pd.Series, k: int, session) -> pd.Series:
     return s[pos % k == 0]
 
 
-def roll_spread(prices: pd.Series, *, as_bps: bool = True, min_obs: int = 30) -> float:
+def roll_spread(prices: pd.Series, *, as_bps: bool = True, min_obs: int = 30,
+                signed: bool = False, session=None, every: int = 1) -> float:
     """
     Roll (1984) effective spread of a price series (consecutive observations, no session split).
 
     Returns the spread in basis points of the mean price (``as_bps=True``) or in price units.
     NaN when the serial covariance of price changes is non-negative (no measurable bounce) or
     there are fewer than ``min_obs`` changes.
+
+    ``signed=True`` returns ``-2*sqrt(cov)`` instead of NaN when the covariance comes out
+    positive. Dropping those cases looks tidy but biases every average upward: the estimator is
+    noisy, so a name whose true spread is small produces a positive covariance a good fraction of
+    the time, and keeping only the draws that happened to land negative keeps only the draws that
+    happened to look expensive. The signed root is meaningless for a single name -- a negative
+    spread does not exist -- but its average over many names is not systematically wrong, which is
+    what a cost assumption needs.
+
+    The quantity returned is the *full* spread. A marketable order crosses half of it, so the
+    per-transaction cost to compare against a ``cost_bps`` assumption is half this number.
+
+    ``session`` groups bars so that no price change spans the overnight gap -- an overnight return
+    is not a bid-ask bounce -- and ``every`` samples every k-th bar within each session before
+    differencing. Changes are pooled across sessions into a single covariance rather than
+    estimated per session and averaged, which is what makes a coarse ``every`` usable: sampling
+    every 15th bar leaves only ~26 changes in a session but tens of thousands across a window.
+
+    The interval matters more than the textbook suggests. Sampled too finely, order-flow
+    continuation offsets part of the bounce and the estimate collapses -- at one minute it falls
+    below the minimum-tick floor for a third of the names in this repository's universe, which is
+    arithmetically impossible rather than merely low. Sampled too coarsely, genuine reversal that
+    a strategy could trade gets counted as a cost. Sweep ``every`` and use the plateau.
     """
     p = pd.Series(prices, dtype=float).dropna()
-    d = p.diff().dropna()
-    if len(d) < min_obs:
+    if session is None and every == 1:
+        d = p.diff().dropna()
+        pairs_ = (d.to_numpy()[1:], d.to_numpy()[:-1])
+    else:
+        keys = _session_keys(p.index, session)
+        lags, leads = [], []
+        for _, g in p.groupby(keys, sort=False):
+            d = g.iloc[::every].diff().dropna().to_numpy()
+            if len(d) >= 2:
+                leads.append(d[1:]); lags.append(d[:-1])
+        if not lags:
+            return float("nan")
+        pairs_ = (np.concatenate(leads), np.concatenate(lags))
+    if len(pairs_[0]) < min_obs:
         return float("nan")
-    cov = float(np.cov(d.to_numpy()[1:], d.to_numpy()[:-1], ddof=0)[0, 1])
-    if not cov < 0:
+    cov = float(np.cov(pairs_[0], pairs_[1], ddof=0)[0, 1])
+    if cov < 0:
+        spread = 2.0 * np.sqrt(-cov)
+    elif signed:
+        spread = -2.0 * np.sqrt(cov)
+    else:
         return float("nan")
-    spread = 2.0 * np.sqrt(-cov)
     return float(spread / p.mean() * 1e4) if as_bps else float(spread)
 
 

@@ -6,6 +6,7 @@ __all__ = [
     "load_prices", "load_polygon_lake", "download_openbb",
     "load_minute_bars", "detect_lake_layout", "nyse_early_closes", "summarize_sessions",
     "load_daily_bars", "detect_day_lake_layout", "recover_dividends", "liquidity_screen",
+    "CostSpec", "measure_ticker_window_costs", "pair_fold_costs",
 ]
 
 # --- polygon lake: ---
@@ -16,6 +17,9 @@ from .minute_bars import load_minute_bars, detect_lake_layout, nyse_early_closes
 
 # --- adjusted day lake (ticker or market layout), explicit price basis: ---
 from .daily_bars import load_daily_bars, detect_day_lake_layout, recover_dividends, liquidity_screen
+
+# --- execution costs measured on the minute lake: ---
+from .execution_costs import CostSpec, measure_ticker_window_costs, pair_fold_costs
 
 # --- openbb: ---
 from .openbb_history import download_history_openbb as download_openbb
