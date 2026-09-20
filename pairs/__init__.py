@@ -46,6 +46,8 @@ __all__ = [
     "detect_day_lake_layout",
     "recover_dividends",
     "liquidity_screen",
+    "scaled_instrument_report",
+    "detect_scaled_instruments",
     # universes
     "load_universe",
     "list_universes",
@@ -121,6 +123,8 @@ _LAZY_MAP = {
     "detect_day_lake_layout": ("pairs.market_data.daily_bars", "detect_day_lake_layout"),
     "recover_dividends": ("pairs.market_data.daily_bars", "recover_dividends"),
     "liquidity_screen": ("pairs.market_data.daily_bars", "liquidity_screen"),
+    "scaled_instrument_report": ("pairs.market_data.instruments", "scaled_instrument_report"),
+    "detect_scaled_instruments": ("pairs.market_data.instruments", "detect_scaled_instruments"),
     # universes
     "load_universe": ("pairs.universes", "load_universe"),
     "list_universes": ("pairs.universes", "list_universes"),
@@ -207,6 +211,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .market_data import load_prices, load_polygon_lake, download_openbb
     from .market_data.minute_bars import load_minute_bars, detect_lake_layout, nyse_early_closes, summarize_sessions
     from .market_data.daily_bars import load_daily_bars, detect_day_lake_layout, recover_dividends, liquidity_screen
+    from .market_data.instruments import scaled_instrument_report, detect_scaled_instruments
     from .universes import load_universe, list_universes
     from .plotting.pair_trades import plot_pair_legs_with_trades
     from .stats.cointegration import (

@@ -116,11 +116,14 @@ def figure_signals(df_pair_te, sig, z_window):
                       fontsize=13.5, pad=8)
     for t in axes[2].texts:
         t.set_fontsize(10.5)
-    fig.subplots_adjust(left=0.062, right=0.788, top=0.935, bottom=0.075, hspace=0.34)
-    # bbox_inches="tight" grows the canvas to enclose the legends, which sit outside the axes;
-    # without it the widest label ("open short spread") is clipped at the right edge.
+    # bbox_inches="tight" trims the canvas to the content and then adds pad_inches, so the clear
+    # margin on the right is set by the padding alone -- shrinking the axes with `right` only
+    # squeezes the plots and moves the legends with them. The z panel's "open short spread" is the
+    # widest label in the figure and therefore the one that decides how tight the edge looks, so
+    # the padding is generous rather than cosmetic.
+    fig.subplots_adjust(left=0.062, right=0.79, top=0.935, bottom=0.075, hspace=0.34)
     fig.savefig(OUT / "signals.png", dpi=135, facecolor="white", bbox_inches="tight",
-                pad_inches=0.16)
+                pad_inches=0.62)
     plt.close(fig)
 
 
