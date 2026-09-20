@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Pairs trading explorer{% endblock %}</title>
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<style>
+:root{--ink:#16181d;--mut:#6b7280;--line:#e5e7eb;--bg:#fbfbfc;--accent:#14532d;--warn:#9a3412}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+     color:var(--ink);background:var(--bg)}
+header{display:flex;align-items:baseline;gap:22px;padding:14px 24px;border-bottom:1px solid var(--line);background:#fff}
+header b{font-size:15px}
+header a{color:var(--mut);text-decoration:none;padding:3px 0;border-bottom:2px solid transparent}
+header a:hover{color:var(--ink)} header a.on{color:var(--ink);border-bottom-color:var(--accent)}
+main{display:grid;grid-template-columns:302px 1fr;gap:22px;padding:22px 24px;align-items:start}
+@media (max-width:1100px){main{grid-template-columns:1fr}}
+.panel{background:#fff;border:1px solid var(--line);border-radius:9px;padding:15px}
+.panel h3{margin:0 0 4px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.panel .cost{font-size:11px;color:var(--mut);margin:0 0 11px}
+label{display:block;margin:9px 0 3px;font-size:12px;color:var(--mut)}
+input,select{width:100%;padding:5px 7px;border:1px solid var(--line);border-radius:5px;font:inherit;font-size:13px;background:#fff}
+input[type=range]{padding:0}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+button{padding:7px 13px;border:1px solid var(--line);border-radius:6px;background:#fff;font:inherit;cursor:pointer}
+button:hover{background:#f3f4f6} button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.warn{border-color:var(--warn);color:var(--warn)}
+.tiles{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:9px;background:#fff;overflow:hidden}
+.tile{flex:1 1 0;min-width:96px;padding:12px 10px;text-align:center;border-right:1px solid var(--line)}
+.tile:last-child{border-right:0}
+.tile .v{font-size:21px;font-weight:700} .tile .v.hi{color:var(--accent)}
+.tile .k{font-size:11px;color:var(--mut);margin-top:2px}
+img.fig{width:100%;display:block;border:1px solid var(--line);border-radius:9px;background:#fff}
+.note{font-size:12px;color:var(--mut);margin:9px 0}
+.err{background:#fff4f2;border:1px solid #fecaca;color:#991b1b;padding:11px;border-radius:8px;font-size:13px}
+.stack{display:flex;flex-direction:column;gap:14px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;background:#fff}
+th,td{text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+tbody tr:hover{background:#f9fafb}
+.htmx-indicator{opacity:0;transition:opacity .15s} .htmx-request .htmx-indicator{opacity:1}
+.spin{font-size:12px;color:var(--mut)}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.pill{display:inline-block;padding:1px 7px;border-radius:9px;font-size:11px;background:#f3f4f6;color:var(--mut)}
+.pill.on{background:#dcfce7;color:var(--accent)}
+</style></head><body>
+<header>
+  <b>Pairs trading</b>
+  <a href="/" class="{{ 'on' if page=='explorer' }}">Explorer</a>
+  <a href="/screen" class="{{ 'on' if page=='screen' }}">Screen</a>
+  <a href="/portfolio" class="{{ 'on' if page=='portfolio' }}">Portfolio</a>
+  <span style="margin-left:auto;font-size:12px;color:var(--mut)">server-rendered figures · <code>pairs.plotting</code></span>
+</header>
+{% block body %}{% endblock %}
+</body></html>

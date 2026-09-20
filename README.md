@@ -23,6 +23,12 @@ validation and capacity analysis.
 - **Cross-sectional statistical arbitrage** — the Avellaneda–Lee design on the same day lake: monthly PCA eigenportfolios as risk factors, a residual signal on every eligible name, factor-neutral dollar-neutral weights, and information coefficients measured before any portfolio is built ([`12`](notebooks/pairs_trading_12_daily_cross_sectional.ipynb) breadth instead of pair selection — and why it is not enough)
 - **Market-network methods** — TMFG and PMFG graph filters and the Pozzi $X+Y$ centrality index, validated against the published worked example of Grande & Borondo (2025), then used to test their "peripheral pairs beat central ones" claim on the day lake ([`pairs_trading_13_market_networks_day_lake.ipynb`](notebooks/pairs_trading_13_market_networks_day_lake.ipynb))
 - **What "alpha" actually means** — the four things the word names, separated and then measured on the day lake: Jensen's intercept, Grinold's forecast alpha, an alpha *signal*, and P&L ([`pairs_trading_14_alpha_concepts_day_lake.ipynb`](notebooks/pairs_trading_14_alpha_concepts_day_lake.ipynb))
+- **Interactive explorer** — a FastAPI + HTMX app over the same package: tune thresholds and costs live (~250 ms),
+  refit the hedge on demand (~1.8 s), browse the 1.7M cached cointegration tests, and run notebook 11's
+  twenty-year portfolio backtest as a cancellable background job. Figures are server-rendered by
+  `pairs.plotting`, so the app and the notebooks cannot diverge; the walk-forward fold distribution is shown
+  beside every headline Sharpe and the hold-out counts how many times you have looked at it
+  ([`webapp/`](webapp/README.md))
 - Plotting of trades over price legs, optionally with the spread's z-score as a third x-aligned panel (`show_zscore=True`) so an entry, the trades it caused and the reversion that closed it line up vertically
 
 <p align="center">

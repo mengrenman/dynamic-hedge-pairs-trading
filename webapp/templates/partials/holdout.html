@@ -1,0 +1,11 @@
+<div class="stack" style="margin-top:13px">
+  <div class="tiles">
+    <div class="tile"><div class="v hi">{{ summary.sharpe|num }}</div><div class="k">Sharpe</div></div>
+    <div class="tile"><div class="v hi">{{ summary.net_pnl|money }}</div><div class="k">Net P&amp;L</div></div>
+    <div class="tile"><div class="v">{{ summary.ann_return|pct }}</div><div class="k">Ann. return</div></div>
+    <div class="tile"><div class="v">{{ summary.max_drawdown_pct|pct }}</div><div class="k">Max DD</div></div>
+    <div class="tile"><div class="v">{{ summary.n_trades }}</div><div class="k">Trades</div></div>
+    <div class="tile"><div class="v" style="color:var(--warn)">{{ touches }}</div><div class="k">Looks</div></div>
+  </div>
+  <img class="fig" src="/fig/{{ fig }}" alt="hold-out trades and z-score">
+</div>

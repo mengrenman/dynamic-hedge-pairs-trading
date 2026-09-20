@@ -1,0 +1,69 @@
+{% extends "base.html" %}{% set page='explorer' %}
+{% block body %}
+<main>
+  <form id="knobs" class="stack"
+        hx-post="/explore/run" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
+
+    <div class="panel">
+      <h3>Pair</h3>
+      <p class="cost">changing these refits the hedge · ~2 s</p>
+      <label>Data source</label>
+      <select name="source" hx-post="/explore/pairs" hx-target="#pairsel" hx-swap="innerHTML">
+        {% for s in sources %}<option value="{{ s.key }}" {{ 'selected' if s.key==hedge.source }}>{{ s.label }}</option>{% endfor %}
+      </select>
+      <label>Pair</label>
+      <div id="pairsel">{% include "partials/pairs.html" %}</div>
+    </div>
+
+    <div class="panel">
+      <h3>Hedge — tier 2</h3>
+      <p class="cost">refit on every change · ~1.8 s for Kalman, instant otherwise</p>
+      <label>Model</label>
+      <select name="model">
+        {% for m,lbl in [('kalman','Kalman, random-walk β'),('static','Static OLS'),('rolling','Rolling OLS')] %}
+        <option value="{{ m }}" {{ 'selected' if m==hedge.model }}>{{ lbl }}</option>{% endfor %}
+      </select>
+      <div class="row">
+        <div><label>q (transition var.)</label><input name="q" value="{{ hedge.q }}"></div>
+        <div><label>EM iterations</label><input name="em_iters" type="number" min="0" max="50" value="{{ hedge.em_iters }}"></div>
+      </div>
+      <label>Rolling window (bars)</label>
+      <input name="rolling_window" type="number" min="20" max="756" value="{{ hedge.rolling_window }}">
+      <p class="note">q and r are <em>absolute</em> variances, so the same q behaves differently at
+      different price levels — notebook 08. A Kalman residual is stationary by construction:
+      notebook 07 measures a 100% false-positive rate.</p>
+    </div>
+
+    <div class="panel">
+      <h3>Signal &amp; costs — tier 1</h3>
+      <p class="cost">live · ~0.4 s round trip</p>
+      <label>z-score method</label>
+      <select name="z_method">
+        {% for m in ['robust','rolling','ewm'] %}<option value="{{ m }}" {{ 'selected' if m==sig.z_method }}>{{ m }}</option>{% endfor %}
+      </select>
+      <div class="row3">
+        <div><label>entry</label><input name="z_entry" type="number" step="0.1" value="{{ sig.z_entry }}"></div>
+        <div><label>exit</label><input name="z_exit" type="number" step="0.1" value="{{ sig.z_exit }}"></div>
+        <div><label>stop</label><input name="z_stop" type="number" step="0.5" value="{{ sig.z_stop }}"></div>
+      </div>
+      <div class="row">
+        <div><label>z window (blank = half-life)</label><input name="z_window" placeholder="{{ z_window }}"></div>
+        <div><label>max hold (bars)</label><input name="max_hold_bars" placeholder="none"></div>
+      </div>
+      <div class="row3">
+        <div><label>cost bps</label><input name="cost_bps" type="number" step="0.5" value="{{ sig.cost_bps }}"></div>
+        <div><label>borrow bp/y</label><input name="borrow_bps" type="number" step="5" value="{{ sig.borrow_bps }}"></div>
+        <div><label>cooldown</label><input name="cooldown_bars" type="number" min="0" value="{{ sig.cooldown_bars }}"></div>
+      </div>
+      <label>Capital per pair ($)</label>
+      <input name="capital" type="number" step="1000" value="{{ sig.capital }}">
+      <div style="margin-top:13px;display:flex;gap:8px;align-items:center">
+        <button class="primary" type="submit">Run</button>
+        <span id="busy" class="htmx-indicator spin">computing…</span>
+      </div>
+    </div>
+  </form>
+
+  <div id="result">{% include "partials/result.html" %}</div>
+</main>
+{% endblock %}

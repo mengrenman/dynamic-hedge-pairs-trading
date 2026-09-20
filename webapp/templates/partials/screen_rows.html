@@ -1,0 +1,23 @@
+<p class="note" style="margin-top:0">
+  {{ "{:,}".format(matched) }} pairs tested at this formation · showing the top {{ shown }}
+</p>
+{% if not rows %}
+  <div class="err">Nothing clears these filters. Cointegration is rare — nine of the 39
+  formations produce no BH survivor at all.</div>
+{% else %}
+<table>
+  <thead><tr><th>Pair</th><th>EG p</th><th>BH p</th><th>Johansen</th><th>Verdict</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.ticker1 }} / {{ r.ticker2 }}</td>
+      <td>{{ "%.2e"|format(r.eg_p) }}</td>
+      <td>{{ "%.2e"|format(r.eg_p_fdr) }}</td>
+      <td>{{ "%.1f"|format(r.joh_stat) }}</td>
+      <td><span class="pill {{ 'on' if r.verdict=='pass' }}">{{ r.verdict }}</span></td>
+      <td><a href="/?t1={{ r.ticker1 }}&t2={{ r.ticker2 }}&source=day_lake">explore →</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

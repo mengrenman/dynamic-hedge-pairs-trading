@@ -36,3 +36,6 @@ notebooks/cache/
 # ── Local tooling (not part of the project) ───────────────────────────────────
 .claude/
 slides/
+
+# dev-server launch config for the webapp preview
+.claude/launch.json

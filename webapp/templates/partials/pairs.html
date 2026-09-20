@@ -1,0 +1,19 @@
+{% set cur1 = hedge.t1 if hedge is defined else pairs[0][0] %}
+{% set cur2 = hedge.t2 if hedge is defined else pairs[0][1] %}
+<select name="pair_sel" onchange="
+  var v=this.value.split('/');
+  document.getElementById('t1').value=v[0];
+  document.getElementById('t2').value=v[1];
+  htmx.trigger(document.getElementById('knobs'),'submit');">
+  {% for a,b,label in pairs %}
+  <option value="{{ a }}/{{ b }}" {{ 'selected' if a==cur1 and b==cur2 }}>{{ label }}</option>
+  {% endfor %}
+</select>
+<div class="row" style="margin-top:7px">
+  <div><label>leg 1</label><input id="t1" name="t1" value="{{ cur1 }}"></div>
+  <div><label>leg 2</label><input id="t2" name="t2" value="{{ cur2 }}"></div>
+</div>
+{% set hubs = pairs | selectattr('0', 'in', ['NCLH','CCL']) | list | length %}
+<p class="note" style="margin-bottom:0">{{ pairs|length }} pairs, strongest evidence first.
+{% if hubs > pairs|length // 2 %}<b>{{ hubs }} of them start with NCLH or CCL</b> — the screen is
+hub-dominated, which notebook 05 §6 shows is where the apparent edge lives.{% endif %}</p>

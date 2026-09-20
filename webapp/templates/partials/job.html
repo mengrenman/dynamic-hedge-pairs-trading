@@ -1,0 +1,29 @@
+<div class="stack"
+     {% if job and not job.done %}hx-get="/jobs/{{ job.id }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="panel">
+    <h3>{{ job.label }}</h3>
+    <div class="bar"><i style="width:{{ (job.progress*100)|round(1) }}%"></i></div>
+    <p class="note">{{ job.status }} · {{ job.message or '…' }} · {{ "%.0f"|format(job.elapsed) }}s</p>
+    {% if not job.done %}
+      <button class="warn" hx-post="/jobs/{{ job.id }}/cancel" hx-target="closest .stack"
+              hx-swap="outerHTML">Cancel</button>
+    {% endif %}
+    {% if job.status == 'failed' %}<div class="err">{{ job.error }}</div>{% endif %}
+  </div>
+
+  {% if job.status == 'done' and job.result %}
+  {% set r = job.result %}
+  <div class="tiles">
+    <div class="tile"><div class="v hi">{{ "%.3f"|format(r.sharpe) }}</div><div class="k">Sharpe</div></div>
+    <div class="tile"><div class="v hi">${{ "{:,.0f}".format(r.total_pnl) }}</div><div class="k">Net P&amp;L</div></div>
+    <div class="tile"><div class="v">{{ r.n_folds }}</div><div class="k">Pair-folds</div></div>
+    <div class="tile"><div class="v">{{ "{:,}".format(r.n_trades) }}</div><div class="k">Trades</div></div>
+    <div class="tile"><div class="v">{{ "{:,}".format(r.live_sessions) }}</div><div class="k">Live sessions</div></div>
+    <div class="tile"><div class="v">{{ "%.0f"|format(r.levered_share*100) }}%</div><div class="k">P&amp;L from levered ETFs</div></div>
+  </div>
+  <img class="fig" src="/fig/{{ r.fig }}" alt="portfolio equity and pairs held">
+  <p class="note">{{ r.levered_folds }} of {{ r.n_folds }} pair-folds involve a leveraged, inverse
+  or volatility ETF. Notebook 11 measures a Sharpe standard error near 0.23 on this book, so
+  differences smaller than that are not differences.</p>
+  {% endif %}
+</div>

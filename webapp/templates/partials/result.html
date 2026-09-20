@@ -1,0 +1,36 @@
+<div class="stack">
+  <div class="tiles">
+    <div class="tile"><div class="v hi">{{ summary.sharpe|num }}</div><div class="k">Sharpe</div></div>
+    <div class="tile"><div class="v hi">{{ summary.net_pnl|money }}</div><div class="k">Net P&amp;L</div></div>
+    <div class="tile"><div class="v">{{ summary.ann_return|pct }}</div><div class="k">Ann. return</div></div>
+    <div class="tile"><div class="v">{{ summary.max_drawdown_pct|pct }}</div><div class="k">Max DD</div></div>
+    <div class="tile"><div class="v">{{ summary.hit_rate|pct }}</div><div class="k">Hit rate</div></div>
+    <div class="tile"><div class="v">{{ summary.n_trades }}</div><div class="k">Trades</div></div>
+    <div class="tile"><div class="v">{{ n_bars }}</div><div class="k">Bars</div></div>
+  </div>
+
+  {% if fig_folds %}
+  <img class="fig" src="/fig/{{ fig_folds }}" alt="walk-forward fold Sharpes">
+  <p class="note">A single-window Sharpe is never shown alone here. Notebook 05 found the rank
+  correlation between a tuning period and the next year to be 0.36 for this model and −0.03 for a
+  static hedge — so the spread of these bars is the honest read, not the dashed line.</p>
+  {% endif %}
+
+  <img class="fig" src="/fig/{{ fig_signals }}" alt="trades on each leg and the spread z-score">
+  <img class="fig" src="/fig/{{ fig_equity }}" alt="equity curve">
+
+  <div class="panel">
+    <h3>Hold-out — 2026</h3>
+    {% if has_holdout %}
+      <p class="cost">Looked at <b>{{ touches }}</b> time{{ '' if touches==1 else 's' }} this session.
+      Every look is a decision you cannot un-make; notebook 14 shows a window this short cannot rank
+      configurations at all.</p>
+      <button class="warn" hx-post="/explore/holdout" hx-include="#knobs"
+              hx-target="#holdout" hx-swap="innerHTML">Evaluate on 2026</button>
+      <div id="holdout"></div>
+    {% else %}
+      <p class="cost">No hold-out cache for this pair — only the pairs notebooks 01–05 traded were
+      ever downloaded for 2026.</p>
+    {% endif %}
+  </div>
+</div>
