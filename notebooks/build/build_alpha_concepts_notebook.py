@@ -48,7 +48,7 @@ there rather than repeating the work.
 md("## 0. Setup")
 code(r"""
 from pathlib import Path
-import os, sys, warnings
+import os, sys, pickle, warnings
 
 repo_root = Path.cwd().parent
 sys.path.insert(0, str(repo_root))
@@ -1072,29 +1072,64 @@ md(r"""
 
 `measure_ticker_window_costs` computes a Roll (1984) effective spread for each name over exactly the
 window the book holds it, and halves it, because Roll estimates the full bid-ask spread while a
-marketable order crosses half. Three details in `pairs.market_data.execution_costs` change the answer
-materially and are argued there: sampling every five minutes rather than every one, keeping the cells
-whose serial covariance comes out positive instead of discarding them, and flooring the result at the
-minimum tick. That last one is the anchor — half a cent on a stock that really traded at \$20 is 2.5
-bps, so an estimate below it is not cheap but arithmetically impossible. At one-minute sampling **36%**
-of the estimates are impossible; at five minutes 20%, which is the minimum over the sweep; by fifteen
-minutes it is back to 34% as noise takes over. That is the whole argument for five.
+marketable order crosses half.
+
+The sampling interval is the choice that matters, and it is not free. Roll assumes the only source of
+negative serial covariance in prices is the bounce. Sample too finely and order-flow continuation
+cancels part of it; sample too coarsely and genuine reversal — which a strategy *earns* — is counted
+as a cost. The minimum tick settles the argument without needing a second estimator: half a cent on a
+stock that really traded at \$20 is 2.5 bps, so an estimate below that floor is not cheap but
+arithmetically impossible.
 """)
 code(r"""
-f_cost = CACHE / "alpha_costs.parquet"
-if f_cost.exists():
-    cells = pd.read_parquet(f_cost)
+f_sweep = CACHE / "alpha_cost_interval_sweep.parquet"
+INTERVALS = (1, 2, 5, 15)
+if f_sweep.exists():
+    sweep = pd.read_parquet(f_sweep)
 else:
-    raw = pd.read_parquet(CACHE / "day_market_bars.parquet", columns=["raw_close"])["raw_close"].unstack("ticker")
-    need = {d: sorted({t for p in selections(d) for t in p}) for d in FORMATIONS}
-    cells = measure_ticker_window_costs(WINDOWS, need, MINUTE_ROOT, raw_close=raw,
-                                        spec=CostSpec(every=5))
-    cells.to_parquet(f_cost); del raw
+    _raw = pd.read_parquet(CACHE / "day_market_bars.parquet",
+                           columns=["raw_close"])["raw_close"].unstack("ticker")
+    _need = {d: sorted({t for p in selections(d) for t in p}) for d in FORMATIONS}
+    sweep = pd.concat([
+        measure_ticker_window_costs(WINDOWS, _need, MINUTE_ROOT, raw_close=_raw,
+                                    spec=CostSpec(every=k)).assign(every=k)
+        for k in INTERVALS], ignore_index=True)
+    sweep.to_parquet(f_sweep); del _raw
+sw = sweep[sweep["err"].eq("")]
+tab = sw.groupby("every").apply(lambda g: pd.Series({
+    "cells": len(g), "median bps": g["cost_bps"].median(),
+    "below the tick floor": (g["cost_bps"] < g["tick_floor"]).mean()}), include_groups=False)
+display(tab.style.format({"median bps": "{:.2f}", "below the tick floor": "{:.0%}",
+                          "cells": "{:.0f}"}))
+BEST = int(tab["below the tick floor"].idxmin())
+print(f"impossible estimates: {tab.loc[1, 'below the tick floor']:.0%} at one minute, falling to "
+      f"{tab.loc[BEST, 'below the tick floor']:.0%} at {BEST} and no further "
+      f"({tab.loc[15, 'below the tick floor']:.0%} at fifteen) — while the estimate itself keeps "
+      f"climbing, {tab.loc[1, 'median bps']:.2f} -> {tab.loc[BEST, 'median bps']:.2f} -> "
+      f"{tab.loc[15, 'median bps']:.2f} bps")
+""")
+
+md(r"""
+The two columns move differently, and that is what picks the interval. Between one minute and five,
+the share of arithmetically impossible estimates falls from 44% to 33% — attenuation being removed.
+Past five it stops falling, while the estimate itself keeps climbing, 1.63 bps to 2.71. An estimate
+that rises without buying any additional plausibility is no longer measuring the spread; it is
+measuring reversal, which a strategy earns rather than pays. Five minutes is where the floor stops
+improving and before the number starts inflating.
+
+Even there a third of the estimates sit below the tick and are replaced by it, which is worth saying
+plainly: this is a floor-assisted measurement, not a clean one, and the floored median (1.84 bps) runs
+above the raw one (1.63) for that reason. Two further details are argued in
+`pairs.market_data.execution_costs`: the estimate is kept when the serial covariance comes out
+positive rather than discarded — dropping those keeps only the draws that happened to look
+expensive — and it is floored at the minimum tick.
+""")
+code(r"""
+cells = sweep[sweep["every"].eq(BEST)].drop(columns="every").reset_index(drop=True)
 ok = cells[cells["err"].eq("")]
 print(f"{len(ok)} of {len(cells)} (ticker, window) cells measured"
       + (f"; unmeasured: {cells[~cells['err'].eq('')]['err'].value_counts().to_dict()}"
          if len(ok) < len(cells) else ""))
-
 era = pd.cut(pd.to_datetime(ok["formation"]).dt.year, [2005, 2010, 2015, 2020, 2026],
              labels=["2006-10", "2011-15", "2016-20", "2021-25"])
 display(ok.groupby(era, observed=True)[["cost_bps", "cost_used", "tick_floor"]]
@@ -1102,27 +1137,78 @@ display(ok.groupby(era, observed=True)[["cost_bps", "cost_used", "tick_floor"]]
 print(f"per-transaction cost, bps: median {ok['cost_used'].median():.2f}, "
       f"mean {ok['cost_used'].mean():.2f}, 90th {ok['cost_used'].quantile(.9):.2f}; "
       f"{100 * ok['cost_used'].gt(COST_BPS).mean():.0f}% above the assumed {COST_BPS:g}")
-
-PFC = pair_fold_costs(cells, {d: selections(d) for d in FORMATIONS})
-PFC.to_parquet(CACHE / "alpha_pair_fold_costs.parquet")
-print(f"{PFC['cost_bps'].notna().sum()} of {len(PFC)} pair-folds priced; "
-      f"median {PFC['cost_bps'].median():.2f} bps, mean {PFC['cost_bps'].mean():.2f}, "
-      f"max {PFC['cost_bps'].max():.2f}")
 """)
 
 md(r"""
-The assumed 5 bps is **2.7 times** what the median name costs a transaction, and 1.9 times what the
-median pair-fold pays across its two legs. The decline across eras is real but mild — 1.98 bps in
-2006–2010 against 1.71 in 2021–2025 — which is what a top-300-by-dollar-volume universe should look
-like: these were already the most liquid names in the market in 2006, so they had the least room to
-tighten. What moved a great deal more is the tick floor itself, from 1.19 bps to 0.29, because the
-names got more expensive per share rather than cheaper to trade.
+The assumed 5 bps is about **2.7 times** what the median name costs a transaction. The decline across
+eras is real but mild — these were already among the most liquid names in the market in 2006, so they
+had the least room to tighten; what moved far more is the tick floor itself, as the names grew more
+expensive per share.
 
-The tail is instructive. The costliest names are the volatility funds — TVIX at 22.5 bps a
-transaction in 2018, UVXY at 17.7 in 2022 — and the costliest pair-folds are the pairs built on them
-(TVIX/VXX at 16.4 bps). Those are the same instruments notebook 11's §7 behavioural gate removes for
-an entirely unrelated reason. A cost measurement and an instrument screen, arriving from opposite
-directions, point at the same names.
+A pair pays a blend of its two legs, weighted by the notional each leg turns over — **not** a plain
+average of the two rates. `generate_pair_signals` sizes a trade as $\\text{capital}/(P_1+|\\beta|P_2)$,
+so the legs are equal only when $P_1=|\\beta|P_2$, and in this book two thirds of pair-folds sit
+outside a 40/60 split. The weights come from the realised per-leg turnover of each fold.
+""")
+code(r"""
+def fold_ledger(pair, formation):
+    # notebook 11's fold, keeping the round-trip ledger and the per-leg turnover instead of just
+    # the daily P&L. Costs are NOT charged here: the ledger is gross, and because every cost in
+    # this repository is proportional to traded notional, any cost scenario is a subtraction
+    # afterwards rather than a re-run.
+    a, b = pair
+    if a not in PX.columns or b not in PX.columns:
+        return None
+    lo, hi = WINDOWS[formation]
+    form = pd.DataFrame({"P1": PX[a], "P2": PX[b]}).loc[
+        (PX.index > formation - pd.DateOffset(years=FORM_YEARS)) & (PX.index <= formation)].dropna()
+    trade = pd.DataFrame({"P1": PX[a], "P2": PX[b], "D1": DIV[a], "D2": DIV[b]}).loc[
+        (PX.index > lo) & (PX.index <= hi)].dropna()
+    if len(form) < 250 or len(trade) < 20:
+        return None
+    al, be = ols_ab(form["P1"].to_numpy(), form["P2"].to_numpy())
+    rf = form["P1"] - al - be * form["P2"]
+    states = trade[["P1", "P2"]].assign(beta=be, resid=trade["P1"] - al - be * trade["P2"])
+    hl = estimate_halflife(rf.dropna())
+    win = int(np.clip(3 * hl, 20, 250)) if np.isfinite(hl) else 60
+    sig = generate_pair_signals(states, z_method="robust", z_window=win, z_history=rf.dropna(),
+                                z_entry=Z_ENTRY, z_exit=Z_EXIT, z_stop=Z_STOP, capital_per_pair=CAP)
+    daily, tr, _ = evaluate_pair_signals(states[["P1", "P2"]], sig, cost_bps=0.0,
+                                         borrow_bps_per_year=BORROW_BPS, days_per_year=ANN,
+                                         bars_per_year=ANN, capital_base=CAP)
+    if not len(tr):
+        return None
+    # the same decomposition evaluate_pair_signals charges cost_bps on, split by leg
+    d1 = sig["n1"].diff().fillna(sig["n1"]).abs() * states["P1"]
+    d2 = sig["n2"].diff().fillna(sig["n2"]).abs() * states["P2"]
+    div = sig["n1"] * trade.loc[daily.index, "D1"] + sig["n2"] * trade.loc[daily.index, "D2"]
+    day = pd.DataFrame({"pnl_gross": daily["pnl_net"] + div,      # gross of spread, net of borrow
+                        "tn1": d1.reindex(daily.index).fillna(0.0),
+                        "tn2": d2.reindex(daily.index).fillna(0.0)})
+    return {"trades": tr.assign(formation=formation, t1=a, t2=b), "daily": day,
+            "pair": (formation, a, b)}
+
+f_led = CACHE / "alpha_ledger.pkl"
+if f_led.exists():
+    FOLDS = pickle.load(open(f_led, "rb"))
+else:
+    _jobs = [(p, d) for d in FORMATIONS for p in selections(d)]
+    FOLDS = [x for x in Parallel(n_jobs=-1)(delayed(fold_ledger)(p, d) for p, d in _jobs)
+             if x is not None]
+    pickle.dump(FOLDS, open(f_led, "wb"), protocol=5)
+
+# leg one's share of the notional the fold actually turned over
+W1 = {f["pair"]: float(f["daily"]["tn1"].sum() /
+                       max(f["daily"]["tn1"].sum() + f["daily"]["tn2"].sum(), 1e-9)) for f in FOLDS}
+PFC = pair_fold_costs(cells, {d: selections(d) for d in FORMATIONS}, weights=W1)
+plain = pair_fold_costs(cells, {d: selections(d) for d in FORMATIONS})
+print(f"{PFC['cost_bps'].notna().sum()} of {len(PFC)} pair-folds priced; "
+      f"notional-weighted median {PFC['cost_bps'].median():.2f} bps, mean {PFC['cost_bps'].mean():.2f}")
+print(f"an unweighted mean of the two legs would say {plain['cost_bps'].mean():.2f} — "
+      f"{100 * (plain['cost_bps'].mean() / PFC['cost_bps'].mean() - 1):.0f}% too high, because it "
+      f"over-weights whichever leg is smaller ({100 * ((PFC['w1'] < 0.4) | (PFC['w1'] > 0.6)).mean():.0f}% "
+      f"of folds are outside a 40/60 split)")
+COSTMAP = {(pd.Timestamp(r.formation), r.t1, r.t2): r.cost_bps for r in PFC.itertuples()}
 """)
 
 md(r"""
@@ -1132,44 +1218,7 @@ One row per round trip, with the gross profit expressed on the notional that rou
 and the measured cost of the pair subtracted from it.
 """)
 code(r"""
-COSTMAP = {(pd.Timestamp(r.formation), r.t1, r.t2): r.cost_bps for r in PFC.itertuples()}
-
-def fold_ledger(pair, formation):
-    # notebook 11's fold, keeping the round-trip ledger instead of the daily P&L
-    a, b = pair
-    if a not in PX.columns or b not in PX.columns:
-        return None
-    lo, hi = WINDOWS[formation]
-    form = pd.DataFrame({"P1": PX[a], "P2": PX[b]}).loc[
-        (PX.index > formation - pd.DateOffset(years=FORM_YEARS)) & (PX.index <= formation)].dropna()
-    trade = pd.DataFrame({"P1": PX[a], "P2": PX[b]}).loc[(PX.index > lo) & (PX.index <= hi)].dropna()
-    if len(form) < 250 or len(trade) < 20:
-        return None
-    al, be = ols_ab(form["P1"].to_numpy(), form["P2"].to_numpy())
-    rf = form["P1"] - al - be * form["P2"]
-    states = trade.assign(beta=be, resid=trade["P1"] - al - be * trade["P2"])
-    hl = estimate_halflife(rf.dropna())
-    win = int(np.clip(3 * hl, 20, 250)) if np.isfinite(hl) else 60
-    sig = generate_pair_signals(states, z_method="robust", z_window=win, z_history=rf.dropna(),
-                                z_entry=Z_ENTRY, z_exit=Z_EXIT, z_stop=Z_STOP, capital_per_pair=CAP)
-    # cost_bps=0 so the ledger carries the *gross* result; the measured cost is applied below, and
-    # applying it here instead would bury the one comparison this section is about
-    _, tr, _ = evaluate_pair_signals(states[["P1", "P2"]], sig, cost_bps=0.0,
-                                     borrow_bps_per_year=BORROW_BPS, days_per_year=ANN,
-                                     bars_per_year=ANN, capital_base=CAP)
-    if not len(tr):
-        return None
-    return tr.assign(formation=formation, t1=a, t2=b)
-
-f_led = CACHE / "alpha_ledger.parquet"
-if f_led.exists():
-    LED = pd.read_parquet(f_led)
-else:
-    _jobs = [(p, d) for d in FORMATIONS for p in selections(d)]
-    LED = pd.concat([x for x in Parallel(n_jobs=-1)(delayed(fold_ledger)(p, d) for p, d in _jobs)
-                     if x is not None], ignore_index=True)
-    LED.to_parquet(f_led)
-
+LED = pd.concat([f["trades"] for f in FOLDS], ignore_index=True)
 LED["traded"] = LED["turnover"] * CAP                      # both legs, in and out
 LED["edge_bps"] = LED["pnl_gross"] / LED["traded"] * 1e4
 LED["cost_bps"] = [COSTMAP.get((f, a, b), np.nan)
@@ -1184,82 +1233,87 @@ display(LED[["edge_bps", "cost_bps", "net_bps"]].describe(
 md(r"""
 ### 9.3 The five clauses, scored
 
-Each row is one clause of the definition, the statistic that tests it, and what the book scores.
+Each row is one clause, the statistic that tests it, and what the book scores. Two constructions are
+used throughout and they disagree by a lot, so both are shown: a $t$ over the 723 round trips as if
+they were independent, and a $t$ over the 30 formations, which is the unit that actually varied.
+Trades inside one formation share a hedge, a universe and a market, so the second is the honest one
+everywhere it appears — including in the hold-out.
 """)
 code(r"""
-n = len(LED)
-years = (LED["exit"].max() - LED["entry"].min()).days / 365.25
+n, years = len(LED), (LED["exit"].max() - LED["entry"].min()).days / 365.25
 e, c, net = LED["edge_bps"], LED["cost_bps"], LED["net_bps"]
-t_naive = net.mean() / (net.std(ddof=1) / np.sqrt(n))
-by_form = LED.groupby("formation")["net_bps"].mean()          # the independent unit
-t_clust = by_form.mean() / (by_form.std(ddof=1) / np.sqrt(len(by_form)))
+
+def t_of(frame, clustered=True):
+    x = frame.groupby("formation")["net_bps"].mean() if clustered else frame["net_bps"]
+    return float(x.mean() / (x.std(ddof=1) / np.sqrt(len(x)))) if len(x) > 1 else np.nan
+
+def detectable(frame, clustered=True):
+    # the smallest true edge this sample could have called significant at t=1.96
+    x = frame.groupby("formation")["net_bps"].mean() if clustered else frame["net_bps"]
+    return float(1.96 * x.std(ddof=1) / np.sqrt(len(x)))
+
 dev, hold = LED[LED["formation"] < HOLDOUT_FROM], LED[LED["formation"] >= HOLDOUT_FROM]
-t_hold = hold["net_bps"].mean() / (hold["net_bps"].std(ddof=1) / np.sqrt(len(hold)))
-ir_bet = net.mean() / net.std(ddof=1)
-per_year = n / years
-# Sidak: what a t must clear for one rule out of N searched to mean what t=1.96 means for one rule
+# power: if the development edge were the truth, how often would the hold-out call it significant?
+lift = dev.groupby("formation")["net_bps"].mean().mean()
+power = float(1 - stats.norm.cdf(1.96 - lift / (detectable(hold) / 1.96)))
 n_tests = int(N_SCREEN_TESTS)
 t_needed = float(stats.norm.ppf(1 - (1 - 0.95 ** (1 / n_tests)) / 2))
+net_pnl = LED["pnl_gross"].sum() - (c * LED["traded"] / 1e4).sum()
 
 verdict = pd.DataFrame([
     {"clause": "(0) profit per bet beats cost per bet",
      "test": "mean gross edge vs measured cost, bps of traded notional",
-     "value": f"{e.mean():.1f} vs {c.mean():.1f}",
-     "verdict": "passes, by 12x"},
+     "value": f"{e.mean():.1f} vs {c.mean():.1f}  ({e.mean() / c.mean():.1f}x)",
+     "verdict": "passes"},
     {"clause": "(a) survives its own sampling error",
-     "test": f"t of mean net edge, clustered on {len(by_form)} formations",
-     "value": f"{t_clust:.2f}  (t = {t_naive:.2f} if trades were independent)",
+     "test": f"t of mean net edge over the {LED['formation'].nunique()} formations",
+     "value": f"{t_of(LED):.2f}  (vs {detectable(LED):.0f} bps detectable, {lift:.0f} observed; "
+              f"t = {t_of(LED, False):.2f} if trades were independent)",
      "verdict": "marginal"},
     {"clause": "(b) survives the search that found it",
      "test": f"t required for one rule out of {n_tests:,} screened (Sidak)",
-     "value": f"{t_needed:.2f} needed, {t_clust:.2f} achieved",
+     "value": f"{t_needed:.2f} needed, {t_of(LED):.2f} achieved",
      "verdict": "fails"},
     {"clause": "(c) survives out of sample",
-     "test": f"net edge on formations from {HOLDOUT_FROM.year}, never used to choose anything",
-     "value": f"{hold['net_bps'].mean():.1f} bps, t = {t_hold:.2f} "
-              f"(development: {dev['net_bps'].mean():.1f}, t = "
-              f"{dev['net_bps'].mean() / (dev['net_bps'].std(ddof=1) / np.sqrt(len(dev))):.2f})",
-     "verdict": "fails"},
+     "test": f"net edge on the {hold['formation'].nunique()} formations from {HOLDOUT_FROM.year}, "
+             f"never used to choose anything",
+     "value": f"{hold.groupby('formation')['net_bps'].mean().mean():.1f} bps, t = {t_of(hold):.2f} "
+              f"(development {lift:.1f}, t = {t_of(dev):.2f}) — but only {detectable(hold):.0f} bps "
+              f"was detectable, so power against the development edge is {power:.0%}",
+     "verdict": "unconfirmed"},
     {"clause": "(d) large enough to be worth running",
-     "test": f"net P&L over {years:.0f} years, and the return on capital deployed",
-     # on the sessions it held an allocation, which is the sample section 3 argues for; over all
-     # 5,438 sessions in the lake the same P&L reads 1.5% because it is diluted by the nine
-     # formations that produced no pairs at all
-     "value": f"${LED['pnl_gross'].sum() - (c * LED['traded'] / 1e4).sum():,.0f}, "
-              f"{100 * book.loc[book['active'] > 0, 'ret'].mean() * ANN:.1f}% a year",
+     "test": f"net P&L over {years:.0f} years, and the return on the capital it occupied",
+     "value": f"${net_pnl:,.0f} on the round-trip ledger, "
+              f"{100 * net_pnl / (book['active'].replace(0, np.nan).mean() * CAP * years):.1f}% a year "
+              f"on the ~{book['active'].replace(0, np.nan).mean():.0f} pair-slots it held",
      "verdict": "too small at this size"},
 ]).set_index("clause")
 display(verdict)
 
+ir_bet, per_year = net.mean() / net.std(ddof=1), n / years
 print(f"breadth: {ir_bet:.3f} net edge per unit of its own sd, {per_year:.0f} bets a year "
       f"-> annual IR {ir_bet * np.sqrt(per_year):.2f}; "
       + ", ".join(f"IR {t:.1f} would need {int((t / ir_bet) ** 2):,} bets a year" for t in (1.0, 2.0)))
 g = LED["pnl_gross"].sort_values(ascending=False)
-print(f"concentration: the best {int(0.05 * n)} round trips of {n:,} "
-      f"({100 * g.head(int(0.05 * n)).sum() / g.sum():.0f}% of gross P&L); "
+print(f"concentration: the best {int(0.05 * n)} round trips of {n:,} carry "
+      f"{100 * g.head(int(0.05 * n)).sum() / g.sum():.0f}% of gross P&L; "
       f"win rate {100 * (LED['pnl_gross'] > 0).mean():.0f}% gross, {100 * (net > 0).mean():.0f}% net")
 """)
 
 code(r"""
 fig, ax = plt.subplots(1, 2, figsize=(12.4, 3.7), gridspec_kw={"width_ratios": [1.4, 1]})
 
-# An empirical CDF rather than a histogram: the tails run to ±1,100 bps and the bulk sits in a
-# few bins around zero, so a histogram of this either clips the tails into spikes or flattens the
-# middle into nothing. The CDF shows both, and reads off the one number that matters here --
-# where the cost line crosses it is the share of round trips that never covered their own cost.
+# An empirical CDF rather than a histogram: the tails run to +-1,100 bps and the bulk sits in a few
+# bins around zero, so a histogram either clips the tails into spikes or flattens the middle into
+# nothing. Where the cost line crosses the curve is the share of round trips that never covered it.
 a = ax[0]
-xs = np.sort(e.to_numpy())
-ys = np.arange(1, n + 1) / n * 100
+xs, ys = np.sort(e.to_numpy()), np.arange(1, n + 1) / n * 100
 a.plot(xs, ys, lw=1.8, color="steelblue")
-a.set_xlim(-80, 80)
-a.axvline(0, color="k", lw=0.8)
+a.set_xlim(-80, 80); a.axvline(0, color="k", lw=0.8)
 for x, col, ls, lab in [(c.median(), "firebrick", "--", f"measured cost, median {c.median():.1f} bps"),
                         (COST_BPS, "darkorange", ":", f"assumed cost, {COST_BPS:g} bps")]:
     a.axvline(x, color=col, lw=1.7, ls=ls, label=lab)
     a.plot([x], [(e < x).mean() * 100], "o", ms=5, color=col)
-# two readings, and the arrow must point at the one it names: the marker is the share below the
-# *median* cost, while the share that fails against each pair's own cost is the real quantity and
-# cannot be read off a single vertical line
 a.annotate(f"{(e < c.median()).mean() * 100:.0f}% earn less than\nthe median cost",
            xy=(c.median(), (e < c.median()).mean() * 100), xytext=(-72, 74), fontsize=8.4,
            arrowprops=dict(arrowstyle="->", lw=0.9, color="firebrick"))
@@ -1274,8 +1328,7 @@ a.legend(fontsize=8, loc="lower right")
 
 a = ax[1]
 srt = np.sort(LED["pnl_gross"].to_numpy())[::-1]
-cum = np.cumsum(srt) / srt.sum() * 100
-pct = np.arange(1, n + 1) / n * 100
+cum, pct = np.cumsum(srt) / srt.sum() * 100, np.arange(1, n + 1) / n * 100
 a.plot(pct, cum, lw=1.8, color="steelblue")
 a.axhline(100, color="k", lw=0.9, ls=":")
 top5 = cum[int(0.05 * n) - 1]
@@ -1295,39 +1348,106 @@ fig.tight_layout()
 """)
 
 md(r"""
+### 9.4 What the cost assumption was actually worth
+
+Clause (0) says the book earns an order of magnitude more per bet than it pays. The direct test of
+that is to run the whole portfolio at three cost levels. Because every cost here is proportional to
+traded notional, and §9.1 kept the per-leg turnover of every fold, the three runs are a subtraction
+rather than three backtests.
+""")
+code(r"""
+SESS = sorted({d for f in FOLDS for d in f["daily"].index})
+
+def book_at(cost_of):
+    # cost_of(formation, t1, t2) -> bps charged on that fold's traded notional
+    pnl = pd.Series(0.0, index=SESS); act = pd.Series(0, index=SESS)
+    for f in FOLDS:
+        rate = cost_of(*f["pair"])
+        d = f["daily"]
+        net = d["pnl_gross"] - (d["tn1"] + d["tn2"]) * rate / 1e4
+        pnl.loc[d.index] += net.to_numpy(); act.loc[d.index] += 1
+    live = act > 0
+    r = pnl[live] / (act[live] * CAP)
+    return {"sharpe": float(r.mean() / r.std(ddof=0) * np.sqrt(ANN)), "pnl": float(pnl.sum()),
+            "days": int(live.sum())}
+
+scen = pd.DataFrame([
+    {"costs charged": "none", **book_at(lambda f, a, b: 0.0)},
+    {"costs charged": "measured, per pair",
+     **book_at(lambda f, a, b: COSTMAP.get((f, a, b), np.nan) if
+               np.isfinite(COSTMAP.get((f, a, b), np.nan)) else c.mean())},
+    {"costs charged": f"flat {COST_BPS:g} bps (what notebooks 11-13 assume)",
+     **book_at(lambda f, a, b: COST_BPS)},
+]).set_index("costs charged")
+display(scen.round(3))
+free, meas_, flat = scen["sharpe"]
+print(f"measuring the cost instead of assuming it is worth {meas_ - flat:+.3f} of Sharpe; "
+      f"making execution entirely free would be worth a further {free - meas_:+.3f}. "
+      f"Notebook 11's own standard error on a Sharpe over this span is "
+      f"{np.sqrt(ANN / scen['days'].iloc[0]):.2f}.")
+# the flat-5 row is 0.407 where notebook 11 prints 0.402: that notebook aggregates onto the whole
+# lake's session index and this one onto the sessions its folds actually span, which differ by a
+# handful of days at the edges. The gap is the grid, not the engine.
+print(f"(notebook 11 prints 0.402 for the same configuration; the {flat:.3f} here differs only in "
+      f"aggregating onto the {scen['days'].iloc[0]:,} sessions the folds span rather than the "
+      f"whole lake's index)")
+""")
+
+md(r"""
 ### What the five clauses say
 
-**The first clause passes, and passes easily.** The average round trip earns 33.9 bps of the notional it
-turns over and costs 2.9 bps to place. Costs consume 8% of the gross profit; the strategy would still be
-gross-profitable at twelve times the measured cost. This is worth stating plainly because it contradicts
-a reasonable prior — including the one this repository held until the costs were measured. **Execution is
-not what is wrong with this strategy.** Re-running notebook 11's engine with per-pair measured costs
-instead of the flat 5 bps moves its Sharpe from 0.402 to 0.476, and even at *zero* cost it only reaches
-0.537. The distance from "free" to "realistic" is 0.06 of Sharpe, against a standard error of 0.26.
+**The first clause passes, and passes easily.** The average round trip earns 33.9 bps of the notional
+it turns over and pays 2.2 bps to place — a ratio of fifteen. Costs consume 7% of the gross profit.
+This is worth stating plainly because it contradicts a reasonable prior, including the one this
+repository held until the costs were measured. **Execution is not what is wrong with this strategy.**
+§9.4 puts a number on it: measuring the cost rather than assuming 5 bps is worth +0.083 of Sharpe, and
+making execution *entirely free* would be worth only +0.055 more on top. Both are small against the
+0.26 standard error a Sharpe over this span carries in the first place. (That 0.26 is the error on the
+*level*. The error on a *difference* between two cost scenarios run over the same trades is much
+smaller, so the comparison is not the right significance test — it is quoted only to show that the
+whole cost effect fits inside the noise floor of the quantity it is supposed to move.)
 
-**The remaining four fail, and they fail on the same underlying fact.** The median round trip earns 2.9
-bps gross against a 2.1 bps cost — the *typical* trade barely covers its own commission. The mean is
-33.9 because a handful of trades were enormous: 5% of the round trips carry 87% of the gross P&L. A
-strategy whose average is carried by 36 observations out of 723 does not have 723 pieces of evidence for
-itself, and once the trades are clustered on the 30 formations that actually varied independently, the
-$t$ falls from 3.8 to 2.1. Against the $t$ of 5.5 that a single rule selected from 1.74 million screened
-would need, 2.1 is not close. And on the formations from 2023 — the only data in this repository that
-was never used to choose anything — the net edge is 3.7 bps with a $t$ of 0.16.
+**The median round trip is the other half of the picture.** It earns 2.9 bps gross against a 1.9 bps
+cost — the *typical* trade barely covers its own commission. The mean is 33.9 because a handful of
+trades were enormous: 5% of the round trips carry 87% of the gross P&L. A strategy whose average is
+carried by 36 observations out of 723 does not have 723 pieces of evidence for itself, and that is
+exactly what clause (a) measures. Clustered on the 30 formations that varied independently, the $t$
+falls from 3.89 to 2.16, and the observed 18.3 bps sits just above the 16.6 bps the sample could have
+called significant. That is the boundary, not the far side of it, which is why the table says
+*marginal*.
 
-**The arithmetic of clause (a) is worth keeping.** Per round trip the net edge is 31 bps against a
-standard deviation of 219, an information ratio of 0.14 per bet. The Fundamental Law then says the
-annual information ratio is that times the square root of the bets per year: $0.14\times\sqrt{38}=0.87$,
-which is roughly what the book delivers. Read the other way, it is a specification: at this edge quality,
-an IR of 1.0 needs 49 independent bets a year and an IR of 2.0 needs 198. The book places 38. **The
-binding constraint is breadth, not cost and not signal quality** — which is the same conclusion §6
-reached from the Fundamental Law, arrived at from the opposite direction.
+**Clause (b) is the one that fails outright, and no further data fixes it.** A single rule selected
+from 1.74 million screened tests needs $t\approx5.5$ under Šidák to mean what $t=2$ means for one rule
+chosen in advance. The book has 2.16. Only pre-registration escapes this, and pre-registration is not
+something a finished backtest can retrofit.
 
-**Why this is a useful definition even though the answer is no.** It converts "is there an edge" from a
-matter of judgement into five arithmetic questions, and it localises the failure. A strategy that failed
-clause (0) would need cheaper execution or a coarser horizon. This one fails (a) through (c), which
-cannot be fixed by trading better — only by finding more, and more nearly independent, opportunities.
-That is a different research programme from the one notebooks 01–17 have been running, and knowing
-which one you are on is most of the value of measuring at all.
+**Clause (c) is unconfirmed, and the honest reading is weaker *and* kinder than it first looks.**
+Measured the same way as clause (a) — clustered on formations — the 2023–2025 hold-out earns 13.1 bps
+against the development sample's 19.3. That is a decline, not a collapse. (At the trade level the same
+comparison reads 3.7 against 36.6, which looks catastrophic; that construction is the one clause (a)
+rejects, because a development sample containing a few enormous winners will always dwarf a five-fold
+hold-out that contains none.) But the hold-out spans five formations, its standard error is 21.8 bps,
+and the smallest edge it could have called significant is 42.8 — more than twice the development
+estimate. **Its power against that effect is 14%.** A test that would miss a real effect six times in
+seven has not found evidence of absence. The point estimate fell; nothing here can tell you whether
+that is decay or noise, and claiming either way would be the error this section exists to prevent.
+
+**The arithmetic of clause (a) is worth keeping.** Per round trip the net edge is 31.7 bps against a
+standard deviation of 219, an information ratio of 0.145 per bet. The Fundamental Law then says the
+annual information ratio is that times the square root of the bets per year:
+$0.145\times\sqrt{38}=0.89$, which is roughly what the book delivers. Read the other way it is a
+specification: at this edge quality an IR of 1.0 needs 47 independent bets a year and an IR of 2.0
+needs 190. The book places 38. **The binding constraint is breadth, not cost and not signal
+quality** — the same conclusion §6 reached from the Fundamental Law, arrived at from the opposite
+direction.
+
+**Why this is a useful definition even though the answer is no.** It converts "is there an edge" from
+a matter of judgement into five arithmetic questions, and it localises the failure. A strategy failing
+clause (0) would need cheaper execution or a coarser horizon. This one clears (0) by a factor of
+fifteen and stalls on (a) through (c) — one at the boundary, one fatally, one for want of data.
+Nothing there is fixed by trading better; it is fixed by finding more, and more nearly independent,
+opportunities. That is a different research programme from the one notebooks 01–17 have been running,
+and knowing which one you are on is most of the value of measuring at all.
 """)
 
 md(r"""

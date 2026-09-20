@@ -58,10 +58,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 import pairs
-from pairs import load_daily_bars, liquidity_screen
+from pairs import (load_daily_bars, liquidity_screen,
+                   CostSpec, measure_ticker_window_costs)
 
 LAKE        = Path(os.environ.get("DAY_LAKE", Path.home() / "local/parquet_lake/day_adj"))
 MARKET_ROOT = LAKE / "all_adjusted"
+# §5.5 is the one place this notebook leaves the day lake: costs are measured on minute bars
+MINUTE_ROOT = Path(os.environ.get("MINUTE_LAKE",
+                                  Path.home() / "local/parquet_lake/minute_adj")) / "all_adjusted"
 CACHE = Path("cache"); CACHE.mkdir(exist_ok=True)
 
 START, END  = "2004-01-01", "2025-08-13"
@@ -328,7 +332,11 @@ else:
 print(f"{len(fwd_ret):,} trading sessions, {sorted(fwd_ret)[0].date()} → {sorted(fwd_ret)[-1].date()}")
 """)
 code(r"""
-def run(tgt_by_day, blend=1.0, cost_bps=COST_BPS):
+def run(tgt_by_day, blend=1.0, cost_bps=COST_BPS, per_name=None, fill=None):
+    # cost_bps charges one flat rate on every dollar traded. per_name instead maps a year to a
+    # Series of measured per-ticker costs (section 5.5 uses it) and fill supplies the rate for a
+    # name with no measurement. Left as None the function behaves exactly as it always did, so
+    # every number above this line is unaffected.
     w_prev, rows = pd.Series(dtype=float), []
     for d in sorted(tgt_by_day):
         t = tgt_by_day[d] * CAP
@@ -337,11 +345,18 @@ def run(tgt_by_day, blend=1.0, cost_bps=COST_BPS):
         w = p_al + blend * (t_al - p_al)
         g = w.abs().sum()
         if g > 0: w = w * (CAP / g)
-        traded = float((w - p_al).abs().sum())
+        dw = (w - p_al).abs()
+        traded = float(dw.sum())
+        if per_name is None:
+            cost, unpriced = traded * cost_bps / 1e4, 0.0
+        else:
+            c = per_name.get(d.year, pd.Series(dtype=float)).reindex(idx)
+            unpriced = float(dw[c.isna()].sum())
+            cost = float((dw * c.fillna(fill[d.year])).sum()) / 1e4
         r = fwd_ret[d].reindex(w.index).fillna(0.0)
         gross = float((w * r).sum())
-        rows.append({"date": d, "pnl_gross": gross, "cost": traded * cost_bps / 1e4,
-                     "pnl": gross - traded * cost_bps / 1e4, "traded": traded,
+        rows.append({"date": d, "pnl_gross": gross, "cost": cost, "pnl": gross - cost,
+                     "traded": traded, "traded_unpriced": unpriced,
                      "n": int((w.abs() > 1e-9).sum())})
         w_prev = w[w.abs() > 1e-9]
     return pd.DataFrame(rows).set_index("date")
@@ -375,7 +390,7 @@ cost problem rather than a signal problem.
 """)
 
 md(r"""
-## 5. Cost is the whole story
+## 5. How much room is there between the edge and the cost?
 
 Turnover is enormous: rebalancing fully to target moves much of the book every day. The break-even cost
 in the table above is the level at which the gross edge is exactly consumed. Sweeping the cost shows how
@@ -410,8 +425,152 @@ target gives 0.09 to 0.19 on the same signals, and the residual-reversal configu
 zero apart from one that also reaches 0.15. At the 5 bps used elsewhere in this
 repository only one configuration is positive at all.
 
-That is a narrow window, and it is the whole investment case. There is no configuration here whose edge
-is large enough that the cost assumption stops mattering.
+That is a narrow window, and it is the whole investment case: there is no configuration here whose edge
+is large enough that the cost assumption stops mattering. Which means the assumption cannot be left
+standing. §5.5 measures it.
+""")
+
+# ───────────────────────────── 5.5 measured costs ─────────────────────────────
+md(r"""
+### 5.5 What it actually costs
+
+Everything above charges a flat 5 bps a side, and §5 has just shown that the whole result lives
+between 0.7 and 5.7 bps. When the assumption sits inside the answer's range, the assumption *is* the
+answer, and it is worth an hour to stop assuming. The minute lake (Polygon.io, now Massive.com) can
+price every name this book trades.
+
+`measure_ticker_window_costs` computes a Roll (1984) effective spread per name per year and halves
+it, since Roll estimates the full bid-ask spread and a marketable order crosses half. The interval,
+the sign convention and the minimum-tick floor all matter and are argued in
+`pairs.market_data.execution_costs`; notebook 14 §9 shows the sweep that picks five-minute sampling.
+Here the universe is ~500 names a day rebuilt monthly, so costs are measured per (ticker, year) on a
+mid-year quarter — ~4,600 lead/lag pairs per estimate, and a name's spread does not move enough
+inside a year to justify twelve times the reading.
+""")
+code(r"""
+f_cost = CACHE / "xs_costs.parquet"
+if f_cost.exists():
+    cells = pd.read_parquet(f_cost)
+else:
+    need = {}
+    for d in sorted(targets["raw reversal 5d"]):
+        need.setdefault(d.year, set()).update(targets["raw reversal 5d"][d].index)
+    need = {y: sorted(v) for y, v in sorted(need.items())}
+    raw = pd.read_parquet(CACHE / "day_market_bars.parquet",
+                          columns=["raw_close"])["raw_close"].unstack("ticker")
+    spec = CostSpec(every=5, min_obs=200, min_bars=1_000)
+    # Q2 first: it avoids both the January turn and December's thin tape. Q4 then catches the
+    # names that listed or delisted mid-year and so have no Q2 at all.
+    cells = None
+    for a, b in [("-04-01", "-06-30"), ("-10-01", "-12-31")]:
+        todo = need if cells is None else None
+        if todo is None:
+            got = set(zip(cells.loc[cells["err"].eq(""), "formation"],
+                          cells.loc[cells["err"].eq(""), "ticker"]))
+            todo = {y: [t for t in v if (y, t) not in got] for y, v in need.items()}
+            todo = {y: v for y, v in todo.items() if v}
+        if not todo:
+            break
+        wins = {y: (pd.Timestamp(f"{y}{a}"), pd.Timestamp(f"{y}{b}")) for y in todo}
+        got = measure_ticker_window_costs(wins, todo, MINUTE_ROOT, raw_close=raw, spec=spec, n_jobs=6)
+        cells = got if cells is None else pd.concat([cells[cells["err"].eq("")], got],
+                                                    ignore_index=True)
+    cells = cells.rename(columns={"formation": "year"})
+    cells.to_parquet(f_cost); del raw
+ok = cells[cells["err"].eq("")]
+print(f"{len(ok):,} of {len(cells):,} (ticker, year) cells measured"
+      + (f"; unmeasured: {cells[~cells['err'].eq('')]['err'].value_counts().to_dict()}"
+         if len(ok) < len(cells) else ""))
+print(f"per-transaction cost, bps: median {ok['cost_used'].median():.2f}  "
+      f"mean {ok['cost_used'].mean():.2f}  25th {ok['cost_used'].quantile(.25):.2f}  "
+      f"75th {ok['cost_used'].quantile(.75):.2f}  "
+      f"above the assumed {COST_BPS:g}: {100 * ok['cost_used'].gt(COST_BPS).mean():.0f}%")
+display(ok.groupby(pd.cut(ok["year"], [2005, 2010, 2015, 2020, 2026],
+                          labels=["2006-10", "2011-15", "2016-20", "2021-25"]), observed=True)
+          [["cost_bps", "cost_used", "tick_floor"]].agg(["median", "count"]).round(2))
+
+COST = {int(y): g.set_index("ticker")["cost_used"] for y, g in ok.groupby("year")}
+MED  = {y: float(v.median()) for y, v in COST.items()}
+P75  = {y: float(v.quantile(0.75)) for y, v in COST.items()}
+""")
+
+md(r"""
+The measured cost is **about 2 bps a side**, not 5, and it lands squarely inside the break-even range
+rather than above or below it — which is exactly the case in which the assumption decides the verdict.
+Re-running every configuration with each name charged its own rate:
+""")
+code(r"""
+meas = {(s, b): run(targets[s], blend=b, per_name=COST, fill=MED) for s in BUILD for b in (1.0, 0.25)}
+
+def compare(s, b):
+    f, m = runs[(s, b)], meas[(s, b)]
+    be = f["pnl_gross"].sum() / f["traded"].sum() * 1e4
+    ac = m["cost"].sum() / m["traded"].sum() * 1e4
+    yrs = len(m) / 252
+    S = sharpe(m["pnl"] / CAP)
+    return {"config": f"{s} | blend {b}", "break-even bps": be, "measured bps": ac,
+            f"Sharpe @{COST_BPS:g} bps": sharpe(f["pnl"] / CAP), "Sharpe measured": S,
+            "± s.e.": np.sqrt((1 + S ** 2 / 2) / yrs),
+            "P&L ($k)": m["pnl"].sum() / 1e3,
+            "unpriced %": 100 * m["traded_unpriced"].sum() / m["traded"].sum()}
+
+cmp_tab = pd.DataFrame([compare(s, b) for s in BUILD for b in (1.0, 0.25)]).set_index("config")
+display(cmp_tab.round(3))
+
+# the unmeasured names are disproportionately thin or delisting, so the year median flatters them;
+# charging the year's 75th percentile instead is the sensitivity that matters
+hi = {k: run(targets[k[0]], blend=k[1], per_name=COST, fill=P75) for k in meas}
+shift = max(abs(sharpe(hi[k]["pnl"] / CAP) - sharpe(meas[k]["pnl"] / CAP)) for k in meas)
+print(f"charging unpriced names the year's 75th percentile instead of its median moves every "
+      f"net Sharpe by at most {shift:.3f} — they are {cmp_tab['unpriced %'].max():.2f}% of "
+      f"traded dollars, so the fallback cannot carry the result")
+""")
+
+md(r"""
+**Six of the ten configurations cross from negative to positive**, where at 5 bps exactly one did. The
+best is no longer a knife-edge 0.046 but 0.18. That is a real change in the table: the conclusion §5
+reached — that all but one variant is under water — was an artefact of the assumed rate rather than a
+property of the strategy.
+
+It is not, however, a strategy. A Sharpe of 0.18 over 19.6 years carries a standard error of 0.23, so
+$t=0.8$; and it is the best of ten configurations, which under Šidák would need $t=2.8$ to mean what
+$t=2.0$ means for one. The honest reading is that measuring the cost moved the point estimate from
+"slightly negative" to "slightly positive" and left it indistinguishable from zero either way.
+
+The era split is where the measurement earns its keep.
+""")
+code(r"""
+rows = []
+for s in BUILD:
+    for b in (1.0, 0.25):
+        m = meas[(s, b)]
+        r = {"config": f"{s} | blend {b}"}
+        for lab, sel in [("2006-2015", m.index.year <= 2015), ("2016-2025", m.index.year >= 2016)]:
+            d = m.loc[sel]
+            r[f"{lab} break-even"] = d["pnl_gross"].sum() / d["traded"].sum() * 1e4
+            r[f"{lab} cost"] = d["cost"].sum() / d["traded"].sum() * 1e4
+            r[f"{lab} net"] = sharpe(d["pnl"] / CAP)
+        rows.append(r)
+eras = pd.DataFrame(rows).set_index("config")
+display(eras.round(2))
+print(f"net-positive configurations — 2006-2015: {int((eras['2006-2015 net'] > 0).sum())} of 10; "
+      f"2016-2025: {int((eras['2016-2025 net'] > 0).sum())} of 10")
+""")
+
+md(r"""
+**Before 2016 the gross edge cleared its cost by a factor of nearly four** — a break-even of 10.8 bps
+against a measured 2.9 for plain five-day reversal damped to a quarter, net Sharpe 0.56. **After 2015
+the break-even collapses to 0.33 bps.** Not "below the measured cost": *below almost any cost*. Four of
+the ten configurations have a negative break-even after 2015, meaning the gross edge itself is gone
+before a cent of cost is charged, and not one of the ten is net-positive.
+
+So the cost measurement settles the question it was asked, and settles it against the convenient
+answer. The strategy did not die because 5 bps was too pessimistic an assumption. **At a measured 2.9
+bps it still dies, and at zero cost it would still die**, because what disappeared after 2015 was the
+gross edge and not the margin over frictions. Notebook 11's book turned out not to be cost-constrained
+either, for a different reason — there the edge per round trip was twelve times the cost, and breadth
+was the binding constraint. Two strategies, two cost measurements, and in neither case was execution
+what stood between the research and a return.
 """)
 
 md(r"""
@@ -527,32 +686,42 @@ md(r"""
 multiple-testing bottleneck exactly as intended: this book holds about 500 positions every day against
 the pairs book's ten or fewer, needs no significance threshold, and deploys ten times the capital. Its
 gross edge is positive in 15 of 20 years and less concentrated than the pairs result. What it does not do
-is earn more after costs. Over the full span the best net Sharpe at 5 bps is **0.05**, against **0.40**
-for notebook 11's Benjamini–Hochberg pairs — and neither is distinguishable from zero.
+is earn more after costs. Over the full span the best net Sharpe is **0.18** at the costs §5.5 measures
+(0.05 at the assumed 5 bps), against **0.49** for notebook 11's Benjamini–Hochberg pairs on the same
+measured basis — and neither is distinguishable from zero, at $t=0.8$ and $t=1.8$ respectively.
 
 **Breadth does not come free, because turnover scales with it.** A 500-name book rebalanced daily trades
 15–65% of itself per session. The information ratio gained from more bets is handed straight back at the
 spread. The binding constraint is not how many positions you hold but how much signal each unit of
-turnover carries, and on that measure this strategy is weak: break-even between 0.7 and 5.7 bps a side.
+turnover carries, and on that measure this strategy is weak: break-even between 0.7 and 5.7 bps a side
+against the 2.9 bps §5.5 measures. Notebook 11's pairs book carries 33.9 bps of gross edge per unit of
+turnover against a measured 2.2 — fifteen times its own cost — and fails for the opposite reason,
+having only 38 independent bets a year to apply it to.
 
 **The signal is real and it decayed.** Five-day reversal forecasts next-day residual returns with t = 8.6
 over 986 probe days, survives skipping the most recent session, and is therefore not a microstructure
 artifact. It earned a gross Sharpe of 0.77 in 2006–2015 and 0.02 in 2016–2025, with nine of ten variants
 agreeing. Anyone finding this effect on a sample ending before about 2015 and extrapolating would have
-been badly wrong.
+been badly wrong. §5.5 rules out the charitable reading of that decay: the break-even cost falls from
+10.8 bps before 2016 to **0.33** after, and four variants turn *negative* break-even, so what went is
+the gross edge itself. No execution improvement recovers it, because there is nothing left to keep.
 
 **Where this leaves the Sharpe question.** Three approaches have now been measured in this
 repository: cointegrated pairs under FDR control on the point-in-time day lake (0.40 ± 0.26, but on
 fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 15–17 — a
 much shorter span on the minute lake's universe of *today's* index members, so that leg still carries
 the survivorship bias this one removes), and the whole cross-section on the day lake
-(0.05 net, real but dead since 2016). None reaches 1. The common thread is not that the signals are
-absent — the ICs here are strongly significant — but that each is small relative to the cost of
-harvesting it. Improving that ratio, through slower-decaying signals or sub-2 bps execution, is the only
-lever that has not been tried.
+(0.18 net at measured costs, real but dead since 2016). None reaches 1. The common thread is *not* the
+cost of harvesting, which is the reading this notebook previously invited and which §5.5 now rules out
+for both books. It is that the two failures are different and neither is an execution problem: here the
+signal per unit of turnover went to zero after 2015, and in notebook 11 the signal per bet is large but
+there are only 38 bets a year. Slower-decaying signals would help both. Cheaper execution helps
+neither.
 
-**Caveats.** One universe and one market; a PCA factor model re-estimated monthly rather than daily; costs
-are a flat per-side charge with no spread, impact or borrow modelling; the book is equal-gross rather than
+**Caveats.** One universe and one market; a PCA factor model re-estimated monthly rather than daily;
+§5.5 measures the *spread* a name pays but nothing here models market impact or borrow, and a \$1M book
+moving a quarter of itself daily across 500 names is small enough that ignoring impact is defensible
+where a larger one would not be; the book is equal-gross rather than
 risk-optimised; no shorting constraints or locate costs; and the signal menu was chosen by the author,
 so the ICs in §3 carry a selection effect of their own even though none of the trading rules were tuned.
 """)

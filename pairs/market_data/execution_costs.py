@@ -133,12 +133,21 @@ def measure_ticker_window_costs(
 
 def pair_fold_costs(cells: pd.DataFrame,
                     selections: Mapping[pd.Timestamp, Iterable[Tuple[str, str]]],
-                    *, fallback: Optional[float] = None) -> pd.DataFrame:
-    """Average the two legs' costs into one cost per pair-fold.
+                    *, weights: Optional[Mapping[Tuple, float]] = None,
+                    fallback: Optional[float] = None) -> pd.DataFrame:
+    """Combine the two legs' costs into one cost per pair-fold.
 
     A pair trade turns over both legs on entry and again on exit, and the backtest charges
-    ``cost_bps`` on each transaction's own notional. With the two legs roughly equal in notional,
-    the mean of the two per-transaction costs is what the pair pays per unit of turnover.
+    ``cost_bps`` on each transaction's own notional, so the rate a pair pays per unit of turnover
+    is the average of its two legs' rates *weighted by the notional each leg turns over*.
+
+    ``weights`` gives leg one's share of the pair's notional, keyed ``(formation, t1, t2)``.
+    Omitting it falls back to a plain mean, which is only correct when the two legs are equally
+    sized -- and in this repository they are usually not. ``generate_pair_signals`` sizes the
+    trade as ``capital / (P1 + |beta| * P2)``, so leg one's share is ``P1 / (P1 + |beta| * P2)``,
+    which for notebook 11's book sits outside 40/60 in two thirds of pair-folds and outside 30/70
+    in half of them. The plain mean over-weights whichever leg is smaller; on that book it
+    reports 3.45 bps where the notional-weighted figure is 2.44, a 29% overstatement.
 
     ``fallback`` fills pair-folds where neither leg could be measured; left as None they come back
     NaN, which is the honest default because a name absent from the minute lake is usually a name
@@ -149,10 +158,18 @@ def pair_fold_costs(cells: pd.DataFrame,
     rows = []
     for key, pairs in selections.items():
         for a, b in pairs:
-            legs = [look.get((key, a), np.nan), look.get((key, b), np.nan)]
-            cost = np.nan if all(not np.isfinite(v) for v in legs) else float(np.nanmean(legs))
+            ca, cb = look.get((key, a), np.nan), look.get((key, b), np.nan)
+            w1 = np.nan if weights is None else weights.get((key, a, b), np.nan)
+            if not np.isfinite(w1):
+                w1 = 0.5
+            if np.isfinite(ca) and np.isfinite(cb):
+                cost = float(w1 * ca + (1.0 - w1) * cb)
+            elif np.isfinite(ca) or np.isfinite(cb):
+                cost = float(ca if np.isfinite(ca) else cb)   # one leg is better than none
+            else:
+                cost = float("nan")
             if not np.isfinite(cost) and fallback is not None:
                 cost = float(fallback)
             rows.append({"formation": key, "t1": a, "t2": b,
-                         "c1": legs[0], "c2": legs[1], "cost_bps": cost})
-    return pd.DataFrame(rows, columns=["formation", "t1", "t2", "c1", "c2", "cost_bps"])
+                         "c1": ca, "c2": cb, "w1": w1, "cost_bps": cost})
+    return pd.DataFrame(rows, columns=["formation", "t1", "t2", "c1", "c2", "w1", "cost_bps"])

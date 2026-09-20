@@ -114,6 +114,18 @@ class TestPairFolds:
         pf = pair_fold_costs(cells, {FORM: [("A", "B")]})
         assert pf.iloc[0]["cost_bps"] == pytest.approx(3.0)
 
+    def test_legs_are_weighted_by_the_notional_they_turn_over(self, cells):
+        """A plain mean is only right when the legs are equal, and usually they are not."""
+        sel = {FORM: [("A", "B")]}                      # A costs 2 bps, B costs 4
+        for w1, want in [(0.5, 3.0), (0.9, 2.2), (0.1, 3.8), (1.0, 2.0)]:
+            got = pair_fold_costs(cells, sel, weights={(FORM, "A", "B"): w1}).iloc[0]["cost_bps"]
+            assert got == pytest.approx(want), (w1, got)
+
+    def test_a_missing_weight_falls_back_to_the_plain_mean(self, cells):
+        pf = pair_fold_costs(cells, {FORM: [("A", "B")]}, weights={("other", "A", "B"): 0.9})
+        assert pf.iloc[0]["cost_bps"] == pytest.approx(3.0)
+        assert pf.iloc[0]["w1"] == pytest.approx(0.5)
+
     def test_one_measurable_leg_is_better_than_none(self, cells):
         pf = pair_fold_costs(cells, {FORM: [("A", "C")]}).iloc[0]
         assert pf["cost_bps"] == pytest.approx(2.0) and np.isnan(pf["c2"])
