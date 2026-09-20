@@ -511,7 +511,154 @@ by crowding; it is being turned off by the absence of candidates.
 """)
 
 md(r"""
-## 7. What the survivorship bias was worth
+## 7. What kind of instrument is it? (open issue #6)
+
+Nothing above asked what the tickers *are*. A 3× fund on a liquid index is liquid, priced above \$5 and
+volatile, so it clears every gate — and cointegrating one against its own underlying is an arithmetic
+identity, not an economic relationship.
+
+`pairs.market_data.instruments` finds these by behaviour rather than from a list: an instrument is
+flagged when its returns are a near-exact **magnified** multiple of its closest relative
+($|\rho|\ge0.95$, $|\beta|\ge1.15$). Only the magnified side is flagged, or the underlying would be
+gated out along with its fund. A curated list is the wrong tool here — the seventeen names this notebook
+originally named miss DGAZ, UGAZ, DRIP, GUSH and dozens more, and cannot know about funds that delisted
+before anyone looked.
+""")
+code(r"""
+from pairs.market_data.instruments import detect_scaled_instruments, scaled_instrument_report
+
+f_scaled = CACHE / "day_scaled_by_formation.pkl"
+if f_scaled.exists():
+    SCALED = pd.read_pickle(f_scaled)
+else:
+    def _gate(f):
+        win = PX.loc[(PX.index > f - pd.DateOffset(years=FORM_YEARS)) & (PX.index <= f)]
+        return f, detect_scaled_instruments(win)
+    SCALED = dict(Parallel(n_jobs=-1)(delayed(_gate)(f) for f in FORMATIONS))
+    pd.to_pickle(SCALED, f_scaled)
+
+n_flag = pd.Series({f: len(v) for f, v in SCALED.items()})
+print(f"flagged per formation: min {n_flag.min()}, median {int(n_flag.median())}, max {n_flag.max()}")
+
+sel = RULES["bh_dual"].sort_values("eg_p_fdr").groupby("formation").head(MAX_PAIRS)
+touched = [(a in SCALED[pd.Timestamp(f)]) or (b in SCALED[pd.Timestamp(f)])
+           for f, a, b in zip(sel["formation"], sel["ticker1"], sel["ticker2"])]
+hit_names = sorted({t for f, a, b, h in zip(sel["formation"], sel["ticker1"], sel["ticker2"], touched)
+                    if h for t in (a, b) if t in SCALED[pd.Timestamp(f)]})
+print(f"of the {len(sel)} BH selections, {sum(touched)} ({100*sum(touched)/len(sel):.0f}%) touch a "
+      f"flagged instrument; {len(hit_names)} distinct names: {', '.join(hit_names)}")
+
+# One formation's view of the names flagged in *any* formation, so a few read "ordinary" or
+# "duplicate" here: the gate is point-in-time and an instrument's closest relative changes as
+# funds list and delist. DUST pairs with JDST in this window rather than GDX, and SPXU with SPXS.
+_f = FORMATIONS[-8]
+_w = PX.loc[(PX.index > _f - pd.DateOffset(years=FORM_YEARS)) & (PX.index <= _f)]
+_r = scaled_instrument_report(_w)
+print(f"verdicts as at the {_f.date()} formation:")
+display(_r.loc[[t for t in hit_names if t in _r.index],
+               ["partner", "rho", "beta", "ann_vol", "kind"]].round(3))
+""")
+
+md(r"""
+Four of the names the original hand list missed — DIG at 1.9× energy, FAS at 3× financials, TMF at 3×
+treasuries, UYG at 2× financials — are exactly what the gate is for. Two are not leveraged at all:
+**FCX** is flagged against `FCXPM`, its own preferred share class, and **UNG** against `UNL`, a
+different-maturity fund on the same commodity. Both are mechanical relationships rather than economic
+ones, so removing them is defensible, but the gate is better described as *scalar multiples of another
+listed instrument* than as "the leveraged ETF filter".
+""")
+
+md(r"""
+## 8. The gate, and a window held back (open issues #6 and #7)
+
+Two changes at once, because they touch the same runs.
+
+**The gate.** Every rule re-run with flagged instruments removed from selection.
+
+**The hold-out.** Nothing in notebooks 09–12 was ever held back: every number so far is in-sample in the
+weak sense that the whole span was visible while the design was chosen. The last five formations —
+2023-06-30 onward, about 2.6 years — are now reported separately. That window is short: an annualised
+Sharpe over 2.6 years carries a standard error near **0.62**, against 0.25 for the 16.5-year development
+span, so single cells prove little and only the pattern across them is worth reading.
+""")
+code(r"""
+HOLDOUT_FROM = pd.Timestamp("2023-01-01")
+DEV = [f for f in FORMATIONS if f < HOLDOUT_FROM]
+HOLD = [f for f in FORMATIONS if f >= HOLDOUT_FROM]
+print(f"development {len(DEV)} formations to {DEV[-1].date()} · "
+      f"hold-out {len(HOLD)} from {HOLD[0].date()} ({HOLD[0].date()} → {sessions[-1].date()})")
+
+def split_stats(run):
+    # backtest() already drops sessions with nothing deployed, so slice its own index
+    if run is None:
+        return {}
+    pnl, act = run["pnl"]["pnl"], run["active"]
+    idx = pnl.index
+    out = {}
+    for lbl, m in (("all", np.ones(len(idx), bool)),
+                   ("development", idx < HOLDOUT_FROM), ("hold-out", idx >= HOLDOUT_FROM)):
+        pp, aa = pnl[m], act[m]
+        r = pp / (aa * CAP)
+        out[(lbl, "Sharpe")] = (float(r.mean() / r.std(ddof=0) * np.sqrt(252))
+                                if len(r) > 1 and r.std(ddof=0) > 0 else np.nan)
+        out[(lbl, "P&L ($)")] = float(pp.sum())
+        out[(lbl, "days")] = int(m.sum())
+    return out
+
+def gated(pair, d):
+    return not (pair[0] in SCALED[pd.Timestamp(d)] or pair[1] in SCALED[pd.Timestamp(d)])
+
+rows = {}
+for name in RULES:
+    rows[(name, "gate off")] = split_stats(runs[name])
+    g = backtest(name, universe_filter=gated)
+    rows[(name, "gate on")] = split_stats(g)
+tbl = pd.DataFrame(rows).T
+tbl.columns = pd.MultiIndex.from_tuples(tbl.columns)
+display(tbl.round(3))
+""")
+
+md(r"""
+### Reading
+
+**The gate costs the strategy about a quarter of its P&L and a fifth of its Sharpe.** BH dual-gate
+goes from +0.402 to **+0.309**, and from \$43.6k to **\$32.5k**, on 123 fewer allocated sessions. The
+edge is not an artefact of leveraged funds — it survives their removal — but it is meaningfully
+smaller than the headline, and the honest number to quote going forward is the gated one. The raw-$p$
+rule crosses zero (+0.040 to −0.018) and the distance rule is untouched (−0.412 to −0.414), which is
+what one would expect: distance selection never liked these instruments in the first place.
+
+**Every cell is worse out of sample.** Six of six rule-by-gate combinations decline from development
+to hold-out, and under independence a uniform sign pattern like that has probability $2^{-6}=1.6\%$:
+
+| rule | gate | development | hold-out |
+|---|---|---|---|
+| BH dual-gate | off | **+0.440** | +0.137 |
+| BH dual-gate | **on** | **+0.412** | **−0.913** |
+| raw $p$ | off | +0.093 | −0.408 |
+| raw $p$ | on | +0.075 | −1.016 |
+| distance | off | −0.381 | −1.238 |
+| distance | on | −0.380 | −1.245 |
+
+The cell that matters is the second row — the rule this repository recommends, with the instrument
+gate this notebook just argued for, evaluated on a window chosen before it was looked at. It returns
+**−0.913**, on 532 sessions and −\$4.5k.
+
+**How much weight that carries.** Not much on its own. An annualised Sharpe over 2.6 years has a
+standard error near 0.62, so −0.913 against a development +0.412 is a gap of about 2.1 hold-out
+standard errors: suggestive, not settled. And the development span contains 2022, which §6 showed is
+more than half of all the P&L, so any split that puts 2022 on one side flatters that side. What the
+table does establish is that **the twenty-year Sharpe of +0.40 was never tested**, and the first time
+it is, it does not repeat.
+
+**Taken together with §7**: the headline result of this notebook rests on a strategy whose P&L is
+one-quarter mechanical instruments, half one calendar year, and which has now failed its first
+out-of-sample window. None of those three observations is fatal alone. Together they are the reason
+the assessment below is worded the way it is.
+""")
+
+md(r"""
+## 9. What the survivorship bias was worth
 
 Notebook 09 measured the bias in a buy-and-hold universe. Here it is measured where it actually matters:
 the same backtest, same rules, same costs, with the universe restricted to **today's** index members —
@@ -557,7 +704,7 @@ design of notebooks 01–05 — would compound the two.
 """)
 
 md(r"""
-## 8. Honest assessment
+## 10. Honest assessment
 
 **What twenty years of properly-constructed data say.** Cointegration among liquid US equities is real but
 rare. Against a uniform null, 7.2% of 1.74 million tests reject at 5% where 5% is expected, and Storey's
@@ -566,15 +713,23 @@ pairs out of 44,850 tested, and nine of thirty-nine yield none. Trading what sur
 Sharpe (± 0.26) and 2.2% on deployed capital over 2006–2025**, with more than half the P&L from 2022 and
 fewer than ten pairs live on average — though the yearly average runs from 1 to 20.
 
+Two later sections cut that headline down. Removing instruments that are a scalar multiple of another
+listed thing (§7) takes it to **+0.31** and \$32.5k; and on the 2023–2025 window held back in §8 the
+gated rule returns **−0.91**. The +0.40 is the number this notebook found; it is not the number to
+carry forward.
+
 **The one thing that is clearly established** is the value of the multiple-testing correction. The three
 selection rules order themselves exactly as the statistics say they should — BH +0.40, raw $p$ +0.04,
 distance −0.41 — and the gap between the first and the last is several standard errors even though none
-of them is individually far from zero. The Benjamini–Hochberg default that this repository has carried
-since the beginning now has twenty years of evidence behind it rather than one pair over five years.
+of them is individually far from zero. That ordering is the most robust result here: it survives the
+instrument gate (+0.31 / −0.02 / −0.41) and it holds in the development span alone. The
+Benjamini–Hochberg default that this repository has carried since the beginning now has twenty years of
+evidence behind it rather than one pair over five years.
 
-**What is not established** is that the strategy is worth running. A Sharpe 1.5 standard errors from zero,
-earned almost entirely in three of nineteen years, on a book that can deploy about \$100k, is a research
-finding rather than an allocation. Scaling it would require a wider universe — the day lake's market
+**What is not established** is that the strategy is worth running — and §8 is now the strongest evidence
+against it. A Sharpe 1.5 standard errors from zero, earned almost entirely in three of nineteen years,
+a quarter of it from instruments that are arithmetic functions of other instruments, and negative on the
+first window ever held back from it, is a research finding rather than an allocation. Scaling it would require a wider universe — the day lake's market
 layout holds every listed symbol, and this study used the 300 most traded — and that would multiply the
 number of tests, which under FDR control makes discoveries harder, not easier.
 
@@ -584,6 +739,13 @@ index members instead of what was tradeable is worth +6.1% a year on a plain equ
 without them a NASDAQ test symbol, tickers shared by different companies, and the split-adjustment price
 trap put Sirius XM at the top of the 2008 screen. Dividend accounting came last, and on a dollar-neutral
 book it is worth 0.01 of Sharpe.
+
+**What the hold-out does and does not settle.** It is 2.6 years and five formations, so its standard
+error is near 0.62 and no single cell is decisive. Its weight comes from the pattern: all six
+rule-by-gate combinations decline from development to hold-out. It is also not a clean experiment — the
+design was fixed before the window was examined, but the window was always *present* in the lake while
+notebooks 09 and 10 were written, so it is a hold-out in the procedural sense rather than a true
+out-of-time sample. The next such window should be reserved before the screen is run, not after.
 
 **Caveats.** Costs are a flat 5 bps per leg-side rather than measured spreads; entries and exits are at
 the close with no slippage model; there is no earnings or corporate-event filter; the hedge is a frozen
