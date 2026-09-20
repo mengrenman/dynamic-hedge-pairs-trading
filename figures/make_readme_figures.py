@@ -107,17 +107,20 @@ def figure_signals(df_pair_te, sig, z_window):
         leg = ax.get_legend()
         if leg is not None:
             leg.remove()
-    for ax, n in zip(axes, (1, 1, 2)):
+    for ax in axes:
         ax.legend(loc="upper left", bbox_to_anchor=(1.004, 1.0), fontsize=11.5,
-                  frameon=False, ncol=n, handlelength=1.6, labelspacing=0.45)
+                  frameon=False, ncol=1, handlelength=1.6, labelspacing=0.45)
     axes[0].set_title(f"{T1} / {T2} — out of sample, 2026    "
                       "(shaded = in a position)", fontsize=16, pad=12)
     axes[2].set_title("Spread z-score: entries when it leaves the band, exits as it reverts",
                       fontsize=13.5, pad=8)
     for t in axes[2].texts:
         t.set_fontsize(10.5)
-    fig.subplots_adjust(left=0.062, right=0.815, top=0.935, bottom=0.075, hspace=0.34)
-    fig.savefig(OUT / "signals.png", dpi=135, facecolor="white")
+    fig.subplots_adjust(left=0.062, right=0.788, top=0.935, bottom=0.075, hspace=0.34)
+    # bbox_inches="tight" grows the canvas to enclose the legends, which sit outside the axes;
+    # without it the widest label ("open short spread") is clipped at the right edge.
+    fig.savefig(OUT / "signals.png", dpi=135, facecolor="white", bbox_inches="tight",
+                pad_inches=0.16)
     plt.close(fig)
 
 
@@ -160,7 +163,8 @@ def figure_evaluation(summary, z_window):
             "this short settles little.",
             fontsize=10.5, color="0.5", va="top", linespacing=1.5)
     fig.subplots_adjust(left=0.035, right=0.965, top=0.99, bottom=0.01)
-    fig.savefig(OUT / "backtest.png", dpi=135, facecolor="white")
+    fig.savefig(OUT / "backtest.png", dpi=135, facecolor="white", bbox_inches="tight",
+                pad_inches=0.14)
     plt.close(fig)
 
 
