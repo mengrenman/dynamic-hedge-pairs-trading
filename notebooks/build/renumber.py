@@ -122,7 +122,7 @@ def main() -> int:
 
     text_files = (sorted(BUILD.glob("*.py")) + sorted(BUILD.glob("*.md"))
                   + sorted((ROOT / "pairs").rglob("*.py")) + sorted((ROOT / "tests").glob("*.py"))
-                  + [ROOT / "README.md"])
+                  + [ROOT / "README.md", ROOT / "HANDOFF.md"])
     text_files = [f for f in text_files if f.name != "renumber.py"]
     nb_files = sorted(NB.glob("*.ipynb"))
 
