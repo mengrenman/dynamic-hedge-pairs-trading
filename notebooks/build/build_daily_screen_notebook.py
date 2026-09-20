@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_08_daily_cointegration.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_10_daily_cointegration.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_daily_screen_notebook.py [--out PATH]
 """
@@ -15,9 +15,9 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — II. Does cointegration exist?
 
-## `pairs_trading_08_daily_cointegration.ipynb`
+## `pairs_trading_10_daily_cointegration.ipynb`
 
-Notebook 07 built a point-in-time universe from the day lake and fixed the price basis. This notebook
+Notebook 09 built a point-in-time universe from the day lake and fixed the price basis. This notebook
 asks the question the whole strategy rests on and that notebooks 01–05 never tested at scale: **among
 liquid US equities, are there actually cointegrated pairs — more than a multiple-testing artifact would
 produce?**
@@ -29,7 +29,7 @@ keep the whole p-value distribution rather than only the winners. Twenty years a
 enough to answer the question with the null hypothesis stated properly.
 
 Three things come out of it: the pooled p-value distribution against the uniform null, the
-Benjamini–Hochberg discoveries era by era, and the identity of what actually passes. Notebook 09 then
+Benjamini–Hochberg discoveries era by era, and the identity of what actually passes. Notebook 11 then
 trades the result.
 
 **Caching.** The screen is about 35 minutes cold on 16 cores and is cached as
@@ -80,7 +80,7 @@ def window_bars(end, years=FORM_YEARS):
     return bars[(lvl > start) & (lvl <= end)]
 
 TEST_SYMBOLS = sorted(t for t in bars.index.get_level_values("ticker").unique()
-                      if re.fullmatch(r"Z[A-Z]ZZT", str(t)))     # NASDAQ test symbols; see notebook 07
+                      if re.fullmatch(r"Z[A-Z]ZZT", str(t)))     # NASDAQ test symbols; see notebook 09
 
 def universe_at(end, years=FORM_YEARS, top_n=TOP_N):
     st = liquidity_screen(window_bars(end, years), min_price=MIN_PRICE, min_dollar_volume=MIN_DV,
@@ -104,7 +104,7 @@ names go through `find_cointegrated_pairs_dualgate`: Engle–Granger on every or
 Benjamini–Hochberg correction, and the Johansen trace test as a second gate. Every p-value is kept, not
 just the passing ones — the distribution is the evidence.
 
-The universe rules are notebook 07's, including the three that a curated index list would have hidden:
+The universe rules are notebook 09's, including the three that a curated index list would have hidden:
 the price gate reads the **unadjusted** close, one-day moves above 100% mark an unadjusted corporate
 action and disqualify the name for that window, and exchange test symbols are dropped by name.
 """)
@@ -320,7 +320,7 @@ md(r"""
 Gatev et al. (2006) select pairs without any test: normalise both price series to 1 at the start of the
 formation window and take the pairs with the smallest sum of squared deviations. It is the oldest and
 most replicated pairs-trading rule, and it makes a useful control — if cointegration testing adds
-nothing, the two selections should perform alike in notebook 09.
+nothing, the two selections should perform alike in notebook 11.
 """)
 code(r"""
 def distance_rank(end, k=20, years=FORM_YEARS):
@@ -361,7 +361,7 @@ rules are close to independent, which makes them a genuine comparison rather tha
 """)
 
 md(r"""
-## 7. What notebook 09 will trade
+## 7. What notebook 11 will trade
 
 Three rules, deliberately spanning the range from strict to none:
 
@@ -373,7 +373,7 @@ Three rules, deliberately spanning the range from strict to none:
   underperform the first rule; if the corrected screen is mostly finding ETF clones, it may not.
 * **`distance_top20`** — the Gatev et al. selection, which performs no test at all.
 
-Notebook 09 trades all three over the same twenty years with the same hedge, costs and universe.
+Notebook 11 trades all three over the same twenty years with the same hedge, costs and universe.
 """)
 code(r"""
 rules = {}
@@ -393,7 +393,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_08_daily_cointegration.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_10_daily_cointegration.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

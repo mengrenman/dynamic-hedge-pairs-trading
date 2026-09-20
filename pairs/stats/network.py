@@ -18,7 +18,7 @@ Conventions
 -----------
 Edge weights are *similarities*: larger means a stronger relationship, so both filters keep the
 largest weights. For a cointegration network the natural weight is -log10(p), which is what
-`notebooks/network_pairs_day_lake.ipynb` uses.
+`notebooks/pairs_trading_13_market_networks_day_lake.ipynb` uses.
 
 In the X/Y indices, **small X + Y means central and large X + Y means peripheral** -- the sign
 convention of the paper, and the opposite of what "centrality" alone would suggest.

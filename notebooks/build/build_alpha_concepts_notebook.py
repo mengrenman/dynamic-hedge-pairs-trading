@@ -1,4 +1,4 @@
-"""Build notebooks/alpha_concepts_day_lake.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_14_alpha_concepts_day_lake.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_alpha_concepts_notebook.py [--out PATH]
 """
@@ -16,14 +16,14 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # What "alpha" means, and which of its meanings this repository measures
 
-## `alpha_concepts_day_lake.ipynb`
+## `pairs_trading_14_alpha_concepts_day_lake.ipynb`
 
 "Alpha signal", "alpha factor", "finding alpha" — the word is used for at least four different objects,
 and only two of them have a definition you can write down. This notebook separates them, shows where
 each one appears in this repository, and measures every one of them on the day lake so that the
 distinctions are numbers rather than vocabulary.
 
-The running example is notebook 09's pairs book: the top-20 BH-FDR dual-gate cointegrated pairs at each
+The running example is notebook 11's pairs book: the top-20 BH-FDR dual-gate cointegrated pairs at each
 of 39 semi-annual formations, static OLS hedge, robust $z$-score, entry at $|z|\ge2$, exit at
 $|z|\le0.5$, stop at $|z|\ge4$, \$10k a pair, 5 bps a leg-side plus 50 bp/year borrow. 287 pair-folds,
 723 trades, 2006–2025, realised Sharpe **0.402** over the 3,677 sessions it held an allocation and
@@ -35,9 +35,9 @@ the *higher* Sharpe on either sample. Almost everything in this notebook follows
 comparison is not embarrassing.
 
 **What this notebook is not.** It is not a strategy. Nothing here is tuned, selected or held out; every
-number is a measurement on results notebooks 07–10 already produced. Where a concept is already
-demonstrated elsewhere in the repository — information coefficients in notebook 10, multiple-testing
-control in notebooks 03 and 08, the leveraged-ETF concentration in notebook 09 — this notebook points
+number is a measurement on results notebooks 09–12 already produced. Where a concept is already
+demonstrated elsewhere in the repository — information coefficients in notebook 12, multiple-testing
+control in notebooks 03 and 08, the leveraged-ETF concentration in notebook 11 — this notebook points
 there rather than repeating the work.
 
 **Caching.** The pairs book, the signal panel and the placebo are cached under `notebooks/cache/`
@@ -210,11 +210,11 @@ to abandon pairs trading and buy the basket. §3 shows why that conclusion is wr
 md(r"""
 ## 2.5 The data
 
-Everything comes from the day lake through notebook 07's cached bars. The pairs book is notebook 09's
+Everything comes from the day lake through notebook 09's cached bars. The pairs book is notebook 11's
 `bh_dual` rule rebuilt here so the per-pair signal panel can be kept alongside the P&L; it reproduces
-notebook 09's numbers exactly. The factors are built from lake prices: `SPY` for the market, `IWM − SPY`
+notebook 11's numbers exactly. The factors are built from lake prices: `SPY` for the market, `IWM − SPY`
 as a crude size tilt, `VIXY` for volatility, and an equal-weight basket of the 17 leveraged, inverse and
-volatility ETFs that notebook 09 found carry 39% of its P&L.
+volatility ETFs that notebook 11 found carry 39% of its P&L.
 """)
 code(r"""
 f_bars = CACHE / "day_market_bars.parquet"
@@ -262,7 +262,7 @@ def ols_ab(y, x):
     return float(a), float(b)
 
 def run_pair(pair, formation):
-    # notebook 09's run_pair, plus the per-bar signal panel that section 5 needs
+    # notebook 11's run_pair, plus the per-bar signal panel that section 5 needs
     a, b = pair
     if a not in PX.columns or b not in PX.columns:
         return None
@@ -304,7 +304,7 @@ def sharpe(r):
 def aggregate(results):
     # Equal capital per pair-fold. "active" counts pair-folds inside their trading window, not
     # positions actually open, so the denominator is capital *allocated* to the strategy rather than
-    # capital at risk on the day. That is notebook 09's convention and it is the conservative one:
+    # capital at risk on the day. That is notebook 11's convention and it is the conservative one:
     # a pair sitting flat still occupies its $10k slot and dilutes the mean.
     pnl = pd.Series(0.0, index=sessions); act = pd.Series(0, index=sessions); folds = []
     for (pair, form), r in results:
@@ -491,7 +491,7 @@ md(r"""
 Now hold the return stream completely fixed and grow the factor set. Not one trade changes. Whatever
 moves is a property of the *model*, not of the strategy — which is the point.
 
-The third model earns its place from this repository's own history: notebook 09 found that 39% of the
+The third model earns its place from this repository's own history: notebook 11 found that 39% of the
 book's P&L comes from pair-folds involving leveraged, inverse or volatility ETFs (17 tickers, 39% of
 pair-folds). If that P&L is compensation for holding a leverage-and-volatility exposure rather than a
 pair-specific edge, a factor built from those very names should absorb it.
@@ -553,7 +553,7 @@ and the one nobody thinks of as a modelling choice mattered three times more.
 The leveraged-ETF factor is the instructive failure. Its loading is 0.015 ($t=0.82$) on the common
 sample and looks like nothing — but the basket only has all 17 names priced between 2015-07 and
 2019-01, because several listed late and several (TVIX) delisted. On those 649 sessions the loading is
-**0.106 with $t=3.98$** and $R^2$ jumps from 0.02 to 0.12. The exposure notebook 09 found is real; the
+**0.106 with $t=3.98$** and $R^2$ jumps from 0.02 to 0.12. The exposure notebook 11 found is real; the
 common-sample regression cannot see it because for most of the window the "factor" is an average of
 whichever handful of names happened to exist. A factor you have mismeasured does not shrink your alpha,
 and the alpha you are left with is not thereby clean. **The absence of shrinkage is not evidence of
@@ -618,11 +618,11 @@ md(r"""
 ### These ICs are not comparable to the ones you have seen elsewhere
 
 The tables above top out at a pooled IC of **0.57** (five sessions, in the traded region). An IC of
-0.57 would be extraordinary for an equity forecast — notebook 10, on the same lake, reports IC 0.033
+0.57 would be extraordinary for an equity forecast — notebook 12, on the same lake, reports IC 0.033
 for five-day reversal, and that was worth writing a notebook about. Both numbers are correct and they
 are **not the same kind of quantity**, which is the most common way an IC gets misread:
 
-* Notebook 10 correlates a signal with a *next-day residual return* — a fresh, nearly independent
+* Notebook 12 correlates a signal with a *next-day residual return* — a fresh, nearly independent
   quantity, across names.
 * Here the signal is the spread's own level and the target is that same spread's *displacement*,
   $\epsilon_{t+k}-\epsilon_t$. Signal and target are built from one series, so for any stationary
@@ -769,7 +769,7 @@ Sharpe is **0.402**. The law overstates by a factor of three to eight.
 None of that is a failure of the law; it is the assumptions being false, and each one is worth naming
 because each is a real defect of the strategy rather than of the arithmetic:
 
-* **The bets are not independent.** Notebook 08 found the candidate set is hub-dominated, and §7 below
+* **The bets are not independent.** Notebook 10 found the candidate set is hub-dominated, and §7 below
   shows nine of the 39 formations produce no pairs at all while one produces 825. Breadth counted as
   "number of pair-folds" is far above the number of independent bets.
 * **Positions are not sized on the forecast.** Every trade is a flat \$10k whether $z$ is 2.0 or 4.0.
@@ -790,7 +790,7 @@ signal. Used as a forecast it would have been badly wrong.
 md(r"""
 ## 7. Does this alpha decay?
 
-Notebook 10 found a cross-sectional five-day reversal that forecast next-day residual returns at
+Notebook 12 found a cross-sectional five-day reversal that forecast next-day residual returns at
 IC 0.033 ($t=8.6$) and produced a gross Sharpe of 0.77 in 2006–2015 against 0.02 in 2016–2025. The
 signal did not get worse at predicting; it got *arbitraged*. Whether the pairs signal shows the same
 break is an empirical question, and the answer below is the one the data gives rather than the one the
@@ -871,7 +871,7 @@ md(r"""
 
 The 5-day IC is **+0.146** over 132 pair-folds in 2006–2015 and **+0.239** over 155 in 2016–2025.
 Welch $t=-3.39$, $p=0.001$: it went *up*, significantly. The book's Sharpe went from +0.345 to +0.518.
-Whatever happened to notebook 10's cross-sectional reversal did not happen here.
+Whatever happened to notebook 12's cross-sectional reversal did not happen here.
 
 Before reading that as survival, look at the deployment columns. The first formation is 2006-06-30, so
 the 2004 and 2005 rows are simply pre-sample; but **nine of the 39 formations produce no BH dual-gate
@@ -891,11 +891,11 @@ The leave-2022-out lines answer that, and they answer it differently for the two
 That is the distinction this whole notebook is about, arriving from an unexpected direction. Forecast
 quality (§1.2) and realised performance (§1.4) are different objects, and here they genuinely come
 apart: the signal held up while the money did not. A strategy whose record rests on a single year has
-one observation, not a track record — notebook 09 put the standard error of an annualised Sharpe on
+one observation, not a track record — notebook 11 put the standard error of an annualised Sharpe on
 this book near 0.23, and with the P&L concentrated as the table shows, even that overstates what is
 known.
 
-Alpha does decay; notebook 10 documents a clean instance on the same lake, gross Sharpe 0.77 in
+Alpha does decay; notebook 12 documents a clean instance on the same lake, gross Sharpe 0.77 in
 2006–2015 against 0.02 in 2016–2025. This book cannot tell you whether *its* alpha decayed, and the
 honest reason is not subtle: of the 18 years in which it traded at all, one carries half the P&L and
 the other 17 are quiet.
@@ -905,7 +905,7 @@ md(r"""
 ## 8. How much alpha does pure noise produce?
 
 Every number so far is conditional on the pairs having been *selected* — out of the
-$\binom{N}{2}$ candidates that notebook 08 screened. A Sharpe of 0.330 means nothing until you know what
+$\binom{N}{2}$ candidates that notebook 10 screened. A Sharpe of 0.330 means nothing until you know what
 the same machinery produces on pairs chosen at random.
 
 The placebo below matches everything except the screen: the same ticker pool (names the `bh_dual` rule
@@ -979,7 +979,7 @@ print(f"only {len(pf)} of the {N_PLACEBO} placebo draws produced a defined Sharp
 _scr = pd.read_parquet(CACHE / "day_screen.parquet", columns=["formation"])
 _per = _scr.groupby("formation").size()
 _N = (1 + np.sqrt(1 + 8 * _per.median())) / 2
-print(f"\nmultiple testing, on notebook 08's screen that selected these pairs: ~{_N:.0f} liquid names "
+print(f"\nmultiple testing, on notebook 10's screen that selected these pairs: ~{_N:.0f} liquid names "
       f"per formation → {_per.median():,.0f} pairs tested per formation, {len(_scr):,} tests over "
       f"{len(_per)} formations.")
 print(f"At alpha = 0.05 and with no correction, {0.05*len(_scr):,.0f} of those would pass by chance "
@@ -1016,7 +1016,7 @@ Two further readings of the table, neither flattering:
 * Only **83 of 200** random pair-folds produce a defined Sharpe at all, because a random pair often
   never reaches $|z|=2$ in six months, against 256 of 287 real ones. The screen is selecting for
   spreads that *move*, which is a necessary condition for trading and not by itself an edge.
-* The multiple-testing arithmetic is the frame for all of it. Notebook 08's screen — the one that
+* The multiple-testing arithmetic is the frame for all of it. Notebook 10's screen — the one that
   chose these pairs — runs **1,738,998 tests**: about 299 liquid names per formation, 44,551 pairs,
   across 39 formations. At $\alpha=0.05$ with no correction, **86,950** of them pass by chance,
   against the **2,151** the Benjamini–Hochberg gate actually lets through. The gate is not statistical
@@ -1038,7 +1038,7 @@ not: "alpha signal" is a hypothesis with no units, and "the alpha" is money.
 
 **What this repository is doing** is alpha-signal research in exactly sense §1.3, aimed at §1.2. The
 $z$-score of a cointegrated spread is a function of past prices, proposed as a forecast of that
-spread's residual return. The hedge ratio is the risk model (§2). Everything in notebooks 01–13 is
+spread's residual return. The hedge ratio is the risk model (§2). Everything in notebooks 01–17 is
 either the search for such a function, the measurement of how much it forecasts, or the accounting of
 what is left after costs. That is the whole discipline.
 
@@ -1059,7 +1059,7 @@ what is left after costs. That is the whole discipline.
    correlated bets, forecast-blind sizing, an inflated IC, costs outside the formula — is a real defect
    of the design (§6).
 5. The signal did not decay, but this book cannot tell you whether alpha decays, because **2022 alone
-   is 52% of twenty years of P&L** and nine formations produced no pairs at all. Notebook 10 has a
+   is 52% of twenty years of P&L** and nine formations produced no pairs at all. Notebook 12 has a
    clean decay on the same lake; this one has one good year (§7).
 6. Against a matched placebo, the same evidence puts the strategy at the **97th** percentile of the
    null by median per-fold Sharpe and the **2nd** by mean. Cointegration screening widens the outcome
@@ -1086,7 +1086,7 @@ finding". Inference is not uniform across the notebook and the differences matte
 sensitive to the lag), §5's IC standard errors are ordinary ones taken across pair-folds — which is the
 right unit but assumes folds are independent, and concurrent folds are not — and §§7–8 use Welch
 $t$-tests and a bootstrap with no serial-correlation adjustment at all. Nothing here is held out, because nothing here is
-selected: every number is a measurement on results that notebooks 07–10 had already produced.
+selected: every number is a measurement on results that notebooks 09–12 had already produced.
 """)
 
 nb.cells = cells
@@ -1094,7 +1094,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "alpha_concepts_day_lake.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_14_alpha_concepts_day_lake.ipynb")
     a = ap.parse_args()
     nbf.write(nb, a.out)
     print(f"wrote {a.out} ({len(cells)} cells)")

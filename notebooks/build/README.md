@@ -5,24 +5,32 @@ diffed and reviewed like source:
 
 | script | builds | from |
 |---|---|---|
-| `build_tv_notebook.py` | `../tv_cointegration_kalman_yahoo.ipynb` | scratch |
 | `build_tuning_notebook.py` | `../pairs_trading_04_hyperparameter_tuning_yahoo.ipynb` | `../pairs_trading_02_yahoo.ipynb` (inherits every cell it does not rewrite) |
-| `build_viz_notebook.py` | `../visualize_cointegrated_pairs_yahoo.ipynb` | scratch |
 | `build_tuning_study_notebook.py` | `../pairs_trading_05_tuning_revisited_yahoo.ipynb` | scratch (cold run ≈ 8 min; caches the out-of-fold study under `cache/tuning_study_oof.pkl`) |
-| `build_source_comparison_notebook.py` | `../pairs_trading_06_yahoo_vs_day_lake.ipynb` | scratch (needs the local **day** lake and `cache/viz_prices_spx_ndx_combined.parquet`; no network; runs in ≈ 20 s) |
-| `build_daily_lake_notebook.py` | `../pairs_trading_07_daily_lake.ipynb` | scratch (needs the local **day** lake; cold run ≈ 3 min; caches `cache/day_market_bars.parquet`, `day_universe.parquet`, `day_ticker_collisions.parquet`) |
-| `build_daily_screen_notebook.py` | `../pairs_trading_08_daily_cointegration.ipynb` | scratch (cold run ≈ 1 h — 39 formations × 44,850 pair-tests; caches `cache/day_screen.parquet`, `day_screen_power.parquet`, `day_distance.parquet` and `day_rule_*.parquet`) |
-| `build_daily_portfolio_notebook.py` | `../pairs_trading_09_daily_portfolio.ipynb` | scratch (needs notebook 08's `day_rule_*.parquet`; cold run ≈ 5 min) |
-| `build_minute_data_notebook.py` | `../pairs_trading_11_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
-| `build_intraday_backtest_notebook.py` | `../pairs_trading_12_intraday_backtest.ipynb` | scratch (reads notebook 11's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
-| `build_intraday_portfolio_notebook.py` | `../pairs_trading_13_intraday_portfolio.ipynb` | scratch (reads notebook 12's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
-| `build_cross_sectional_notebook.py` | `../pairs_trading_10_daily_cross_sectional.ipynb` | scratch (needs the local **day** lake; cold run ≈ 11 min on 16 cores; caches `cache/xs_ic_panel.parquet` and `cache/xs_targets.pkl`) |
+| `build_viz_notebook.py` | `../pairs_trading_06_cointegration_network_yahoo.ipynb` | scratch |
+| `build_tv_notebook.py` | `../pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` | scratch |
+| `build_source_comparison_notebook.py` | `../pairs_trading_08_yahoo_vs_day_lake.ipynb` | scratch (needs the local **day** lake and `cache/viz_prices_spx_ndx_combined.parquet`; no network; runs in ≈ 20 s) |
+| `build_daily_lake_notebook.py` | `../pairs_trading_09_daily_lake.ipynb` | scratch (needs the local **day** lake; cold run ≈ 3 min; caches `cache/day_market_bars.parquet`, `day_universe.parquet`, `day_ticker_collisions.parquet`) |
+| `build_daily_screen_notebook.py` | `../pairs_trading_10_daily_cointegration.ipynb` | scratch (cold run ≈ 1 h — 39 formations × 44,850 pair-tests; caches `cache/day_screen.parquet`, `day_screen_power.parquet`, `day_distance.parquet` and `day_rule_*.parquet`) |
+| `build_daily_portfolio_notebook.py` | `../pairs_trading_11_daily_portfolio.ipynb` | scratch (needs notebook 10's `day_rule_*.parquet`; cold run ≈ 5 min) |
+| `build_cross_sectional_notebook.py` | `../pairs_trading_12_daily_cross_sectional.ipynb` | scratch (needs the local **day** lake; cold run ≈ 11 min on 16 cores; caches `cache/xs_ic_panel.parquet` and `cache/xs_targets.pkl`) |
+| `build_network_pairs_notebook.py` | `../pairs_trading_13_market_networks_day_lake.ipynb` | scratch (needs notebook 10's `day_screen.parquet` and notebook 09's `day_market_bars.parquet`; cold run ≈ 13 min, almost all of it the exact PMFG; caches `cache/net_graphs.parquet` and `cache/net_folddaily.parquet`) |
+| `build_alpha_concepts_notebook.py` | `../pairs_trading_14_alpha_concepts_day_lake.ipynb` | scratch (needs notebook 09's `day_market_bars.parquet` and notebook 10's `day_rule_bh_dual.parquet`; cold run ≈ 6 min; caches `cache/alpha_*.parquet`) |
+| `build_minute_data_notebook.py` | `../pairs_trading_15_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
+| `build_intraday_backtest_notebook.py` | `../pairs_trading_16_intraday_backtest.ipynb` | scratch (reads notebook 15's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
+| `build_intraday_portfolio_notebook.py` | `../pairs_trading_17_intraday_portfolio.ipynb` | scratch (reads notebook 16's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
+
+**Renumbering.** `renumber.py` moves the whole series in one atomic pass — file renames via
+`git mv`, plus every `pairs_trading_NN` / `nbNN` / `notebook NN` reference in the builders, both
+READMEs, the package and the executed notebooks. Edit its `MOVES` and `NUMS` tables, run
+`--dry-run` to review, then `--apply`. The transform maps old numbers to new ones and is
+therefore **not idempotent**: apply it exactly once per mapping.
 
 Regenerate a notebook (cells only, outputs cleared) and then execute it:
 
 ```bash
 python notebooks/build/build_tv_notebook.py
-python notebooks/build/execute.py notebooks/tv_cointegration_kalman_yahoo.ipynb
+python notebooks/build/execute.py notebooks/pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb
 
 python notebooks/build/build_tuning_notebook.py
 python notebooks/build/execute.py notebooks/pairs_trading_04_hyperparameter_tuning_yahoo.ipynb
@@ -45,6 +53,6 @@ Notes
   read-only. The day-lake notebooks (06–08) use `~/local/parquet_lake/day_adj` unless `DAY_LAKE` says
   otherwise; the minute-bar notebooks (09–11) use `~/local/parquet_lake/minute_adj` unless `MINUTE_LAKE`
   says otherwise.
-- Run each series in order on a cold cache. Notebook 09 needs notebook 08's `day_rule_*.parquet` and
-  raises if they are missing; notebooks 12 and 13 rebuild notebook 11's caches if missing, but 11 also
+- Run each series in order on a cold cache. Notebook 11 needs notebook 10's `day_rule_*.parquet` and
+  raises if they are missing; notebooks 16 and 13 rebuild notebook 15's caches if missing, but 11 also
   wants 10's `min_design.json` (it falls back to the design recorded in its own text).

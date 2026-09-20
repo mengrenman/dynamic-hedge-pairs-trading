@@ -1,4 +1,4 @@
-"""Build notebooks/network_pairs_day_lake.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_13_market_networks_day_lake.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_network_pairs_notebook.py [--out PATH]
 """
@@ -15,7 +15,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Do peripheral pairs really trade better? Replicating Grande & Borondo (2025) on the day lake
 
-## `network_pairs_day_lake.ipynb`
+## `pairs_trading_13_market_networks_day_lake.ipynb`
 
 **Paper:** Mar Grande & Javier Borondo (2025), *Embedding pairs trading in market networks: a network
 science approach to portfolio construction*, Humanities & Social Sciences Communications 12:1477.
@@ -28,7 +28,7 @@ benchmark. On 472 Binance tokens they find the peripheral portfolio matches the 
 with 23% better VaR₅ and 44% better CVaR₅.
 
 This notebook asks whether that survives a change of asset class, using the same 39 semi-annual
-formations, the same universe and the *same backtest engine* as notebook 09, so that the only thing
+formations, the same universe and the *same backtest engine* as notebook 11, so that the only thing
 varying is how the 20 pairs are chosen.
 
 There is a second reason to run it. This repository keeps finding that its results are
@@ -39,7 +39,7 @@ findings should line up; §3 checks whether they do.
 
 **What is reused.** `pairs.stats.network` (new) implements the TMFG, the PMFG and the Pozzi $X+Y$
 indices, and is validated in §1 against the worked example published as the paper's own Fig. 2.
-Everything downstream of pair selection — hedge, signal, costs, dividends — is notebook 09's
+Everything downstream of pair selection — hedge, signal, costs, dividends — is notebook 11's
 `run_pair` unchanged.
 
 **Caching.** The networks take ~11 minutes to build (the exact PMFG dominates) and the pair-fold
@@ -121,7 +121,7 @@ print(f"most central node: {got['XY'].idxmin()}   most peripheral: {got['XY'].id
 md(r"""
 ## 2. The networks, one per formation
 
-Notebook 08's screen gives an Engle–Granger $p$-value for every pair at every formation — about 300
+Notebook 10's screen gives an Engle–Granger $p$-value for every pair at every formation — about 300
 liquid names and 44,500 pairs each time. The edge weight is $-\log_{10} p$: a similarity, so both
 filters keep the strongest relationships first.
 
@@ -248,7 +248,7 @@ Each of these can kill the exercise on its own, and each is cheap.
 2. **Is $X+Y$ just degree wearing a suit?** This repository's hub finding used raw degree. If the
    five-measure composite is rank-equivalent to counting significant links, the paper's machinery adds
    nothing and our existing hub analysis already covers it.
-3. **Are the leveraged ETFs driving it?** Notebook 09 found 39% of its P&L comes from 17 leveraged,
+3. **Are the leveraged ETFs driving it?** Notebook 11 found 39% of its P&L comes from 17 leveraged,
    inverse and volatility ETFs. A 3× ETF cointegrates with its underlying almost mechanically, so
    those names could occupy a distinctive network position and turn a centrality study into a
    leverage study.
@@ -339,7 +339,7 @@ screening step in every other notebook here.
 md(r"""
 ## 4. The backtest
 
-Every edge with at least one peripheral or central endpoint is run once through notebook 09's
+Every edge with at least one peripheral or central endpoint is run once through notebook 11's
 `run_pair` — two-year formation window, static OLS hedge, robust $z$-score, entry at $|z|\ge2$, exit
 at $|z|\le0.5$, stop at $|z|\ge4$, \$10k, 5 bps a leg-side, 50 bp/year borrow, dividends accrued. The
 daily P&L of each pair-fold is cached, so every portfolio below is an aggregation rather than a
@@ -598,7 +598,7 @@ conventional benchmark. Here they lose to it by a wide margin.
 3. **A different hedge.** They size with a volatility ratio $\sigma(\text{lr}_A)/\sigma(\text{lr}_B)$
    and add a Hurst $<0.5$ entry filter; we fit OLS. Their hedge has no fitted coefficient, which
    incidentally makes it immune to the spurious-regression trap of
-   `tv_cointegration_kalman_yahoo.ipynb`.
+   `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb`.
 4. **A different network.** They keep only links whose residuals are stationary; our gate leaves too
    few for that, so the filters run on the complete weighted graph.
 
@@ -625,7 +625,7 @@ the interesting question is what makes crypto different — not whether to aband
 **Caveats.** One universe, one asset class, one $-\log_{10}p$ weighting; the 25% quartile cut and the
 20-pair portfolio size are the paper's and were not tuned. The Monte Carlo resamples a fixed pool of
 pair-folds, so its $p$-values describe this data set, not the probability of replication. Pairs
-inherit notebook 09's universe, which still contains the leveraged and inverse ETFs of open issue #6
+inherit notebook 11's universe, which still contains the leveraged and inverse ETFs of open issue #6
 — shown in §3 to be a mild tilt rather than a driver, but not removed. And the benchmark is live in
 688 of the 998 weeks because nine formations produce no BH survivor at all, so its *Return* column is
 not comparable with the others; the rate measures (SNR, Sortino, Sharpe) are.
@@ -636,7 +636,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "network_pairs_day_lake.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_13_market_networks_day_lake.ipynb")
     a = ap.parse_args()
     nbf.write(nb, a.out)
     print(f"wrote {a.out} ({len(cells)} cells)")

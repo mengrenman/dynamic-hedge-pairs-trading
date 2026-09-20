@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_06_yahoo_vs_day_lake.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_08_yahoo_vs_day_lake.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_source_comparison_notebook.py [--out PATH]
 """
@@ -15,10 +15,10 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Two sources for the same prices — OpenBB/Yahoo against the day lake
 
-## `pairs_trading_06_yahoo_vs_day_lake.ipynb`
+## `pairs_trading_08_yahoo_vs_day_lake.ipynb`
 
 Notebooks 01–05 ran the whole pipeline on daily closes pulled through OpenBB, which for equities is
-Yahoo Finance. Notebooks 07–10 rerun it on a Polygon-derived **day lake** held locally. That switch
+Yahoo Finance. Notebooks 09–12 rerun it on a Polygon-derived **day lake** held locally. That switch
 is usually justified in one line — *survivorship bias* — and then never examined.
 
 This notebook examines it. Both sources are loaded for the same 505 tickers over the same span and
@@ -33,7 +33,7 @@ downloaded it**, and it does not carry enough information to reconstruct its own
 a price level — a share count, a capital base, a dollar-neutral hedge — inherits that.
 
 **Data.** The Yahoo side is the cached frame `cache/viz_prices_<universe>.parquet` written by
-`visualize_cointegrated_pairs_yahoo.ipynb`, so this notebook needs no network. The lake side is read
+`pairs_trading_06_cointegration_network_yahoo.ipynb`, so this notebook needs no network. The lake side is read
 straight from the local day lake. Everything is restricted to the span the two actually share.
 """)
 
@@ -352,7 +352,7 @@ this holding earn?"* — and a study that mixes them will read a spinoff as a on
 **A wandering ratio.** The two feeds are not tracking the same company. A ticker was reassigned, or a
 merger moved it to a different instrument. The lake can see this because it resolves each ticker to a FIGI;
 Yahoo has only the string, so it silently splices two companies into one price series. This is the trap
-notebook 07 measures across the whole market, visible here in a 505-name list that is supposed to be clean.
+notebook 09 measures across the whole market, visible here in a 505-name list that is supposed to be clean.
 """)
 
 md("## 5. Coverage and survivorship")
@@ -388,8 +388,8 @@ membership is a screen run on the subset that survived, and survival correlates 
 study is trying to measure: whether a relationship held together.
 
 The lake has all of them, because it is the whole market rather than a list. That, and not data quality,
-is the substantive reason to prefer it. Notebook 07 prices the effect on a buy-and-hold portfolio at
-**+6.1% a year and +0.28 Sharpe**; notebook 09 finds it is enough to flip the sign of the distance rule.
+is the substantive reason to prefer it. Notebook 09 prices the effect on a buy-and-hold portfolio at
+**+6.1% a year and +0.28 Sharpe**; notebook 11 finds it is enough to flip the sign of the distance rule.
 
 Note the direction of the coverage result, though: among the **505 names in today's list**, the lake has
 every one. Yahoo is not missing data on the names it covers. It is missing the names.
@@ -514,7 +514,7 @@ the Yahoo path does, and it does not.
 
 **What the curated feed buys you is a filter, and what it costs you is visibility.** No test symbols, no
 obvious junk — but also no instrument identity, no raw price, and no way to know a ticker changed hands.
-Notebook 07 can find those problems only because the lake does not hide them.
+Notebook 09 can find those problems only because the lake does not hide them.
 
 **Caveats.** One universe and one six-year window; the Yahoo side is a cached snapshot rather than a live
 pull, so its adjustment basis is itself frozen at the download date and a fresh download would move the
@@ -528,7 +528,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "pairs_trading_06_yahoo_vs_day_lake.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_08_yahoo_vs_day_lake.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

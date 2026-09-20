@@ -1,4 +1,4 @@
-"""Build notebooks/visualize_cointegrated_pairs_yahoo.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_06_cointegration_network_yahoo.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_viz_notebook.py [--out PATH]
 """
@@ -320,7 +320,7 @@ Two spreads are computed for every dual-gate pair, and it matters which one you 
   monetise, `NaN` means no mean reversion was found.
 * The **Kalman spread** (the pipeline's `fit_kalman_hedge`, smoothed, EM-fitted, cached) is what the
   strategy notebooks trade. A time-varying hedge ratio makes *any* residual look stationary
-  (`tv_cointegration_kalman_yahoo.ipynb`), so its ADF verdict and half-life describe the filter, not the pair.
+  (`pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb`), so its ADF verdict and half-life describe the filter, not the pair.
   It is kept here for comparison — the third panel below shows by how much the filter compresses
   half-lives.
 """)
@@ -395,7 +395,7 @@ two-month half-life is a slow, regime-driven reversion, not a daily trading sign
 pairs fall in the tradeable band, and none of them involve the cruise-line hubs. Most static spreads are
 labelled *inconclusive* rather than *stationary*: ADF rejects the unit root (as the screen implies) but
 KPSS rejects level-stationarity too, which is what a spread that reverts slowly around a drifting level
-looks like. The third panel is the `tv_cointegration_kalman_yahoo.ipynb` result in one picture: the smoothed,
+looks like. The third panel is the `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` result in one picture: the smoothed,
 EM-fitted Kalman spread reports half-lives of a fraction of a bar for the very same pairs.
 
 ### 4.1 Gallery: the most tradeable spreads
@@ -470,15 +470,15 @@ md(r"""
   hub's neighbours; it is shown for orientation, not as a claim about sectors.
 * **Tradeability is judged on the static spread.** The Kalman spread's half-lives and verdicts describe
   the filter, which has already made the residual as stationary as it can; see
-  `tv_cointegration_kalman_yahoo.ipynb` for why that is not evidence of a long-run relation.
+  `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` for why that is not evidence of a long-run relation.
 * **Caches.** Delete `notebooks/cache/viz_*` to force fresh downloads and screens; the combined-universe
   screen takes several minutes.
 """)
 
 nb["cells"] = cells
 NOTEBOOKS = Path(__file__).resolve().parents[1]
-parser = argparse.ArgumentParser(description="Build visualize_cointegrated_pairs_yahoo.ipynb (cells only).")
-parser.add_argument("--out", type=Path, default=NOTEBOOKS / "visualize_cointegrated_pairs_yahoo.ipynb",
+parser = argparse.ArgumentParser(description="Build pairs_trading_06_cointegration_network_yahoo.ipynb (cells only).")
+parser.add_argument("--out", type=Path, default=NOTEBOOKS / "pairs_trading_06_cointegration_network_yahoo.ipynb",
                     help="output path (default: the notebook under notebooks/)")
 args = parser.parse_args()
 nbf.write(nb, args.out)

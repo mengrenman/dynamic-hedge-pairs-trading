@@ -1,4 +1,4 @@
-"""Build notebooks/tv_cointegration_kalman_yahoo.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_tv_notebook.py [--out PATH]
 """
@@ -585,8 +585,8 @@ md(r"""
 
 nb["cells"] = cells
 NOTEBOOKS = Path(__file__).resolve().parents[1]          # notebooks/build/ -> notebooks/
-parser = argparse.ArgumentParser(description="Build tv_cointegration_kalman_yahoo.ipynb (cells only).")
-parser.add_argument("--out", type=Path, default=NOTEBOOKS / "tv_cointegration_kalman_yahoo.ipynb",
+parser = argparse.ArgumentParser(description="Build pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb (cells only).")
+parser.add_argument("--out", type=Path, default=NOTEBOOKS / "pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb",
                     help="output path (default: the notebook under notebooks/)")
 args = parser.parse_args()
 nbf.write(nb, args.out)

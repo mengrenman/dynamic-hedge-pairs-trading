@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_09_daily_portfolio.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_11_daily_portfolio.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_daily_portfolio_notebook.py [--out PATH]
 """
@@ -15,9 +15,9 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — III. Twenty years, three selection rules
 
-## `pairs_trading_09_daily_portfolio.ipynb`
+## `pairs_trading_11_daily_portfolio.ipynb`
 
-Notebook 07 built a point-in-time universe and fixed the price basis; notebook 08 screened it and found
+Notebook 09 built a point-in-time universe and fixed the price basis; notebook 10 screened it and found
 that the evidence for cointegration among liquid US equities is thin and concentrated. This notebook
 trades the result properly and asks what it was worth.
 
@@ -39,7 +39,7 @@ Thirty-nine folds spanning 2006–2025 give roughly 4,900 trading days, so an an
 standard error near 0.23. For the first time in this repository the sample is large enough to separate a
 small edge from nothing.
 
-**Caching.** The backtest is a few minutes; notebook 08's screen caches are required and rebuilt if
+**Caching.** The backtest is a few minutes; notebook 10's screen caches are required and rebuilt if
 missing (about an hour).
 """)
 
@@ -80,7 +80,7 @@ print("pairs", pairs.__version__)
 md(r"""
 ## 1. Data, universe and the selections
 
-The bars, the point-in-time universe and the three rule files all come from notebooks 07 and 08.
+The bars, the point-in-time universe and the three rule files all come from notebooks 09 and 08.
 """)
 code(r"""
 f_bars = CACHE / "day_market_bars.parquet"
@@ -105,7 +105,7 @@ RULES = {}
 for name in ("bh_dual", "raw_dual_top20", "distance_top20"):
     f = CACHE / f"day_rule_{name}.parquet"
     if not f.exists():
-        raise FileNotFoundError(f"{f} is missing — run notebooks/pairs_trading_08_daily_cointegration.ipynb first")
+        raise FileNotFoundError(f"{f} is missing — run notebooks/pairs_trading_10_daily_cointegration.ipynb first")
     RULES[name] = pd.read_parquet(f)
 order_col = {"bh_dual": "eg_p_fdr", "raw_dual_top20": "eg_p", "distance_top20": "ssd"}
 
@@ -126,7 +126,7 @@ md(r"""
 For one pair and one fold:
 
 1. **Hedge.** Ordinary least squares of $P_1$ on $P_2$ over the formation window, frozen for the trading
-   window. Notebook 12 found on minute bars that a hedge which re-estimates faster than the spread
+   window. Notebook 16 found on minute bars that a hedge which re-estimates faster than the spread
    reverts destroys the signal; the daily equivalent of that caution is a hedge fixed per fold. A Kalman
    alternative is compared in §4.
 2. **Signal.** Robust z-score of the residual, look-back $3\times$ its half-life over the formation
@@ -137,7 +137,7 @@ For one pair and one fold:
    ex-date: long legs receive them, short legs pay them.
 
 Each pair-fold is run independently and starts flat, so a spread still wide at a re-formation is closed
-and reopened rather than held across the boundary. (Notebook 12 stitches folds on minute bars; this one
+and reopened rather than held across the boundary. (Notebook 16 stitches folds on minute bars; this one
 does not, which if anything understates the rule by charging a round-trip it need not pay.)
 """)
 code(r"""
@@ -393,7 +393,7 @@ They are daily-rebalanced leveraged, inverse and volatility products, and the co
 **112 of the 287 pair-folds (39%) involve one, contributing 39% of the rule's P&L**. Seventeen distinct
 such tickers were selected across the twenty years.
 
-This is a gap in the universe screen, not in the statistics. Notebook 07's liquidity gates ask for price,
+This is a gap in the universe screen, not in the statistics. Notebook 09's liquidity gates ask for price,
 dollar volume, coverage and a volatility *floor*; a 3× inverse ETF clears every one of them comfortably —
 it is liquid, expensive enough, and extremely volatile. Nothing in the screen asks what the instrument
 *is*. The volatility floor was added to keep money-market funds out of the screen; the same reasoning
@@ -429,14 +429,14 @@ print(f"ignoring dividends changes twenty-year P&L by "
 """)
 md(r"""
 The frozen per-fold regression beats the Kalman hedge, 0.40 against 0.28, and the mechanism is the one
-notebook 12 found on minute bars: the filter re-estimates the hedge faster than the spread reverts, so it
+notebook 16 found on minute bars: the filter re-estimates the hedge faster than the spread reverts, so it
 absorbs part of the signal into its state and trades more than twice as often (1,707 round trips against
 723) for less money. On daily bars the effect is milder than intraday, but it points the same way.
 
 Dividends turn out to be second-order here, which is worth knowing precisely because it is not obvious.
 Accruing them changes the twenty-year P&L by \$0.5k and the Sharpe by 0.01. The reason is structural: the
 book is dollar-neutral, so the dividend received on the long leg is largely paid away on the short one,
-and only the difference in yield survives. The look-ahead in `close_tr` that notebook 07 removed was
+and only the difference in yield survives. The look-ahead in `close_tr` that notebook 09 removed was
 never mainly about the cash — it was about the prices the signal is computed from.
 """)
 
@@ -513,7 +513,7 @@ by crowding; it is being turned off by the absence of candidates.
 md(r"""
 ## 7. What the survivorship bias was worth
 
-Notebook 07 measured the bias in a buy-and-hold universe. Here it is measured where it actually matters:
+Notebook 09 measured the bias in a buy-and-hold universe. Here it is measured where it actually matters:
 the same backtest, same rules, same costs, with the universe restricted to **today's** index members —
 the assumption behind notebooks 01–05.
 
@@ -580,7 +580,7 @@ number of tests, which under FDR control makes discoveries harder, not easier.
 
 **What was worth fixing, in order of how much it mattered.** Survivorship bias came first: holding today's
 index members instead of what was tradeable is worth +6.1% a year on a plain equal-weight portfolio
-(notebook 07), and it flips the sign of the distance rule here. The data-quality gates came second —
+(notebook 09), and it flips the sign of the distance rule here. The data-quality gates came second —
 without them a NASDAQ test symbol, tickers shared by different companies, and the split-adjustment price
 trap put Sirius XM at the top of the 2008 screen. Dividend accounting came last, and on a dollar-neutral
 book it is worth 0.01 of Sharpe.
@@ -596,7 +596,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_09_daily_portfolio.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_11_daily_portfolio.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

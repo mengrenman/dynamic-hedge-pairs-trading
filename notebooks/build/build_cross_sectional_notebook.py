@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_10_daily_cross_sectional.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_12_daily_cross_sectional.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_cross_sectional_notebook.py [--out PATH]
 """
@@ -15,10 +15,10 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — IV. Leaving pairs behind: the cross-section
 
-## `pairs_trading_10_daily_cross_sectional.ipynb`
+## `pairs_trading_12_daily_cross_sectional.ipynb`
 
-Notebook 08 screened 1.74 million pairs and found that, under false-discovery control, the median
-formation yields **three** tradeable pairs out of 44,850 tested. Notebook 09 traded them and got a Sharpe
+Notebook 10 screened 1.74 million pairs and found that, under false-discovery control, the median
+formation yields **three** tradeable pairs out of 44,850 tested. Notebook 11 traded them and got a Sharpe
 of 0.40 with a standard error of 0.26, on fewer than ten positions on average and roughly \$100k of
 deployed capital.
 The binding constraint was never the signal quality; it was **breadth**. Information ratio scales roughly
@@ -34,7 +34,7 @@ production equity statistical arbitrage.
 The question is whether breadth alone buys a better result. The short answer is that it buys a genuine
 edge for the first half of the sample and nothing at all for the second.
 
-**Method.** Point-in-time universe of the 500 most traded eligible names (notebook 07's rules). Monthly
+**Method.** Point-in-time universe of the 500 most traded eligible names (notebook 09's rules). Monthly
 PCA on the trailing 252 sessions of returns gives 15 eigenportfolios as risk factors. Each day, every
 name's trailing 60 sessions of returns are regressed on the factor returns; the signal is built from the
 recent part of that history; the resulting weights are projected orthogonal to the factor loadings and
@@ -78,7 +78,7 @@ print("pairs", pairs.__version__)
 md(r"""
 ## 1. Data and the daily return panel
 
-The same cached day-lake frame notebooks 07–09 use. Returns are total returns, with the dividend
+The same cached day-lake frame notebooks 09–11 use. Returns are total returns, with the dividend
 recovered from the adjustment factors credited on its ex-date, winsorised at ±100% a day as a last
 data-quality guard, and exchange test symbols dropped by name.
 """)
@@ -103,7 +103,7 @@ md(r"""
 
 Three pieces, each a few lines.
 
-**Universe.** Notebook 07's point-in-time screen, capped at the 500 most traded eligible names. Rebuilt
+**Universe.** Notebook 09's point-in-time screen, capped at the 500 most traded eligible names. Rebuilt
 monthly, so a name that was liquid in 2008 and is gone today is in the 2008 book and not in the 2020 one.
 
 **Factors.** PCA on the correlation matrix of the trailing 252 sessions of returns. Eigenvector
@@ -420,7 +420,7 @@ md(r"""
 Short-horizon reversal is the classic place to mistake microstructure for alpha. A stock that closed on
 the bid looks like a loser and "reverts" when it next closes on the ask, and that reversion is not
 tradeable. The break-even costs above sit close to the 3–4 bps effective spreads measured for these names
-in notebook 11, which is exactly what a bounce-driven signal would look like.
+in notebook 15, which is exactly what a bounce-driven signal would look like.
 
 The test is to skip the most recent session, forming the signal from returns over t−6 to t−2 instead of
 t−5 to t−1. The bounce lives in the last close; a genuine multi-day over-reaction does not.
@@ -456,7 +456,7 @@ of magnitude to consume it.
 md(r"""
 ## 7. When did it work?
 
-The pairs book of notebook 09 earned more than half its twenty-year P&L in a single year. The right
+The pairs book of notebook 11 earned more than half its twenty-year P&L in a single year. The right
 question for this book is the same one: is the edge a stream or an episode?
 """)
 code(r"""
@@ -482,7 +482,7 @@ plt.tight_layout(); plt.show()
 
 g = base.groupby(base.index.year)["pnl_gross"].sum()
 print(f"years with positive gross P&L: {int((g > 0).sum())}/{len(g)}; "
-      f"largest single year is {g.max() / g.sum():.0%} of the total (notebook 09's pairs book: 52%)")
+      f"largest single year is {g.max() / g.sum():.0%} of the total (notebook 11's pairs book: 52%)")
 """)
 code(r"""
 split = []
@@ -505,7 +505,7 @@ md(r"""
 It is an episode, and a long one that ended.
 
 Fifteen of twenty years have positive gross P&L, and the concentration is milder than the pairs book's:
-the largest single year is 38% of the total against 52% for notebook 09. But the split is not random.
+the largest single year is 38% of the total against 52% for notebook 11. But the split is not random.
 **Gross Sharpe is 0.77 over 2006–2015 and 0.02 over 2016–2025**, and at 2 bps the same halves give +0.63
 and −0.10. Nine of the ten signal-and-damping variants show the same direction, with the mean gross
 Sharpe falling from 0.68 to 0.08.
@@ -528,7 +528,7 @@ multiple-testing bottleneck exactly as intended: this book holds about 500 posit
 the pairs book's ten or fewer, needs no significance threshold, and deploys ten times the capital. Its
 gross edge is positive in 15 of 20 years and less concentrated than the pairs result. What it does not do
 is earn more after costs. Over the full span the best net Sharpe at 5 bps is **0.05**, against **0.40**
-for notebook 09's Benjamini–Hochberg pairs — and neither is distinguishable from zero.
+for notebook 11's Benjamini–Hochberg pairs — and neither is distinguishable from zero.
 
 **Breadth does not come free, because turnover scales with it.** A 500-name book rebalanced daily trades
 15–65% of itself per session. The information ratio gained from more bets is handed straight back at the
@@ -543,7 +543,7 @@ been badly wrong.
 
 **Where this leaves the Sharpe question.** Three approaches have now been measured in this
 repository: cointegrated pairs under FDR control on the point-in-time day lake (0.40 ± 0.26, but on
-fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 11–13 — a
+fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 15–17 — a
 much shorter span on the minute lake's universe of *today's* index members, so that leg still carries
 the survivorship bias this one removes), and the whole cross-section on the day lake
 (0.05 net, real but dead since 2016). None reaches 1. The common thread is not that the signals are
@@ -562,7 +562,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "pairs_trading_10_daily_cross_sectional.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_12_daily_cross_sectional.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

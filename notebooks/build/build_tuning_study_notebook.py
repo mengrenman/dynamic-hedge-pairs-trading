@@ -24,7 +24,7 @@ the tuning objective and the pair set — under a protocol that can actually tel
 **Protocol (nested, portfolio-level).**
 
 * A **portfolio of 40 pairs**: the 29 dual-gate pairs that involve neither of the two network hubs, CCL
-  and NCLH (see `visualize_cointegrated_pairs_yahoo.ipynb`, where those two alone account for 250 of the
+  and NCLH (see `pairs_trading_06_cointegration_network_yahoo.ipynb`, where those two alone account for 250 of the
   279 significant pairs), plus the 11 members of nb02's 15-pair shortlist not already among them.
   Aggregating across pairs at equal capital ($10k each) is what gives enough trades to distinguish
   procedures; a single pair cannot.
@@ -93,7 +93,7 @@ z-score look-back and warm-up history from the training window (the look-ahead f
 
 The z-score look-back is normally the half-life of the model's own training residual; one variant takes
 it from the *static* spread instead, because the Kalman residual's half-life is a filter artefact
-(`tv_cointegration_kalman_yahoo.ipynb`).
+(`pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb`).
 """)
 code(r"""
 def _ols_fit(df):
@@ -202,7 +202,7 @@ md(r"""
 ## 2. Data and the pair set
 
 Prices and the dual-gate screen for the combined S&P 500 + Nasdaq-100 universe come from the caches of
-`visualize_cointegrated_pairs_yahoo.ipynb` (recomputed here if absent). The hold-out prices are downloaded once.
+`pairs_trading_06_cointegration_network_yahoo.ipynb` (recomputed here if absent). The hold-out prices are downloaded once.
 """)
 code(r"""
 # nb02's §3.4 shortlist, pinned. nb02 now prints this list in copy-pasteable form at the end of its §3.4
@@ -634,7 +634,7 @@ default thresholds (0.65 against −0.14 at `q=1e-5`), and nb02's hand-set `q=1e
 of the three noise levels in validation (0.65 against 0.60 at `q=1e-4` and 0.37 at `q=1e-6`) with no
 monotone pattern and nothing distinguishable on the hold-out. The one fitting change that is often argued
 for on diagnostic grounds — a static hedge — is the most volatile thing in the study (no σ_η test was run
-on these 40 pairs; the time-varying-cointegration tests in `tv_cointegration_kalman_yahoo.ipynb` cover a
+on these 40 pairs; the time-varying-cointegration tests in `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` cover a
 different pair): 0.21 on validation, 1.77 on the hold-out, ρ = −0.03 between its own tune period and
 validation, and a hub-pair figure of 0.41 in 2025 against 1.90 in 2026. Whatever it is measuring, one
 year of it does not predict the next, and its edge sits on the hub pairs in both.
@@ -661,7 +661,7 @@ default comes 12th at 0.61 against the 504-bar default's 10th at 0.88. It is a s
    the tuning machinery changed in either step. Separate hub pairs from pair-specific ones, and read any
    procedure whose edge sits on one side of that split as a regime bet.
 3. **Consider the static hedge**, but test for a moving coefficient on *these* pairs first — the σ_η
-   machinery in `tv_cointegration_kalman_yahoo.ipynb` has not been run on them — and treat its results on
+   machinery in `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` has not been run on them — and treat its results on
    hub pairs as regime bets.
 4. **Stop expecting a 174-bar hold-out to settle anything.** The honest deliverable of tuning is a
    configuration that is *not worse* than defaults across pairs and years, evaluated on a portfolio; the

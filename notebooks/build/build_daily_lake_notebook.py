@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_07_daily_lake.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_09_daily_lake.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_daily_lake_notebook.py [--out PATH]
 """
@@ -16,13 +16,13 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — I. Universe, adjustment and survivorship
 
-## `pairs_trading_07_daily_lake.ipynb`
+## `pairs_trading_09_daily_lake.ipynb`
 
 Notebooks 01–05 ran the pipeline on daily closes downloaded for the **current** members of the S&P 500
 and Nasdaq-100. That is convenient and quietly wrong in three ways: the member list is the list of
 survivors, the downloaded prices are dividend-adjusted with hindsight, and a single traded pair is not a
 strategy. This series rebuilds the daily study on a local Polygon-derived **day lake** that fixes all
-three, and notebooks 11–13 then ask the same questions of minute bars.
+three, and notebooks 15–17 then ask the same questions of minute bars.
 
 | notebook | question |
 |---|---|
@@ -145,7 +145,7 @@ print("recovered dividend yield by year:", yield_by_year.loc[2019:2024].round(4)
 """)
 md(r"""
 **Rule adopted for the rest of the series:** trade on `close_split`, and accrue the recovered
-`dividend` as a cash flow on the ex-date. Notebook 09 reports the backtest with and without it.
+`dividend` as a cash flow on the ex-date. Notebook 11 reports the backtest with and without it.
 """)
 
 # ───────────────────────────── 3. ticker reuse ─────────────────────────────
@@ -423,14 +423,14 @@ dollar volume, the liquid universe is led by index ETFs and mega caps — but a 
 admits money-market funds like BIL and SGOV, at annualised volatilities under 1.5%. A series that is already nearly constant satisfies a
 stationarity test against almost anything, so without the floor they dominate the screen.
 
-Notebook 08 now applies all of this to the question the strategy depends on.
+Notebook 10 now applies all of this to the question the strategy depends on.
 """)
 
 nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_07_daily_lake.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_09_daily_lake.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")
