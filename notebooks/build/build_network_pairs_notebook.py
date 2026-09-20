@@ -185,6 +185,59 @@ display(edges.groupby("filter").agg(edges=("fold", "size"),
 """)
 
 md(r"""
+### What the filtered networks look like
+
+The paper's Fig. 1 shows its TMFG and PMFG with nodes coloured by Louvain community and **sized in
+proportion to $X+Y$, so that peripheral nodes are the large ones**. The same two panels for one
+formation of the day lake, drawn the same way.
+
+The shape to look for is the one that drives everything below: a dense, tightly-connected core of a
+few dozen names, and a fringe of nodes hanging off it by one or two edges. Median degree is 4–5
+against a maximum near 55, so a handful of names carry most of the connectivity. "Peripheral" means
+the fringe, and the fringe is where the weak cointegration evidence lives.
+""")
+code(r"""
+SHOW_F = sorted(pd.to_datetime(edges["formation"]).unique())[26]
+
+def draw_network(ax, filt, title, color_by="community", highlight=None):
+    ef = edges[(edges["filter"] == filt) & (pd.to_datetime(edges["formation"]) == SHOW_F)]
+    nf = nodes[(nodes["filter"] == filt) & (pd.to_datetime(nodes["formation"]) == SHOW_F)]
+    G = nx.Graph()
+    G.add_nodes_from(nf["ticker1"])
+    for _, r in ef.iterrows():
+        G.add_edge(r["ticker1"], r["ticker2"], weight=r["w"])
+    xy = nf.set_index("ticker1")["xy1"]
+    role = nf.set_index("ticker1")["role1"]
+    pos = nx.spring_layout(G, seed=11, weight="weight", iterations=120)
+
+    sizes = 6 + 105 * ((xy - xy.min()) / (xy.max() - xy.min())).reindex(list(G)).fillna(0.5)
+    if color_by == "community":
+        comms = nx.community.louvain_communities(G, weight="weight", seed=11)
+        cid = {v: i for i, c in enumerate(comms) for v in c}
+        cols = [plt.cm.tab20(cid.get(v, 0) % 20) for v in G]
+        sub_t = f"{len(comms)} Louvain communities; node size ∝ X+Y (large = peripheral)"
+    else:
+        cmap = {"peripheral": "seagreen", "central": "indianred", "middle": "0.82"}
+        cols = [cmap[role.get(v, "middle")] if (highlight is None or v in highlight) else "0.9"
+                for v in G]
+        k = len(highlight) if highlight is not None else len(G)
+        sub_t = f"{k} eligible assets of {len(G)} highlighted; the rest in grey"
+    nx.draw_networkx_edges(G, pos, ax=ax, width=0.25, alpha=0.35, edge_color="0.5")
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=sizes.to_numpy(), node_color=cols,
+                           linewidths=0.2, edgecolors="white")
+    ax.set_title(title + "\n" + sub_t, fontsize=9)
+    ax.set_axis_off()
+    return G
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 6.6))
+for ax, filt in zip(axes, ("TMFG", "PMFG")):
+    G = draw_network(ax, filt, f"{filt}, formation {pd.Timestamp(SHOW_F).date()}")
+    print(f"{filt}: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges, "
+          f"degree median {int(np.median([d for _, d in G.degree()]))}, max {max(d for _, d in G.degree())}")
+plt.tight_layout(); plt.show()
+""")
+
+md(r"""
 ## 3. Three questions to settle before any backtest
 
 Each of these can kill the exercise on its own, and each is cheap.
@@ -463,6 +516,28 @@ for q, c, lab in ((x["xy1"].quantile(0.25), "indianred", "central quartile"),
     ax.axvline(q, color=c, ls="--", lw=1.6, label=lab)
 ax.set_xlabel("X + Y  (small = central)"); ax.set_ylabel("node-observations")
 ax.set_title("the centrality index across all formations", fontsize=10); ax.legend(fontsize=8)
+plt.tight_layout(); plt.show()
+""")
+
+md(r"""
+### Which assets each portfolio is allowed to touch
+
+The paper's Fig. 3 draws the two portfolios on the network so the reader can see the difference
+rather than infer it from a table. The same two panels here, on the TMFG for the formation above.
+
+The visual makes §5's objection obvious: the red nodes sit *along the spine*, where the edges are, so
+a central asset is attached to many candidate pairs; the green nodes sit at the tips, attached to
+one or two. Equal numbers of eligible **assets** on each side produce very unequal numbers of
+eligible **pairs** — about 8,800 against 26,600 — which is exactly why the whole-pool comparison had
+to be replaced by a fixed 20-pair draw.
+""")
+code(r"""
+fig, axes = plt.subplots(1, 2, figsize=(14, 6.6))
+nf = nodes[(nodes["filter"] == "TMFG") & (pd.to_datetime(nodes["formation"]) == SHOW_F)]
+for ax, role in zip(axes, ("central", "peripheral")):
+    keep = set(nf.loc[nf["role1"] == role, "ticker1"])
+    draw_network(ax, "TMFG", f"{role.capitalize()} portfolio — the assets it may hold",
+                 color_by="role", highlight=keep)
 plt.tight_layout(); plt.show()
 """)
 
