@@ -144,6 +144,49 @@ signal into its state.
 
 ---
 
+## 4b. The dynamic hedge is the wrong model almost everywhere
+
+Notebook 07 showed the package's Kalman-residual test calls two independent random walks
+"stationary" 90% of the time, and inferred from eight hand-picked pairs that a dynamic hedge is
+rarely warranted. `pairs.recommend_hedge` now tests that properly, and it has been run over **all
+2,151 BH dual-gate survivors** (weekly log prices, each pair's own 2-year formation window,
+B = 199 — `analysis/gate_screen_survivors.py`, 84 minutes on 12 cores).
+
+| hedge the evidence supports | survivors | notebook 11's 287 traded pair-folds |
+|---|---|---|
+| none — no cointegration | 1,191 (55.4%) | 165 (57%) |
+| static — fixed coefficient | 802 (37.3%) | 87 (30%) |
+| **dynamic** — coefficient demonstrably moves | **158 (7.3%)** | **35 (12%)** |
+
+**And most of the `dynamic` verdicts do not survive inspection.** The model constrains `T` to
+(0, 1) but leaves θ free, and the optimiser wanders: **73% of the time-varying verdicts rest on a
+negative θ̂** — an error that alternates sign every week, which is oscillation rather than a
+long-run relation — and **30% on a |θ̂| > 1**, outside the stationary region altogether, which is
+the null the test exists to reject. Requiring θ̂ ∈ (0, 1) leaves **38 of 2,151 survivors (1.8%)**
+and **6 of notebook 11's 287 traded pair-folds (2.1%)**.
+
+So notebook 11 applies a Kalman dynamic hedge to all 287 pair-folds it trades, and the evidence
+supports one on about six of them. That is the direct explanation of §4's empirical result, where
+the frozen OLS hedge beats the Kalman hedge 0.402 to 0.315 while trading 1,698 round trips against
+723: the filter is chasing a coefficient that, for all but a handful of pairs, is not moving.
+`recommend_hedge` now downgrades a time-varying verdict to `static` when θ̂ leaves (0, 1), and
+reports the paper's classification unchanged alongside it.
+
+**Two cautions, and the first one cuts against reading too much into the 55% `none`.** Among those
+verdicts the median θ̂ is 0.782 — visibly below 1 — yet the median bootstrap p is 0.291, and **77%
+have θ̂ < 0.9 while failing to reject θ = 1**. That is the test seeing decay it has no power to
+certify, exactly as notebook 07 §4's size study predicts at n ≈ 104. The `none` column is mostly
+"cannot tell", not "demonstrably absent", and the disagreement with Engle–Granger is flat across
+the EG p-value quartiles (57.6% `none` in the strongest quartile against 55.0% in the weakest),
+which is what low power looks like rather than a systematic contradiction.
+
+Second, the verdicts are conditional on the weekly form. A probe found weekly logs and daily
+levels disagreeing on half of a small sample, and notebook 10 screened *daily levels* while
+notebook 11 fits its hedge to them. The weekly form follows notebook 07 and its calibrated sample
+size; the daily answer was not run at scale.
+
+---
+
 ## 5. What is actually inside the P&L that exists
 
 - **2022 alone is 52%** of twenty years of P&L ($22.7k of $43.6k).

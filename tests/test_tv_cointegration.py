@@ -147,6 +147,35 @@ class TestGate:
         v = tv.recommend_hedge(np.arange(50.0), np.arange(50.0))
         assert v.hedge == "static" and "conservative" in v.reason
 
+    @pytest.mark.parametrize("theta, expect_hedge, expect_plausible, why", [
+        (0.58, "dynamic", True, "a decaying error is what a dynamic hedge is for"),
+        (-0.65, "static", False, "alternating sign each bar is oscillation, not a long-run relation"),
+        (1.10, "static", False, "outside the stationary region, so the verdict is uninterpretable"),
+    ])
+    def test_a_time_varying_verdict_is_downgraded_on_an_implausible_theta(
+            self, monkeypatch, theta, expect_hedge, expect_plausible, why):
+        """The optimiser leaves theta unconstrained and it wanders.
+
+        On this repository's 2,151 screen survivors, 14% of fits return |theta| > 1 and 30% of the
+        time-varying verdicts do. The paper's classification is reported unchanged; the hedge
+        recommendation is what gets downgraded.
+        """
+        import pairs.stats.tv_cointegration as tv
+        monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
+            "verdict": TIME_VARYING, "theta_hat": theta, "sigma_eta_hat": 0.3,
+            "p_theta": 0.001, "p_sigma": 0.004, "t_theta": -3.0, "t_sigma": 3.0})
+        v = tv.recommend_hedge(np.arange(50.0), np.arange(50.0))
+        assert (v.hedge, v.theta_plausible) == (expect_hedge, expect_plausible), (v, why)
+        assert v.verdict == TIME_VARYING, "the paper's classification must be reported unchanged"
+
+    def test_a_no_cointegration_verdict_is_never_upgraded_by_the_theta_check(self, monkeypatch):
+        """Downgrading must not accidentally turn 'do not trade' into 'trade statically'."""
+        import pairs.stats.tv_cointegration as tv
+        monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
+            "verdict": NO_COINTEGRATION, "theta_hat": 1.4, "sigma_eta_hat": 0.0,
+            "p_theta": 0.6, "p_sigma": 0.7, "t_theta": -0.2, "t_sigma": 0.1})
+        assert tv.recommend_hedge(np.arange(50.0), np.arange(50.0)).hedge == "none"
+
     def test_the_verdict_carries_its_own_evidence(self):
         d = simulate_tvssm(80, 0.8, 0.0, seed=11)
         v = recommend_hedge(d["y"], d["x"], B=49, seed=0, n_jobs=1)

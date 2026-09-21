@@ -278,7 +278,8 @@ class HedgeVerdict:
     """What the gate concluded, and the evidence for it."""
 
     hedge: str                  # "dynamic" | "static" | "none"
-    verdict: str                # one of the four classification strings
+    verdict: str                # the paper's classification, unmodified
+    theta_plausible: bool       # is theta_hat in (0, 1), a decaying non-oscillating error?
     theta_hat: float
     sigma_eta_hat: float
     p_theta: float
@@ -313,12 +314,35 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
 
     ``"undecided"`` also returns ``"static"``, deliberately: the conservative default when the test
     cannot resolve is the hedge with fewer moving parts, not the more flexible one.
+
+    A ``"dynamic"`` verdict is downgraded to ``"static"`` when :math:`\hat\theta` falls outside
+    ``(0, 1)`` — see ``theta_plausible``. This matters in practice rather than in principle: run
+    over this repository's 2,151 screen survivors, 7.3% classify as time-varying but 73% of those
+    rest on a negative :math:`\hat\theta` and 30% on one outside the stationary region
+    altogether, leaving 1.8% standing.
     """
     c = classify_cointegration(y, x, B=B, seed=seed, level=level, n_jobs=n_jobs)
     v = c["verdict"]
-    if v == TIME_VARYING:
+    th = c["theta_hat"]
+    # The model constrains T to (0, 1) but leaves theta free, so the optimiser can and does wander
+    # outside the stationary region: on this repository's own screen survivors, 14% of fits return
+    # |theta| > 1, and 30% of the "time-varying" verdicts do. A theta at or beyond 1 describes a
+    # non-stationary error, which is the null the test is supposed to reject, so the classification
+    # built on it is not interpretable. A negative theta is stationary but alternates sign every
+    # bar -- high-frequency oscillation rather than a long-run relation, which is not what a
+    # dynamic hedge is for. Either way the paper's verdict is reported unchanged and the *hedge*
+    # recommendation is downgraded, because that is the part this repository is responsible for.
+    plausible = bool(0.0 < th < 1.0)
+    if v == TIME_VARYING and plausible:
         hedge, reason = "dynamic", ("the coefficient moves: sigma_eta = 0 is rejected, so a filter "
                                     "is tracking something real")
+    elif v == TIME_VARYING:
+        hedge, reason = "static", (
+            f"sigma_eta = 0 is rejected, but theta_hat = {th:.3f} lies outside (0, 1): "
+            + ("the error process is non-stationary, so the classification is not interpretable"
+               if abs(th) >= 1.0 else
+               "the error alternates sign each bar, which is oscillation rather than a long-run "
+               "relation") + " -- not a case for a dynamic hedge")
     elif v == FIXED:
         hedge, reason = "static", ("cointegrated but with a fixed coefficient: a frozen regression "
                                    "has less estimation noise than a filter chasing nothing")
@@ -328,7 +352,7 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
     else:
         hedge, reason = "static", ("the theta test could not be decided; the conservative default "
                                    "is the hedge with fewer moving parts")
-    return HedgeVerdict(hedge=hedge, verdict=v, theta_hat=c["theta_hat"],
+    return HedgeVerdict(hedge=hedge, verdict=v, theta_plausible=plausible, theta_hat=c["theta_hat"],
                         sigma_eta_hat=c["sigma_eta_hat"], p_theta=c["p_theta"],
                         p_sigma=c["p_sigma"], reason=reason)
 
