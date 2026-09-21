@@ -180,10 +180,41 @@ certify, exactly as notebook 07 §4's size study predicts at n ≈ 104. The `non
 the EG p-value quartiles (57.6% `none` in the strongest quartile against 55.0% in the weakest),
 which is what low power looks like rather than a systematic contradiction.
 
-Second, the verdicts are conditional on the weekly form. A probe found weekly logs and daily
-levels disagreeing on half of a small sample, and notebook 10 screened *daily levels* while
-notebook 11 fits its hedge to them. The weekly form follows notebook 07 and its calibrated sample
-size; the daily answer was not run at scale.
+**Second — and this is the part that turned out to matter — both series were run, and they agree
+on the rate while disagreeing on the pairs.** Notebook 10 screened *daily levels* and notebook 11
+fits its hedge to them, so the weekly form is a departure from the pipeline, taken because it is
+notebook 07's choice for real pairs and its Monte Carlo's sample size. Running both over the 287
+traded pair-folds:
+
+| on the 287 traded folds | none | static | dynamic (raw) | dynamic, θ̂ ∈ (0,1) |
+|---|---|---|---|---|
+| daily levels (~504 bars) | 79.4% | 17.8% | 8 (2.8%) | **8 (2.8%)** |
+| weekly logs (~104 bars) | 57% | 30% | 35 (12.2%) | **6 (2.1%)** |
+
+**They agree on 52% of folds — a coin flip — and exactly one fold is `dynamic` under both.** The
+*identity* of the pairs that warrant a filter is not established at all. The *rate* is: two
+estimators, on differently transformed data, disagreeing pair by pair, both land at 2–3%.
+
+Neither estimator is well behaved, and they fail in opposite directions, which is worth knowing
+before anyone leans on θ̂ itself:
+
+| | median θ̂ | θ̂ < 0 | \|θ̂\| > 1 | θ̂ ∈ (0,1) |
+|---|---|---|---|---|
+| daily levels | +0.999 | 2% | **44%** | 55% |
+| weekly logs | +0.776 | 19% | 22% | 68% |
+
+Weekly wanders negative; **daily pins against the unit root** — median 0.999, with 44% overshooting
+past 1, twice the weekly rate. That is the familiar near-unit-root estimation problem: a two-year
+daily spread is persistent enough that the MLE sits on the boundary, θ = 1 cannot be rejected, and
+the daily form returns `none` for 79% of folds close to by construction. Weekly's 0.776 is roughly
+what a daily θ ≈ 0.95 implies under five-day aggregation, so the weekly estimate is arguably
+reading the persistence *more* informatively despite the shorter sample.
+
+So the defensible claim is narrow and holds regardless of the choice: **about 2–3% of the pair-folds
+notebook 11 trades show a coefficient that moves, and notebook 11 applies a dynamic hedge to all of
+them.** Anything stronger — which pairs, or how much the rate varies by era — the data does not
+support. The daily run over the remaining 1,864 survivors was still in progress when this was
+written; only the traded subset is complete on both forms.
 
 ---
 
