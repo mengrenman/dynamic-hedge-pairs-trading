@@ -125,15 +125,32 @@ These each caused a real bug, some more than once.
 **Prose drifts from outputs, and the drift inverts conclusions.** Commit `3a1965f` re-executed
 notebooks on a changed shortlist without rewriting nb04 §4b.5. Three days later *three of its six
 conclusions were backwards* — it said the tuned config traded more when it traded a third less, that
-two of three pairs improved when none did. `tests/test_notebook_prose.py` now asserts every number
-in prose was printed by some notebook. **It is not sufficient**, and nb01 proved it twice: it catches
-changed values, not reversed directions, not claims with no numbers in them, and not a stale figure
-that happens to round to *some* number printed elsewhere in the repo (nb01 carried "Sharpe 2.00 on 4
-trades" against an actual 2.642 on 12, and the test passed), **and not integers at all** — the
-matcher requires a decimal point, because years, counts and section numbers would otherwise drown it
-in false positives. nb11 §4 claimed "1,707 round trips" against an actual 1,698 and the test was
-silent. After any re-execution, re-read the
-prose for *direction words* — more/less, improves/worsens — against the new output.
+two of three pairs improved when none did. `tests/test_notebook_prose.py` asserts every number in prose
+was printed by some notebook. It catches three things, verified against the text that actually
+slipped through:
+
+* **decimals**, rounding-aware — 1.59 is satisfied by a printed 1.586;
+* **comma-grouped integers**, with a significant-figures tolerance, so 44,500 admits a printed
+  44,512 but nb11 §4's "1,707 round trips" does not admit 1,698;
+* **both halves of a comparison** under a code cell ("X against Y", "X vs Y") must be in *that*
+  notebook's own outputs — which is what catches "0.40 against 0.28".
+
+The blanket same-notebook rule was tried and rejected on measurement: it fires on 8 legitimate cells
+of inline prose arithmetic. Scoping it to comparisons gives 0 false positives across 465 prose
+numbers with 24 comparison pairs exercised.
+
+**It is still not sufficient, and three of this repository's four prose repairs were found by
+reading, not by the test.** Confirmed gaps, each probed directly:
+
+* **a bare integer with no comma** — nb01's "4 trades" against an actual 12 passes silently, because
+  years, counts and section numbers would otherwise drown the check in false positives;
+* **a claim with no number in it** — nb01's "the pair did not pass through an FDR gate" was false for
+  three days and is invisible to any numeric matcher;
+* **a reversed direction with correct digits** — nb04 §4b.5 said the tuned configuration traded
+  *more* when it traded a third less, quoting numbers that were themselves fine.
+
+After any re-execution, re-read the prose for **direction words** — more/less, improves/worsens,
+helps/hurts — against the new output. That is the part no test does for you.
 
 **`mode="smooth"` is a look-ahead trap.** The RTS smoother conditions every state on the whole
 sample. Always `mode="filter"` (the default) for anything feeding a signal, backtest, stationarity
