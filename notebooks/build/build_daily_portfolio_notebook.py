@@ -428,10 +428,10 @@ print(f"ignoring dividends changes twenty-year P&L by "
       f"and Sharpe by {variants[2]['sharpe'] - variants[0]['sharpe']:+.2f}")
 """)
 md(r"""
-The frozen per-fold regression beats the Kalman hedge, 0.40 against 0.28, and the mechanism is the one
-notebook 16 found on minute bars: the filter re-estimates the hedge faster than the spread reverts, so it
-absorbs part of the signal into its state and trades more than twice as often (1,707 round trips against
-723) for less money. On daily bars the effect is milder than intraday, but it points the same way.
+The frozen per-fold regression beats the Kalman hedge, 0.402 against 0.315, and the mechanism is the
+one notebook 16 found on minute bars: the filter re-estimates the hedge faster than the spread reverts,
+so it absorbs part of the signal into its state and trades more than twice as often (1,698 round trips
+against 723) for less money. On daily bars the effect is milder than intraday, but it points the same way.
 
 Dividends turn out to be second-order here, which is worth knowing precisely because it is not obvious.
 Accruing them changes the twenty-year P&L by \$0.5k and the Sharpe by 0.01. The reason is structural: the
