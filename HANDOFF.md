@@ -110,7 +110,7 @@ It is **not idempotent** — apply exactly once per mapping.
 | 08 | Yahoo vs day lake: **returns agree** to floating point on 99.8% of name-days; **price levels do not** (4.6% of raw cells differ >1%). Since the Kalman hedge is not scale-free, absolute-variance parameters (`q`, `r`) do not transfer between sources. |
 | 09 | Data quality. Survivorship is worth **+6.05%/yr and +0.28 Sharpe** before any strategy. `close_tr` embeds dividend look-ahead (AAPL marked down 15.9% in 2003). 10% of lake tickers name more than one instrument. 13 NASDAQ test symbols produce 3 of the 4 largest one-day returns in 20 years. |
 | 10 | 1,738,998 dual-gate tests. Storey's π̂₀ = **0.931** — 93% of pairs indistinguishable from noise. BH keeps **2,151**; the median formation yields **3** survivors and **9 of 39 yield zero**. The most reliable survivors are ETF index clones (IVV/SPY), not economic pairs. |
-| 11 | The main portfolio. BH dual-gate Sharpe **0.402 ± 0.26** (0.490 at measured costs); raw-p 0.04; distance −0.41. FDR control is the whole edge. 39% of pair-folds involve a leveraged/inverse/vol ETF, proportionate to count. Kalman hedge *underperforms* frozen static OLS (0.28 vs 0.40). 2022 alone is **52%** of 20-year P&L. |
+| 11 | The main portfolio. BH dual-gate Sharpe **0.402 ± 0.26** (0.490 at measured costs); raw-p 0.04; distance −0.41. FDR control is the whole edge. 39% of pair-folds involve a leveraged/inverse/vol ETF, proportionate to count. Kalman hedge *underperforms* frozen static OLS (0.315 vs 0.402) while trading 1,698 round trips against 723. 2022 alone is **52%** of 20-year P&L. |
 | 12 | Cross-sectional Avellaneda–Lee. Breadth instead of pair selection — and it is not enough. Gross Sharpe 0.77 (2006–15) vs **0.02** (2016–25). Break-even collapses 10.8 → **0.33 bps**. Best full-span net Sharpe 0.18 (t = 0.8). |
 | 13 | Grande & Borondo (2025) replication. Our `pairs.stats.network` reproduces all 21 published Fig. 2 values **exactly** (ties must be floor-truncated, not mid-ranked). Their peripheral-beats-central claim **does not replicate**: TMFG t = 0.24, p = 0.811. PMFG shows +0.087 (p = 0.008) but the notebook self-flags it as one sign out of two. |
 | 14 | What "alpha" means, four ways, measured. Headline IC 0.197/fold is reproduced by **random uncointegrated pairs** (0.205). Fundamental Law predicts IR 1.14–3.38; book delivers 0.40. §9 is the tradeable-edge definition in §1 above. |
@@ -129,7 +129,10 @@ two of three pairs improved when none did. `tests/test_notebook_prose.py` now as
 in prose was printed by some notebook. **It is not sufficient**, and nb01 proved it twice: it catches
 changed values, not reversed directions, not claims with no numbers in them, and not a stale figure
 that happens to round to *some* number printed elsewhere in the repo (nb01 carried "Sharpe 2.00 on 4
-trades" against an actual 2.642 on 12, and the test passed). After any re-execution, re-read the
+trades" against an actual 2.642 on 12, and the test passed), **and not integers at all** — the
+matcher requires a decimal point, because years, counts and section numbers would otherwise drown it
+in false positives. nb11 §4 claimed "1,707 round trips" against an actual 1,698 and the test was
+silent. After any re-execution, re-read the
 prose for *direction words* — more/less, improves/worsens — against the new output.
 
 **`mode="smooth"` is a look-ahead trap.** The RTS smoother conditions every state on the whole
@@ -205,7 +208,7 @@ times.
 - **Hyperparameter tuning of the Kalman hedge.** nb04 and nb05, single-pair and portfolio scale. The
   ranking is noise (ρ = 0.044); the winner's curse is the reason.
 - **Whether costs are the binding constraint.** No. Measured at ~2 bps against a 33.9 bps edge.
-- **Whether a Kalman dynamic hedge beats a frozen static OLS hedge.** It does not — 0.28 vs 0.40 on
+- **Whether a Kalman dynamic hedge beats a frozen static OLS hedge.** It does not — 0.315 vs 0.402 on
   the day lake (nb11 §4), and worse intraday (nb16 §3.1). nb07 shows the dynamic hedge is not even
   demonstrably warranted.
 - **Whether the pair reverts intraday.** It does not; half-life is ~16.6 days.
