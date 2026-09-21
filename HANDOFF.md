@@ -126,8 +126,10 @@ These each caused a real bug, some more than once.
 notebooks on a changed shortlist without rewriting nb04 §4b.5. Three days later *three of its six
 conclusions were backwards* — it said the tuned config traded more when it traded a third less, that
 two of three pairs improved when none did. `tests/test_notebook_prose.py` now asserts every number
-in prose was printed by some notebook. **It is not sufficient**: it catches changed values, not
-reversed directions, and not claims with no numbers in them. After any re-execution, re-read the
+in prose was printed by some notebook. **It is not sufficient**, and nb01 proved it twice: it catches
+changed values, not reversed directions, not claims with no numbers in them, and not a stale figure
+that happens to round to *some* number printed elsewhere in the repo (nb01 carried "Sharpe 2.00 on 4
+trades" against an actual 2.642 on 12, and the test passed). After any re-execution, re-read the
 prose for *direction words* — more/less, improves/worsens — against the new output.
 
 **`mode="smooth"` is a look-ahead trap.** The RTS smoother conditions every state on the whole
@@ -178,7 +180,6 @@ times.
 
 | what | where | why it is still open |
 |---|---|---|
-| nb01 markdown still says the traded pair "did not pass through an FDR gate" and lists gating as an outstanding gap | `pairs_trading_01_yahoo.ipynb` cells 22, 87 | The code was fixed in `9ba5d59`; cell 21 now gates on `eg_pass_fdr & joh_pass` before the rank cut. Only the prose is stale. Markdown-only fix, not yet made. |
 | `Mean Sharpe across folds: nan` | nb01 cell 82 | Cosmetic; `sharpes.mean()` is not NaN-safe when a fold has 0 trades. The correct number prints directly above it. |
 | nb10 and nb12 never re-run with the behavioural instrument gate | `build_daily_screen_notebook.py`, `build_cross_sectional_notebook.py` | Would require regenerating nb10's full 1.74M-test screen (~1 h) and everything downstream. The principled version of issue #6. |
 | Trade log omits the exit bar's cost; `filter_kf_on_new` skips the fold-boundary predict step | `pairs/strategies/evaluate.py`, `pairs/models/kalman.py` | Documented in README. Affects per-trade stats (~2% on profit factor), not Sharpe/return/drawdown, which come from the daily ledger. |
@@ -210,10 +211,9 @@ In rough order of expected value:
    already exists — cost measurement, placebo nulls, walk-forward, the five-clause table — so a new
    signal can be scored in days, not weeks. That apparatus is the durable asset in this repo, and
    pointing it at a new domain is cheaper than refining this one.
-2. **Fix nb01's stale prose** (§5, first row). One paragraph, markdown-only.
-3. **Add a θ-persistence gate** to the Kalman path, per nb07's finding — currently nothing stops the
+2. **Add a θ-persistence gate** to the Kalman path, per nb07's finding — currently nothing stops the
    pipeline using a dynamic hedge on a pair with no time-varying cointegration.
-4. **Re-screen nb10/nb12 with the instrument gate**, if you want the principled version of issue #6
+3. **Re-screen nb10/nb12 with the instrument gate**, if you want the principled version of issue #6
    and are willing to spend the hour.
 
 A closing caution the record supports: seventeen notebooks of careful measurement produced zero
