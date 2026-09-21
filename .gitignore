@@ -39,3 +39,6 @@ slides/
 
 # dev-server launch config for the webapp preview
 .claude/launch.json
+
+# Handover notes — kept local
+HANDOFF.md
