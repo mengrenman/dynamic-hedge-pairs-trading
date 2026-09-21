@@ -74,6 +74,8 @@ __all__ = [
     "summarize_hedge_ratio_stability",
     # statistics (microstructure)
     "roll_spread",
+    "classify_cointegration",
+    "recommend_hedge",
     "realized_variance_signature",
     "epps_correlation",
     "autocorr_by_interval",
@@ -154,6 +156,8 @@ _LAZY_MAP = {
     "summarize_hedge_ratio_stability": ("pairs.stats.stability", "summarize_hedge_ratio_stability"),
     # statistics (microstructure)
     "roll_spread": ("pairs.stats.microstructure", "roll_spread"),
+    "classify_cointegration": ("pairs.stats.tv_cointegration", "classify_cointegration"),
+    "recommend_hedge": ("pairs.stats.tv_cointegration", "recommend_hedge"),
     "realized_variance_signature": ("pairs.stats.microstructure", "realized_variance_signature"),
     "epps_correlation": ("pairs.stats.microstructure", "epps_correlation"),
     "autocorr_by_interval": ("pairs.stats.microstructure", "autocorr_by_interval"),
@@ -250,6 +254,7 @@ if TYPE_CHECKING:  # pragma: no cover
         autocorr_by_interval,
     )
     from .stats.network import tmfg, pmfg, pozzi_xy, classify_nodes
+    from .stats.tv_cointegration import classify_cointegration, recommend_hedge
     from .strategies.signals import (
         estimate_halflife_window,
         zscore_from_spread,

@@ -52,6 +52,9 @@ include = ["pairs*"]
 pairs = ["universes/tickers/*"]
 
 [tool.pytest.ini_options]
+markers = [
+    "slow: bootstrap-heavy tests (a few seconds each); deselect with -m 'not slow'",
+]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]

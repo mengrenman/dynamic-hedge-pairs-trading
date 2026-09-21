@@ -83,6 +83,14 @@ def _kalman_dynamic_hedge(
     The default is ``"filter"`` for that reason; notebooks 01-04 were built before the distinction
     was drawn and the correction is documented in their prose.
 
+    **Nothing here asks whether a dynamic hedge is warranted.** This function will fit a
+    time-varying beta to any two series, and a time-varying-coefficient filter manufactures a
+    stationary residual from two independent random walks — notebook 07 §1 measures the package's
+    own Kalman-residual stationarity verdict at 90% false positives on exactly that input. Never
+    read cointegration off ``resid``. To test the question properly, use
+    :func:`pairs.recommend_hedge`, which tests the persistence of the regression error and returns
+    ``"dynamic"`` only when the coefficient is shown to move; it belongs upstream of this call.
+
     **``em_iters > 0`` silently overrides ``init_cov``.** pykalman's ``em_vars`` defaults to
     re-estimating ``initial_state_mean`` and ``initial_state_covariance`` along with Q and R, so a
     deliberately diffuse ``init_cov=1e6`` comes back at around 1e-4 and the prior this function

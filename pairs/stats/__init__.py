@@ -7,8 +7,17 @@ Statistics utilities for the pairs package:
 - Portfolio analytics (cross-pair correlations, diversification, weights)
 - Hedge ratio stability tests (CUSUM, rolling drift)
 - Intraday microstructure diagnostics (Roll spread, signature plot, Epps effect)
+- Time-varying cointegration (Eroglu-Miller-Yigit) and the dynamic-hedge gate
 """
 
+from .tv_cointegration import (
+    TVCointModel,
+    fit_tvssm,
+    bootstrap_test,
+    classify_cointegration,
+    recommend_hedge,
+    HedgeVerdict,
+)
 from .cointegration import (
     benjamini_hochberg_fdr,
     find_cointegrated_pairs_executor,
@@ -54,6 +63,12 @@ __all__ = [
     "rolling_beta_drift",
     "summarize_hedge_ratio_stability",
     "roll_spread",
+    "TVCointModel",
+    "fit_tvssm",
+    "bootstrap_test",
+    "classify_cointegration",
+    "recommend_hedge",
+    "HedgeVerdict",
     "realized_variance_signature",
     "epps_correlation",
     "autocorr_by_interval",

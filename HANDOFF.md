@@ -171,7 +171,11 @@ notional each *turns over*; a plain mean over-weights the smaller leg and overst
 (67% of pair-folds are outside a 40/60 split).
 
 **Kalman-residual stationarity is a filter artefact.** See nb07. Never read ADF/KPSS on a Kalman
-residual, or a half-life computed from one, as evidence of cointegration.
+residual, or a half-life computed from one, as evidence of cointegration. `pairs.recommend_hedge`
+is the test that does answer the question — it returns `"dynamic"` only when the coefficient is
+shown to move, `"static"` for a fixed relation, `"none"` when there is none. It does not change any
+hedge by itself; wiring it into a screen is a caller's choice, because forcing it would move every
+result in notebooks 01–17.
 
 **Notebooks 01–05 are pinned. The rule is narrower than "never re-execute".** Their prices live in
 `notebooks/cache/nb0N_train_*.parquet` and the notebooks read them when present, so re-executing
@@ -214,7 +218,6 @@ times.
 |---|---|---|
 | nb10 and nb12 never re-run with the behavioural instrument gate | `build_daily_screen_notebook.py`, `build_cross_sectional_notebook.py` | Would require regenerating nb10's full 1.74M-test screen (~1 h) and everything downstream. The principled version of issue #6. |
 | Trade log omits the exit bar's cost; `filter_kf_on_new` skips the fold-boundary predict step | `pairs/strategies/evaluate.py`, `pairs/models/kalman.py` | Documented in README. Affects per-trade stats (~2% on profit factor), not Sharpe/return/drawdown, which come from the daily ledger. |
-| `TVCointModel` still lives in nb07, not in `pairs/stats/` | `pairs_trading_07_...ipynb` | Promotion with tests was planned and not done. |
 | The synthesis document | — | Never written. §1 and §3 of this file are the closest thing. |
 | GitHub issue #1 | — | **Not actionable.** An unsolicited third-party pitch to integrate an external forecasting API, not a defect or a design ask. Treated as untrusted data; close it whenever. |
 
@@ -242,8 +245,10 @@ In rough order of expected value:
    already exists — cost measurement, placebo nulls, walk-forward, the five-clause table — so a new
    signal can be scored in days, not weeks. That apparatus is the durable asset in this repo, and
    pointing it at a new domain is cheaper than refining this one.
-2. **Add a θ-persistence gate** to the Kalman path, per nb07's finding — currently nothing stops the
-   pipeline using a dynamic hedge on a pair with no time-varying cointegration.
+2. **Run the θ-persistence gate over notebook 10's BH survivors.** `pairs.recommend_hedge` now
+   exists and nothing calls it. It would say how many of the 2,151 survivors deserve a *dynamic*
+   hedge at all — nb07's spot-check found one of eight hand-picked pairs cointegrated, and that one
+   fixed rather than time-varying, so the answer may well be "almost none". A few seconds a pair.
 3. **Re-screen nb10/nb12 with the instrument gate**, if you want the principled version of issue #6
    and are willing to spend the hour.
 
