@@ -153,10 +153,17 @@ notional each *turns over*; a plain mean over-weights the smaller leg and overst
 **Kalman-residual stationarity is a filter artefact.** See nb07. Never read ADF/KPSS on a Kalman
 residual, or a half-life computed from one, as evidence of cointegration.
 
-**Notebooks 01–05 are pinned and must not be re-executed.** Their prices are frozen caches; a fresh
-OpenBB/Yahoo download re-bases adjusted prices and moves every number for reasons unrelated to any
-fix. **Markdown-only patches are fine** — patch the `.ipynb` cell in place *and* the builder from
-the same string so they cannot drift.
+**Notebooks 01–05 are pinned. The rule is narrower than "never re-execute".** Their prices live in
+`notebooks/cache/nb0N_train_*.parquet` and the notebooks read them when present, so re-executing
+with the cache in place is offline and reproducible — verified on nb01, where every substantive
+output is byte-identical across runs. What must never happen is **deleting the cache**: a fresh
+OpenBB/Yahoo download re-bases adjusted prices for any name that has since split, and moves every
+number for reasons unrelated to whatever you were fixing.
+
+Two caveats if you do re-execute. Snapshot the outputs first and diff cell by cell afterwards —
+that is how the seeded-sample problem below was found. And expect two benign diffs: tqdm timing
+lines, and anything genuinely random. **Markdown-only patches avoid all of this** — patch the
+`.ipynb` cell in place *and* the builder from the same string so they cannot drift.
 
 **The instrument gate applies only inside nb11 §7–8.** nb10, nb12, nb13 and nb14 all describe the
 **ungated** universe. Only nb11 §8 has the gated and held-out figures.
@@ -165,6 +172,11 @@ the same string so they cannot drift.
 trades as independent, **2.16** clustered on the 30 formations. Applying the wrong one to the
 hold-out made a 32% decline look like a 90% collapse. Trades inside a formation share a hedge, a
 universe and a market — always cluster on formations.
+
+**An unseeded `.sample()` makes a notebook un-reproducible for no benefit.** nb01 displayed
+`summary_dual.sample(20)` with no `random_state`, so every re-execution produced a spurious diff on
+that cell alone — noise in exactly the notebook whose pinning is meant to keep re-execution quiet.
+Now seeded. nb02–17 were checked and have none. If you add an illustrative sample, seed it.
 
 **`renumber.py` does not scan `webapp/` or `figures/`.** It covers `notebooks/build/*.{py,md}`,
 `pairs/**/*.py`, `tests/*.py`, `README.md`, `HANDOFF.md` and the notebooks. Grep the other two by
@@ -180,7 +192,6 @@ times.
 
 | what | where | why it is still open |
 |---|---|---|
-| `Mean Sharpe across folds: nan` | nb01 cell 82 | Cosmetic; `sharpes.mean()` is not NaN-safe when a fold has 0 trades. The correct number prints directly above it. |
 | nb10 and nb12 never re-run with the behavioural instrument gate | `build_daily_screen_notebook.py`, `build_cross_sectional_notebook.py` | Would require regenerating nb10's full 1.74M-test screen (~1 h) and everything downstream. The principled version of issue #6. |
 | Trade log omits the exit bar's cost; `filter_kf_on_new` skips the fold-boundary predict step | `pairs/strategies/evaluate.py`, `pairs/models/kalman.py` | Documented in README. Affects per-trade stats (~2% on profit factor), not Sharpe/return/drawdown, which come from the daily ledger. |
 | `TVCointModel` still lives in nb07, not in `pairs/stats/` | `pairs_trading_07_...ipynb` | Promotion with tests was planned and not done. |
