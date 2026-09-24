@@ -41,7 +41,7 @@ MOVES: dict[str, str] = {
     "visualize_cointegrated_pairs_yahoo":   "pairs_trading_06_cointegration_network_yahoo",
     "tv_cointegration_kalman_yahoo":        "pairs_trading_07_tv_cointegration_kalman_yahoo",
     "pairs_trading_06_yahoo_vs_day_lake":   "pairs_trading_08_yahoo_vs_day_lake",
-    "pairs_trading_07_daily_lake":          "pairs_trading_09_daily_lake",
+    "pairs_trading_07_day_lake":          "pairs_trading_09_day_lake",
     "pairs_trading_08_daily_cointegration": "pairs_trading_10_daily_cointegration",
     "pairs_trading_09_daily_portfolio":     "pairs_trading_11_daily_portfolio",
     "pairs_trading_10_daily_cross_sectional": "pairs_trading_12_daily_cross_sectional",

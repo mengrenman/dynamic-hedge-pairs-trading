@@ -1,6 +1,6 @@
-"""Build notebooks/pairs_trading_09_daily_lake.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_09_day_lake.ipynb (cells only; outputs are produced by execute.py).
 
-    python notebooks/build/build_daily_lake_notebook.py [--out PATH]
+    python notebooks/build/build_day_lake_notebook.py [--out PATH]
 """
 import argparse
 import nbformat as nbf
@@ -16,7 +16,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — I. Universe, adjustment and survivorship
 
-## `pairs_trading_09_daily_lake.ipynb`
+## `pairs_trading_09_day_lake.ipynb`
 
 Notebooks 01–05 ran the pipeline on daily closes downloaded for the **current** members of the S&P 500
 and Nasdaq-100. That is convenient and quietly wrong in three ways: the member list is the list of
@@ -430,7 +430,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_09_daily_lake.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_09_day_lake.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")
