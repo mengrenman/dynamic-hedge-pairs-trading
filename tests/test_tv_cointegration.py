@@ -143,7 +143,8 @@ class TestGate:
         import pairs.stats.tv_cointegration as tv
         monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
             "verdict": UNDECIDED, "theta_hat": np.nan, "sigma_eta_hat": np.nan,
-            "p_theta": np.nan, "p_sigma": np.nan, "t_theta": np.nan, "t_sigma": np.nan})
+            "p_theta": np.nan, "p_sigma": np.nan, "t_theta": np.nan, "t_sigma": np.nan,
+            "converged": True})
         v = tv.recommend_hedge(np.arange(50.0), np.arange(50.0))
         assert v.hedge == "static" and "conservative" in v.reason
 
@@ -163,17 +164,40 @@ class TestGate:
         import pairs.stats.tv_cointegration as tv
         monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
             "verdict": TIME_VARYING, "theta_hat": theta, "sigma_eta_hat": 0.3,
-            "p_theta": 0.001, "p_sigma": 0.004, "t_theta": -3.0, "t_sigma": 3.0})
+            "p_theta": 0.001, "p_sigma": 0.004, "t_theta": -3.0, "t_sigma": 3.0,
+            "converged": True})
         v = tv.recommend_hedge(np.arange(50.0), np.arange(50.0))
         assert (v.hedge, v.theta_plausible) == (expect_hedge, expect_plausible), (v, why)
         assert v.verdict == TIME_VARYING, "the paper's classification must be reported unchanged"
+
+    def test_a_non_converged_fit_yields_no_verdict_at_all(self, monkeypatch):
+        """A theta that never left its 0.9 starting value is an input, not an estimate.
+
+        6% of daily fits over this repository's screen survivors come back exactly 0.9, the
+        optimiser's own start, on a flat likelihood. statsmodels reports convergence and the gate
+        must read it.
+        """
+        import pairs.stats.tv_cointegration as tv
+        monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
+            "verdict": TIME_VARYING, "theta_hat": 0.9, "sigma_eta_hat": 0.3,
+            "p_theta": 0.01, "p_sigma": 0.01, "t_theta": -3.0, "t_sigma": 3.0,
+            "converged": False})
+        v = tv.recommend_hedge(np.arange(50.0), np.arange(50.0))
+        assert v.hedge == "static" and v.verdict == UNDECIDED
+        assert v.converged is False and "did not converge" in v.reason
+
+    def test_convergence_is_reported_on_a_fit_that_does_converge(self):
+        d = simulate_tvssm(80, 0.8, 0.0, seed=11)
+        v = recommend_hedge(d["y"], d["x"], B=49, seed=0, n_jobs=1)
+        assert v.converged is True
 
     def test_a_no_cointegration_verdict_is_never_upgraded_by_the_theta_check(self, monkeypatch):
         """Downgrading must not accidentally turn 'do not trade' into 'trade statically'."""
         import pairs.stats.tv_cointegration as tv
         monkeypatch.setattr(tv, "classify_cointegration", lambda *a, **k: {
             "verdict": NO_COINTEGRATION, "theta_hat": 1.4, "sigma_eta_hat": 0.0,
-            "p_theta": 0.6, "p_sigma": 0.7, "t_theta": -0.2, "t_sigma": 0.1})
+            "p_theta": 0.6, "p_sigma": 0.7, "t_theta": -0.2, "t_sigma": 0.1,
+            "converged": True})
         assert tv.recommend_hedge(np.arange(50.0), np.arange(50.0)).hedge == "none"
 
     def test_the_verdict_carries_its_own_evidence(self):

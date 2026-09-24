@@ -10,7 +10,7 @@ diffed and reviewed like source:
 | `build_viz_notebook.py` | `../pairs_trading_06_cointegration_network_yahoo.ipynb` | scratch |
 | `build_tv_notebook.py` | `../pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` | scratch |
 | `build_source_comparison_notebook.py` | `../pairs_trading_08_yahoo_vs_day_lake.ipynb` | scratch (needs the local **day** lake and `cache/viz_prices_spx_ndx_combined.parquet`; no network; runs in ≈ 20 s) |
-| `build_daily_lake_notebook.py` | `../pairs_trading_09_daily_lake.ipynb` | scratch (needs the local **day** lake; cold run ≈ 3 min; caches `cache/day_market_bars.parquet`, `day_universe.parquet`, `day_ticker_collisions.parquet`) |
+| `build_day_lake_notebook.py` | `../pairs_trading_09_day_lake.ipynb` | scratch (needs the local **day** lake; cold run ≈ 3 min; caches `cache/day_market_bars.parquet`, `day_universe.parquet`, `day_ticker_collisions.parquet`) |
 | `build_daily_screen_notebook.py` | `../pairs_trading_10_daily_cointegration.ipynb` | scratch (cold run ≈ 1 h — 39 formations × 44,850 pair-tests; caches `cache/day_screen.parquet`, `day_screen_power.parquet`, `day_distance.parquet` and `day_rule_*.parquet`) |
 | `build_daily_portfolio_notebook.py` | `../pairs_trading_11_daily_portfolio.ipynb` | scratch (needs notebook 10's `day_rule_*.parquet`; cold run ≈ 5 min) |
 | `build_cross_sectional_notebook.py` | `../pairs_trading_12_daily_cross_sectional.ipynb` | scratch (needs the local **day** lake; cold run ≈ 11 min on 16 cores; caches `cache/xs_ic_panel.parquet` and `cache/xs_targets.pkl`) |
@@ -19,6 +19,7 @@ diffed and reviewed like source:
 | `build_minute_data_notebook.py` | `../pairs_trading_15_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
 | `build_intraday_backtest_notebook.py` | `../pairs_trading_16_intraday_backtest.ipynb` | scratch (reads notebook 15's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
 | `build_intraday_portfolio_notebook.py` | `../pairs_trading_17_intraday_portfolio.ipynb` | scratch (reads notebook 16's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
+| `build_avellaneda_lee_notebook.py` | `../pairs_trading_18_avellaneda_lee_day_lake.ipynb` | scratch (needs the local **day** lake and the minute lake for ETF/SPY cost measurement; reuses notebook 12's `cache/day_market_bars.parquet`, `xs_cost_by_ticker_year.parquet` and `xs_targets.pkl`; cold run ≈ 26 min; caches `cache/al_etf_costs.parquet`) |
 
 **Renumbering.** `renumber.py` moves the whole series in one atomic pass — file renames via
 `git mv`, plus every `pairs_trading_NN` / `nbNN` / `notebook NN` reference in the builders, both

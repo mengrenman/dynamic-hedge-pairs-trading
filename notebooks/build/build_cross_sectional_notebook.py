@@ -154,12 +154,22 @@ md(r"""
 
 A trading rule cannot rescue a signal with no forecasting power, so the signals are scored before any
 portfolio is built. For each probe day the factor model is fitted on trailing data only, several
-candidate signals are formed, and each is correlated cross-sectionally against the **next day's** and
-**next five days'** residual return. The average of those daily correlations is the information
-coefficient.
+candidate signals are formed, and each is correlated cross-sectionally against three versions of the
+forward return: the **hedged** target (factor exposure removed, no intercept), the
+**intercept-subtracted** target (the hedge plus the per-name intercept estimated by that same trailing
+regression), and the plain **raw** forward return. The average of those daily correlations is the
+information coefficient.
+
+Only the hedged target is a clean forecast test. The intercept-subtracted target — the construction
+this notebook originally used, and still reported below alongside the others — subtracts a per-name
+intercept estimated on the identical 60-session window every signal is also built from; that intercept
+is estimation noise, and a signal built from the same window can co-move with it mechanically even with
+zero forecasting power. §3.1 demonstrates the mechanism on a simulation with no predictability at
+all. **An earlier version of this notebook used only the intercept-subtracted target and reported its
+inflated numbers as the strength of the reversal signal**; the honest reading is the hedged column.
 
 Two of the candidates are the Avellaneda–Lee construction itself, and both disappoint.
-Their s-score standardises the cumulative residual against an Ornstein–Uhlenbeck fit. Coded faithfully it
+Their s-score standardizes the cumulative residual against an Ornstein–Uhlenbeck fit. Coded faithfully it
 is degenerate: because the residual regression includes an intercept, the residuals sum to zero over the
 window, so the cumulative process always ends at zero and the s-score reduces to a function of the fitted
 mean alone. Their companion filter, which keeps only names whose estimated mean reversion is faster than
@@ -231,9 +241,15 @@ else:
         sig["AL s-score"] = -s_al
         sig["AL kappa pass"] = (kappa > 252.0 / 30.0).astype(float)
         sig["factor R2"] = fd["r2"]
-        for h, name in ((1, "fwd1"), (5, "fwd5")):
+        for h in (1, 5):
             fwd = ret.iloc[i:i + h].reindex(columns=fd["cols"]).to_numpy()
-            sig[name] = (fwd - (fd["beta"][0] + (fwd @ fd["Qw"]) @ fd["beta"][1:])).sum(0)
+            fitted = (fwd @ fd["Qw"]) @ fd["beta"][1:]
+            # hedged target: factor exposure removed, no intercept — what this rebuild uses to score signals
+            sig[f"fwd{h}"] = (fwd - fitted).sum(0)
+            # intercept-subtracted target, the construction this notebook originally used
+            sig[f"fwd{h}_alpha"] = (fwd - (fd["beta"][0] + fitted)).sum(0)
+            # plain forward return, no factor hedge at all
+            sig[f"raw{h}"] = fwd.sum(0)
         recs.append(pd.DataFrame(sig, index=fd["cols"]).assign(date=d))
     ic_panel = pd.concat(recs); ic_panel.to_parquet(f_ic)
     print(f"IC panel built in {time.time() - t0:.0f}s")
@@ -243,13 +259,20 @@ SIGNAL_COLS = ["raw reversal 5d", "raw reversal 5d skip1", "raw reversal 5d volw
                "resid momentum 60d", "AL s-score"]
 
 def ic_table(fwd):
+    # pairwise-complete: a day contributes if it has > 30 names with BOTH the signal and the
+    # forward return observed. np.corrcoef([...]) returns NaN if *any* element of either input
+    # is NaN, so masking first (rather than only counting non-NaN signals) is what makes a
+    # single missing name stop poisoning the whole day's correlation.
     out = []
     for c in SIGNAL_COLS:
-        per_day = ic_panel.groupby("date").apply(
-            lambda g: np.corrcoef(g[c], g[fwd])[0, 1] if g[c].notna().sum() > 30 else np.nan).dropna()
+        def day_ic(g, c=c):
+            mask = g[c].notna() & g[fwd].notna()
+            return np.corrcoef(g.loc[mask, c], g.loc[mask, fwd])[0, 1] if mask.sum() > 30 else np.nan
+        per_day = ic_panel.groupby("date").apply(day_ic).dropna()
         a = per_day.to_numpy()
         out.append({"signal": c, "mean IC": a.mean(),
-                    "t": a.mean() / a.std(ddof=1) * np.sqrt(len(a)), "share of days > 0": (a > 0).mean()})
+                    "t": a.mean() / a.std(ddof=1) * np.sqrt(len(a)),
+                    "share of days > 0": (a > 0).mean(), "n days": len(a)})
     return pd.DataFrame(out).set_index("signal")
 
 print(f"panel: {len(ic_panel):,} name-days over {ic_panel['date'].nunique()} probe days")
@@ -257,8 +280,98 @@ print(f"Avellaneda-Lee kappa filter passes {ic_panel['AL kappa pass'].mean():.0%
       f"— it is not filtering anything")
 print(f"factor R^2: median {ic_panel['factor R2'].median():.2f}, "
       f"{np.mean(ic_panel['factor R2'] > 0.90):.0%} above 0.90 (index-like)")
+
 ic1, ic5 = ic_table("fwd1"), ic_table("fwd5")
-display(pd.concat({"next day": ic1, "next 5 days": ic5}, axis=1).round(4))
+ic1_alpha, ic5_alpha = ic_table("fwd1_alpha"), ic_table("fwd5_alpha")
+ic1_raw, ic5_raw = ic_table("raw1"), ic_table("raw5")
+tab_1d = pd.concat({"hedged": ic1, "intercept-subtracted": ic1_alpha, "raw return": ic1_raw}, axis=1)
+tab_5d = pd.concat({"hedged": ic5, "intercept-subtracted": ic5_alpha, "raw return": ic5_raw}, axis=1)
+# The side-by-side display below is 24 columns wide and pandas elides the middle of it, so the
+# "next 5 days" numbers this section's prose cites would otherwise never actually appear in the
+# notebook's own printed output. Print each horizon's full, untruncated table first.
+print("next day, all three targets:")
+print(tab_1d.round(4))
+print("\nnext 5 days, all three targets:")
+print(tab_5d.round(4))
+with pd.option_context("display.max_columns", None, "display.width", 200):
+    display(pd.concat({"next day": tab_1d, "next 5 days": tab_5d}, axis=1).round(4))
+""")
+md(r"""
+### 3.1 Proof the artifact is mechanical
+
+The intercept-subtracted target above regresses each name's trailing 60 sessions on the factor
+returns with an intercept, then subtracts that same per-name intercept from the forward return it
+scores signals against. The intercept is the mean of the window's 60 residual returns, and the
+five-day reversal signal is minus the sum of the window's last five: the two share five returns, so
+subtracting the intercept from the target injects a slice of the signal into it. With nothing else
+going on the expected spurious correlation has a closed form — $\sqrt{5}/60 \approx 0.037$ against a
+one-day target and $25/300 \approx 0.083$ against a five-day one (printed below) — and it needs no
+heteroskedasticity, no cross-sectional dispersion of expected returns, nothing but the window
+overlap. The simulation below has that structure and nothing else: homoskedastic noise, no
+predictability, probe days five sessions apart so the five-day targets never overlap. A nonzero IC
+against the intercept-subtracted target and a near-zero IC against the hedged target is the artifact,
+isolated.
+""")
+code(r"""
+rng = np.random.default_rng(0)
+N_SIM, T_SIM, WIN = 500, 300, 60
+
+alpha_i = np.zeros(N_SIM)                            # true null: no per-name mean at all
+beta_i  = rng.normal(1.0, 0.3, N_SIM)                # per-name factor loading
+x       = rng.normal(0.0, 0.01, T_SIM)               # the one common factor
+eps = rng.normal(0.0, 0.01, (T_SIM, N_SIM))          # homoskedastic: the artifact needs no heteroskedasticity
+y = alpha_i[None, :] + beta_i[None, :] * x[:, None] + eps      # T_SIM x N_SIM, NO predictability
+
+def sim_ic(h):
+    ics_alpha, ics_hedge = [], []
+    for t in range(WIN, T_SIM - h, 5):                     # every 5th day, so five-day targets never overlap
+        win_y, win_x = y[t - WIN:t], x[t - WIN:t]
+        Xm = np.column_stack([np.ones(WIN), win_x])
+        b, *_ = np.linalg.lstsq(Xm, win_y, rcond=None)          # (2, N_SIM): intercept row, slope row
+        sig = -Z(y[t - 5:t].sum(0))                              # 5-day reversal, same construction as above
+        fwd, x_fwd = y[t:t + h], x[t:t + h]
+        fitted = b[1] * x_fwd[:, None]
+        alpha_tgt = (fwd - (b[0] + fitted)).sum(0)
+        hedge_tgt = (fwd - fitted).sum(0)
+        ics_alpha.append(np.corrcoef(sig, alpha_tgt)[0, 1])
+        ics_hedge.append(np.corrcoef(sig, hedge_tgt)[0, 1])
+    a, g = np.array(ics_alpha), np.array(ics_hedge)
+    return {"IC_alpha": a.mean(), "t_alpha": a.mean() / a.std(ddof=1) * np.sqrt(len(a)),
+            "IC_hedge": g.mean(), "t_hedge": g.mean() / g.std(ddof=1) * np.sqrt(len(g)), "n days": len(a)}
+
+print("null simulation, 500 names x 300 days, y = beta_i*x + homoskedastic eps, zero predictability by construction,")
+print(f"probe days 5 sessions apart; closed-form expected spurious IC from the 5-in-60 window overlap: "
+      f"next day {np.sqrt(5)/60:.3f}, next 5 days {25/300:.3f}")
+for h in (1, 5):
+    r = sim_ic(h)
+    lbl = "next day" if h == 1 else f"next {h} days"
+    print(f"  {lbl:>10}  vs intercept-subtracted target: IC {r['IC_alpha']:+.4f} (t {r['t_alpha']:+.2f})"
+          f"   |   vs hedged target: IC {r['IC_hedge']:+.4f} (t {r['t_hedge']:+.2f})"
+          f"   [{r['n days']} probe days]")
+""")
+code(r"""
+# Why do 'fwd1'/'fwd5' come up NaN for the ENTIRE cross-section on some probe days (never a
+# partial subset)? Check, rather than assume, whether that traces to the forward return being
+# unobserved for every name that day, or to something narrower propagating outward.
+n_all = ic_panel["date"].nunique()
+no_fwd1 = ic_panel.groupby("date")["fwd1"].apply(lambda s: s.notna().sum() == 0)
+no_fwd5 = ic_panel.groupby("date")["fwd5"].apply(lambda s: s.notna().sum() == 0)
+bad1, bad5 = no_fwd1[no_fwd1].index, no_fwd5[no_fwd5].index
+
+# fwd is built as (fwd_ret - fitted) where fitted involves fwd_ret @ Qw @ beta[1:] — a matrix
+# product that sums over all names, so ONE missing name's raw return NaNs that product for
+# EVERY name, not just the missing one. Confirm on the affected days: is there always at least
+# one name with a missing raw return inside the forward window, and never a whole-day outage?
+one_missing_suffices = []
+for d, h in list(zip(bad1, [1] * len(bad1))) + list(zip(bad5, [5] * len(bad5))):
+    i = sessions.get_loc(d)
+    tickers = ic_panel.loc[ic_panel["date"] == d].index
+    window = ret.iloc[i:i + h].reindex(columns=tickers)
+    one_missing_suffices.append(window.isna().any(axis=None) and not window.isna().all(axis=None))
+print(f"{len(bad1)} of {n_all} probe days have no computable next-day IC even pairwise, "
+      f"{len(bad5)} for next-5-day; on {sum(one_missing_suffices)}/{len(one_missing_suffices)} of them "
+      f"a single name's missing raw return (not a whole-day outage) is what NaNs every name's forward "
+      f"residual return, because the factor-projection matrix product sums over all names.")
 """)
 code(r"""
 fig, ax = plt.subplots(figsize=(11, 4))
@@ -273,23 +386,33 @@ ax.set_title("Plain reversal dominates; the Avellaneda-Lee s-score forecasts but
 plt.tight_layout(); plt.show()
 """)
 md(r"""
-Two results, one expected and one not.
+Two results, and one of them changed once the target was cleaned up.
 
-**Plain five-day reversal is the strongest signal by a wide margin.** Against the next day's residual
-return its information coefficient is **+0.033 with t = 8.6**, positive on 65% of days; against the next
-five days, **+0.067 with t = 16.5**, positive on 73%. Dividing by residual volatility trades a little
-raw IC for a lot of consistency (0.025, but t = 12.7 and 67% of days). Residual reversal — the same idea
-applied to the factor-stripped return — is real but four times weaker (0.009, t = 2.4). Residual
-momentum over the full window forecasts nothing, which is what a 60-day horizon should do in a universe
-of large caps.
+**All three reversal-style signals are weak, and roughly comparable in strength, against the clean
+(hedged) target.** Against the next day's hedged return plain five-day reversal's information coefficient
+is **+0.0065 (t = 1.66)**, positive on 53% of days; residual reversal — the same idea applied to the
+factor-stripped return — is +0.0062 (t = 1.64); the Avellaneda–Lee s-score is +0.0056 but with the
+tightest t of the three, 2.47. Over the next five days the ranking is the same and just as close: raw
+reversal +0.0118 (t = 2.90), residual reversal +0.0111 (t = 2.78), s-score +0.0072 (t = 2.82). Residual
+momentum over the full window forecasts nothing at either horizon, which is what a 60-day horizon should
+do in a universe of large caps.
 
-**The Avellaneda–Lee s-score is not worthless, but it is dominated.** Its IC of 0.009 (t = 3.9) is in the
-same class as residual reversal and far below plain reversal, and this is the version whose cumulative
-process ends at zero by construction, so what is actually being measured is the shape of the residual
-path rather than a deviation from equilibrium. The companion κ filter, meanwhile, passes **99%** of names
-and therefore does no filtering at all: an AR(1) fitted to 60 observations has a downward-biased
-autoregressive coefficient, so almost everything looks fast-mean-reverting. A faithful transcription of a
-published method is not the same as a working one.
+**An earlier version of this notebook read the same signals off the intercept-subtracted target instead,
+and reported a very different picture.** On that target, plain five-day reversal reached +0.0333
+(t = 8.59) next day and +0.0668 (t = 16.46) over five days — five to six times its hedged IC — while
+residual reversal reached only +0.0092 (t = 2.41) and +0.0174 (t = 4.26), which the earlier text called
+"four times weaker," and the s-score's IC of 0.0097 (t = 4.23) was called "far below plain reversal." Both
+readings are printed in the table above; only the hedged column is a fair test, because subtracting a
+per-name intercept estimated on the same 60-session window the signal is built from lets the two co-move
+mechanically with no forecasting power required. §3.1's null simulation — no predictability wired in
+anywhere, including no per-name mean return — gives IC +0.0367 (t = 5.49) and +0.0828 (t = 12.79) against the
+intercept-subtracted target — right on the closed-form 0.037 and 0.083 — against +0.0018 (t = 0.27) and
++0.0070 (t = 1.11) for the hedged one. For plain five-day reversal, roughly 80% of what was previously reported as
+signal was this target artifact. The
+Avellaneda–Lee κ filter, meanwhile, passes **99%** of names regardless of which target is used and
+therefore does no filtering at all: an AR(1) fitted to 60 observations has a downward-biased autoregressive
+coefficient, so almost everything looks fast-mean-reverting. A faithful transcription of a published
+method is not the same as a working one.
 
 The rest of the notebook trades the reversal signals and ignores the s-score.
 """)
@@ -698,11 +821,20 @@ against the 2.9 bps §5.5 measures. Notebook 11's pairs book carries 33.9 bps of
 turnover against a measured 2.2 — fifteen times its own cost — and fails for the opposite reason,
 having only 38 independent bets a year to apply it to.
 
-**The signal is real and it decayed.** Five-day reversal forecasts next-day residual returns with t = 8.6
-over 986 probe days, survives skipping the most recent session, and is therefore not a microstructure
-artifact. It earned a gross Sharpe of 0.77 in 2006–2015 and 0.02 in 2016–2025, with nine of ten variants
-agreeing. Anyone finding this effect on a sample ending before about 2015 and extrapolating would have
-been badly wrong. §5.5 rules out the charitable reading of that decay: the break-even cost falls from
+**The signal is real, weaker than this notebook first reported, and it decayed.** Against the clean
+(hedged) target, five-day reversal's information coefficient is a modest +0.0065 (t = 1.66) next day and
++0.0118 (t = 2.90) over five days — not the t = 8.59 and t = 16.46 an earlier version of this notebook
+printed, over the same 922 and 750 probe days respectively. §3's null simulation shows why: subtracting
+a per-name intercept estimated on the same trailing window the signal is built from manufactures a
+correlation out of nothing, and it accounts for roughly 80% of the originally reported IC. The remaining
+evidence that the signal is real does not depend on that contaminated IC at all — it is the realized book
+P&L, which never touches the intercept: a gross Sharpe of 0.77 in 2006–2015 against 0.02 in 2016–2025
+(the standard error of a Sharpe over each half is 0.32, §7), with nine of ten variants agreeing — though
+those are the same reversal signal at different damping levels, not independent confirmations — and the
+signal survives skipping the most recent session (§6), so
+it is not a microstructure artifact either. Anyone who found the original, inflated IC on a sample ending
+before about 2015 and extrapolated forward would have been badly wrong twice over — first on the target,
+then on the decay. §5.5 rules out the charitable reading of that decay: the break-even cost falls from
 10.8 bps before 2016 to **0.33** after, and four variants turn *negative* break-even, so what went is
 the gross edge itself. No execution improvement recovers it, because there is nothing left to keep.
 

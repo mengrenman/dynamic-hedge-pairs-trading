@@ -268,9 +268,13 @@ def classify_cointegration(y, x, *, B: int = 199, seed: int = 0, level: float = 
         verdict = FIXED
 
     p = dict(zip(PARAM_NAMES, th["res_U"].params))
+    # A fit that never left its starting value is not an estimate. statsmodels reports it and the
+    # gate must read it: on this repository's screen survivors 6% of daily fits return theta
+    # exactly 0.9, the optimiser's own start, with a flat likelihood behind them.
+    converged = bool(th["res_U"].mle_retvals.get("converged", False))
     return {"theta_hat": float(p["theta"]), "t_theta": th["stat"], "p_theta": th["p_value"],
             "sigma_eta_hat": float(abs(p["sigma_eta"])), "t_sigma": sg["stat"],
-            "p_sigma": sg["p_value"], "verdict": verdict}
+            "p_sigma": sg["p_value"], "verdict": verdict, "converged": converged}
 
 
 @dataclass(frozen=True)
@@ -280,6 +284,7 @@ class HedgeVerdict:
     hedge: str                  # "dynamic" | "static" | "none"
     verdict: str                # the paper's classification, unmodified
     theta_plausible: bool       # is theta_hat in (0, 1), a decaying non-oscillating error?
+    converged: bool             # did the unrestricted optimiser actually converge?
     theta_hat: float
     sigma_eta_hat: float
     p_theta: float
@@ -315,10 +320,10 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
     ``"undecided"`` also returns ``"static"``, deliberately: the conservative default when the test
     cannot resolve is the hedge with fewer moving parts, not the more flexible one.
 
-    A ``"dynamic"`` verdict is downgraded to ``"static"`` when :math:`\hat\theta` falls outside
+    A ``"dynamic"`` verdict is downgraded to ``"static"`` when :math:`\\hat\\theta` falls outside
     ``(0, 1)`` — see ``theta_plausible``. This matters in practice rather than in principle: run
     over this repository's 2,151 screen survivors, 7.3% classify as time-varying but 73% of those
-    rest on a negative :math:`\hat\theta` and 30% on one outside the stationary region
+    rest on a negative :math:`\\hat\\theta` and 30% on one outside the stationary region
     altogether, leaving 1.8% standing.
     """
     c = classify_cointegration(y, x, B=B, seed=seed, level=level, n_jobs=n_jobs)
@@ -333,6 +338,15 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
     # dynamic hedge is for. Either way the paper's verdict is reported unchanged and the *hedge*
     # recommendation is downgraded, because that is the part this repository is responsible for.
     plausible = bool(0.0 < th < 1.0)
+    converged = bool(c.get("converged", True))
+    if not converged:
+        # nothing downstream of a non-converged fit means anything, including the verdict
+        return HedgeVerdict(
+            hedge="static", verdict=UNDECIDED, theta_plausible=False, converged=False,
+            theta_hat=th, sigma_eta_hat=c["sigma_eta_hat"], p_theta=c["p_theta"],
+            p_sigma=c["p_sigma"],
+            reason="the likelihood optimiser did not converge, so neither parameter is an "
+                   "estimate; the conservative default is the hedge with fewer moving parts")
     if v == TIME_VARYING and plausible:
         hedge, reason = "dynamic", ("the coefficient moves: sigma_eta = 0 is rejected, so a filter "
                                     "is tracking something real")
@@ -352,7 +366,8 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
     else:
         hedge, reason = "static", ("the theta test could not be decided; the conservative default "
                                    "is the hedge with fewer moving parts")
-    return HedgeVerdict(hedge=hedge, verdict=v, theta_plausible=plausible, theta_hat=c["theta_hat"],
+    return HedgeVerdict(hedge=hedge, verdict=v, theta_plausible=plausible, converged=converged,
+                        theta_hat=c["theta_hat"],
                         sigma_eta_hat=c["sigma_eta_hat"], p_theta=c["p_theta"],
                         p_sigma=c["p_sigma"], reason=reason)
 

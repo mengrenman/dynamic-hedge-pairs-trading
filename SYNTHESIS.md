@@ -2,7 +2,7 @@
 
 Seventeen notebooks, two parquet lakes, 2006–2025 US equities. `README.md` lists what the
 repository contains; `HANDOFF.md` says how to run it and what will bite you. This document is the
-argument: organised by claim, not by notebook.
+argument: organized by claim, not by notebook.
 
 Every number here is one the notebooks printed. Where a claim rests on a single sample, a single
 year or an underpowered test, it says so — several of the most quotable figures in this project do,
@@ -13,7 +13,7 @@ turned out to be about.
 
 ## 1. The bar, and the score against it
 
-Notebook 14 §9 replaces the judgement call with five arithmetic clauses. A tradeable edge is a rule
+Notebook 14 §9 replaces the judgment call with five arithmetic clauses. A tradeable edge is a rule
 whose expected profit per bet exceeds the cost of placing it, by a margin surviving (a) its own
 sampling error counted in *independent* bets, (b) the number of rules searched to find it, and (c)
 evaluation on data not used to choose it — at a size where the profit exceeds the cost of running
@@ -115,6 +115,23 @@ net-positive in the later era, against seven of ten before. That is a widely-kno
 reversal signal being competed away on a datable timeline, and it is the best-evidenced decay result
 in the repository.
 
+### Notebook 18: the paper's own machinery doesn't change the verdict
+
+Notebook 18 runs Avellaneda & Lee's actual configuration — sector-ETF residuals, the section 6
+trading-time volume correction, and the bang-bang rule — as six books, reproducing notebook 12's own
+baseline live (gross Sharpe 0.77/0.02, exact). None beats notebook 12 on a per-turnover basis when stock and ETF legs are pooled: the
+best paper variant by break-even (ETF, trading time, continuous) earns **4.423 bps** against notebook
+12's **5.703** — but notebook 12's book trades only stock legs, and counted on stock legs alone both
+trading-time books clear it (**6.857** and **5.837 bps**), since the pooled column charges the hedged
+books' ETF legs at the stock rate. Getting trading time right took fixing two independent bugs, not one; corrected, it
+raises gross Sharpe +0.195 (bang-bang) to +0.157 (continuous) with turnover essentially unchanged,
+and net of *measured* costs the trading-time bang-bang book is the single best-performing run in the
+notebook — net Sharpe **0.366** against notebook 12's **0.180**. Post-2016 survival is mixed: five of
+six runs decay on the usual split, only calendar/bang-bang does not (0.533 → 0.548) — but five-year
+blocks show that is a 2016-cutline artifact (that run has the most blocks below 0.15 Sharpe, 2 of 4),
+while trading-time/bang-bang is the steadiest run on the finer cut (zero blocks below 0.15) despite
+an unremarkable two-decade drop (0.784 → 0.698).
+
 ---
 
 ## 4. The signal was thin before any of this
@@ -159,7 +176,7 @@ B = 199 — `analysis/gate_screen_survivors.py`, 84 minutes on 12 cores).
 | **dynamic** — coefficient demonstrably moves | **158 (7.3%)** | **35 (12%)** |
 
 **And most of the `dynamic` verdicts do not survive inspection.** The model constrains `T` to
-(0, 1) but leaves θ free, and the optimiser wanders: **73% of the time-varying verdicts rest on a
+(0, 1) but leaves θ free, and the optimizer wanders: **73% of the time-varying verdicts rest on a
 negative θ̂** — an error that alternates sign every week, which is oscillation rather than a
 long-run relation — and **30% on a |θ̂| > 1**, outside the stationary region altogether, which is
 the null the test exists to reject. Requiring θ̂ ∈ (0, 1) leaves **38 of 2,151 survivors (1.8%)**
@@ -306,8 +323,8 @@ ratios; and hyperparameter tuning on this pipeline is noise — split-half Spear
   because participation asks whether the order fits in the bar and impact asks what it costs to
   insist on it. **The day-lake book's capacity was never measured this way** and the intraday number
   does not transfer to it.
-- **Borrow availability and cost, financing, taxes, margin, operational risk, crisis behaviour.**
-  None of these were modelled. Borrow is a flat 50 bp/yr assumption throughout.
+- **Borrow availability and cost, financing, taxes, margin, operational risk, crisis behavior.**
+  None of these were modeled. Borrow is a flat 50 bp/yr assumption throughout.
 - **Anything about the future.** Every result here is in-sample or from an underpowered hold-out.
 - **The gated book's standing** against the five clauses, as noted in §1.
 - Two known accounting defects, documented in `README.md` and `HANDOFF.md`: the per-trade log omits
@@ -331,6 +348,6 @@ walk-forward harness, the clause table, and a test that checks the prose against
 Pointing it at a new domain is cheaper than refining this one.
 
 A closing observation the record supports. Seventeen notebooks of careful work produced zero clear
-edges, and nearly all the value realised came from **measuring things the design had assumed** —
+edges, and nearly all the value realized came from **measuring things the design had assumed** —
 costs, survivorship, the spuriousness of the Kalman residual, what a hold-out can and cannot see.
 That ratio is not a sign something went wrong. It is what the work is.

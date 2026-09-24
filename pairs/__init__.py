@@ -21,8 +21,10 @@ Public entry points (lazy-loaded):
                 autocorr_by_interval()
 - Strategies:   estimate_halflife_window(), zscore_from_spread(),
                 generate_pair_signals(), session_masks(), evaluate_pair_signals(),
-                market_impact_bps(),
-                CircuitBreakerConfig, apply_circuit_breaker()
+                market_impact_bps(), decompose_spread_pnl(), turnover_and_fees(),
+                CircuitBreakerConfig, apply_circuit_breaker(),
+                assign_sector_etf(), trading_time_factor(), etf_residuals(), ou_fit(),
+                s_score(), bang_bang_update(), positions_from_state()
 - Validation:   walk_forward_splits(), walk_forward_session_splits(), walk_forward_backtest(),
                 summarize_walk_forward()
 - Models (opt): fit_kalman_hedge(), filter_kf_on_new(),
@@ -91,9 +93,19 @@ __all__ = [
     "session_masks",
     "evaluate_pair_signals",
     "market_impact_bps",
+    "decompose_spread_pnl",
+    "turnover_and_fees",
     # strategies (circuit breaker)
     "CircuitBreakerConfig",
     "apply_circuit_breaker",
+    # strategies (Avellaneda-Lee)
+    "assign_sector_etf",
+    "trading_time_factor",
+    "etf_residuals",
+    "ou_fit",
+    "s_score",
+    "bang_bang_update",
+    "positions_from_state",
     # validation
     "walk_forward_splits",
     "walk_forward_session_splits",
@@ -173,9 +185,19 @@ _LAZY_MAP = {
     "session_masks": ("pairs.strategies.signals", "session_masks"),
     "evaluate_pair_signals": ("pairs.strategies.evaluate", "evaluate_pair_signals"),
     "market_impact_bps": ("pairs.strategies.evaluate", "market_impact_bps"),
+    "decompose_spread_pnl": ("pairs.strategies.spread_accounting", "decompose_spread_pnl"),
+    "turnover_and_fees": ("pairs.strategies.spread_accounting", "turnover_and_fees"),
     # strategies (circuit breaker)
     "CircuitBreakerConfig": ("pairs.strategies.circuit_breaker", "CircuitBreakerConfig"),
     "apply_circuit_breaker": ("pairs.strategies.circuit_breaker", "apply_circuit_breaker"),
+    # strategies (Avellaneda-Lee)
+    "assign_sector_etf": ("pairs.strategies.avellaneda_lee", "assign_sector_etf"),
+    "trading_time_factor": ("pairs.strategies.avellaneda_lee", "trading_time_factor"),
+    "etf_residuals": ("pairs.strategies.avellaneda_lee", "etf_residuals"),
+    "ou_fit": ("pairs.strategies.avellaneda_lee", "ou_fit"),
+    "s_score": ("pairs.strategies.avellaneda_lee", "s_score"),
+    "bang_bang_update": ("pairs.strategies.avellaneda_lee", "bang_bang_update"),
+    "positions_from_state": ("pairs.strategies.avellaneda_lee", "positions_from_state"),
     # validation
     "walk_forward_splits": ("pairs.validation.walk_forward", "walk_forward_splits"),
     "walk_forward_session_splits": ("pairs.validation.walk_forward", "walk_forward_session_splits"),
@@ -262,7 +284,17 @@ if TYPE_CHECKING:  # pragma: no cover
         session_masks,
     )
     from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
+    from .strategies.spread_accounting import decompose_spread_pnl, turnover_and_fees
     from .strategies.circuit_breaker import CircuitBreakerConfig, apply_circuit_breaker
+    from .strategies.avellaneda_lee import (
+        assign_sector_etf,
+        trading_time_factor,
+        etf_residuals,
+        ou_fit,
+        s_score,
+        bang_bang_update,
+        positions_from_state,
+    )
     from .validation.walk_forward import (
         walk_forward_splits,
         walk_forward_session_splits,

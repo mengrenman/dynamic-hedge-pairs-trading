@@ -625,8 +625,11 @@ md(r"""
 ### These ICs are not comparable to the ones you have seen elsewhere
 
 The tables above top out at a pooled IC of **0.57** (five sessions, in the traded region). An IC of
-0.57 would be extraordinary for an equity forecast — notebook 12, on the same lake, reports IC 0.033
-for five-day reversal, and that was worth writing a notebook about. Both numbers are correct and they
+0.57 would be extraordinary for an equity forecast — notebook 12, on the same lake, finds five-day
+reversal forecasting next-day residual returns at a clean IC of 0.0065 ($t=1.66$; an earlier build of
+that notebook reported IC 0.033, $t=8.6$, but that figure was measured against an intercept-subtracted
+target and turned out to be mostly the in-sample intercept, not forecast power), and even that modest
+number was worth writing a notebook about. Both numbers are correct and they
 are **not the same kind of quantity**, which is the most common way an IC gets misread:
 
 * Notebook 12 correlates a signal with a *next-day residual return* — a fresh, nearly independent
@@ -797,9 +800,12 @@ signal. Used as a forecast it would have been badly wrong.
 md(r"""
 ## 7. Does this alpha decay?
 
-Notebook 12 found a cross-sectional five-day reversal that forecast next-day residual returns at
-IC 0.033 ($t=8.6$) and produced a gross Sharpe of 0.77 in 2006–2015 against 0.02 in 2016–2025. The
-signal did not get worse at predicting; it got *arbitraged*. Whether the pairs signal shows the same
+Notebook 12 found a cross-sectional five-day reversal that forecast next-day residual returns at a
+clean IC of 0.0065 ($t=1.66$; an earlier build of that notebook reported IC 0.033, $t=8.6$, against an
+intercept-subtracted target that turned out to be contaminated by in-sample estimation noise) and
+produced a gross Sharpe of 0.77 in 2006–2015 against 0.02 in 2016–2025. Notebook 12 prints no
+by-period IC, so whether the signal got worse at *predicting* is not something this repository can say;
+what it shows is the realized P&L going to zero, which is what being *arbitraged* looks like. Whether the pairs signal shows the same
 break is an empirical question, and the answer below is the one the data gives rather than the one the
 narrative wants.
 """)
