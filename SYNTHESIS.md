@@ -230,8 +230,28 @@ reading the persistence *more* informatively despite the shorter sample.
 So the defensible claim is narrow and holds regardless of the choice: **about 2–3% of the pair-folds
 notebook 11 trades show a coefficient that moves, and notebook 11 applies a dynamic hedge to all of
 them.** Anything stronger — which pairs, or how much the rate varies by era — the data does not
-support. The daily run over the remaining 1,864 survivors was still in progress when this was
-written; only the traded subset is complete on both forms.
+support.
+
+**The full population, both forms.** The daily-levels run has since finished over all 2,151
+survivors (129 minutes on 12 cores; `converged` recorded for the last 751 cells, and θ̂ sitting
+exactly on its 0.9 start flagged post hoc on the first 1,400):
+
+| all 2,151 survivors | none | static | dynamic (raw) | dynamic, θ̂ ∈ (0,1), converged |
+|---|---|---|---|---|
+| daily levels | 62.4% | 34.7% | 63 (2.9%) | **63 (2.9%)** |
+| weekly logs | 55.4% | 37.3% | 158 (7.3%) | **38 (1.8%)** |
+
+The rate holds at population scale — 2–3% on either clock — and the population and the traded
+subset barely differ on it (daily, untraded cells: 59.8 / 37.3 / 3.0%). The identity does not
+hold: the two forms agree on **52.8%** of cells (51.6% traded, 53.0% untraded), 210 cells are
+`dynamic` on one clock, and **11 (0.5%) on both**. θ̂'s pathology is milder over the population
+than on the traded folds but has the same shape: on daily levels |θ̂| > 1 for 33.2% of cells, θ̂
+stuck exactly at its 0.9 start for 4.6%, non-convergence reported on 6.4% of the cells that
+recorded it — 38.7% untrustworthy in all, median θ̂ 0.995; on weekly logs |θ̂| > 1 for 13.9%,
+negative for 13.5%, 15.6% untrustworthy, median 0.743. The bootstrap p-value for θ = 1 has median
+0.30 on daily levels against 0.07 on weekly: the daily form mostly cannot reject the unit root,
+which is why `none` rises to 62% over the population and to 79% on the traded folds — the most
+persistent spreads by selection.
 
 **Notebook 19 adds external support, from outside this repository's own pipeline.** It reproduces
 Palomar (2025) ch. 15's own EWA-EWC / KO-PEP Kalman pairs backtest — a textbook example built to
