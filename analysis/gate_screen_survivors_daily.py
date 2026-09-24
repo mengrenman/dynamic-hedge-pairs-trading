@@ -83,7 +83,8 @@ def one(meta, y, x):
     try:
         v = recommend_hedge(y, x, B=B, seed=0, n_jobs=1)
         out.update(hedge=v.hedge, verdict=v.verdict, theta=v.theta_hat,
-                   sigma_eta=v.sigma_eta_hat, p_theta=v.p_theta, p_sigma=v.p_sigma)
+                   sigma_eta=v.sigma_eta_hat, p_theta=v.p_theta, p_sigma=v.p_sigma,
+                   converged=v.converged)
     except Exception as exc:
         out["err"] = f"{type(exc).__name__}: {exc}"[:80]
     return out

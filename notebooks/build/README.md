@@ -20,6 +20,7 @@ diffed and reviewed like source:
 | `build_intraday_backtest_notebook.py` | `../pairs_trading_16_intraday_backtest.ipynb` | scratch (reads notebook 15's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
 | `build_intraday_portfolio_notebook.py` | `../pairs_trading_17_intraday_portfolio.ipynb` | scratch (reads notebook 16's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
 | `build_avellaneda_lee_notebook.py` | `../pairs_trading_18_avellaneda_lee_day_lake.ipynb` | scratch (needs the local **day** lake and the minute lake for ETF/SPY cost measurement; reuses notebook 12's `cache/day_market_bars.parquet`, `xs_cost_by_ticker_year.parquet` and `xs_targets.pkl`; cold run ≈ 26 min; caches `cache/al_etf_costs.parquet`) |
+| `build_kalman_pnl_notebook.py` | `../pairs_trading_19_kalman_pnl_accounting_day_lake.ipynb` | scratch (needs notebook 09's `cache/day_market_bars.parquet` — the day-lake cache — and notebook 12's `cache/xs_cost_by_ticker_year.parquet` — the cost cache; cold run ≈ 30 s) |
 
 **Renumbering.** `renumber.py` moves the whole series in one atomic pass — file renames via
 `git mv`, plus every `pairs_trading_NN` / `nbNN` / `notebook NN` reference in the builders, both

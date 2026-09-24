@@ -233,6 +233,19 @@ them.** Anything stronger — which pairs, or how much the rate varies by era �
 support. The daily run over the remaining 1,864 survivors was still in progress when this was
 written; only the traded subset is complete on both forms.
 
+**Notebook 19 adds external support, from outside this repository's own pipeline.** It reproduces
+Palomar (2025) ch. 15's own EWA-EWC / KO-PEP Kalman pairs backtest — a textbook example built to
+showcase the Kalman filter's advantage — and finds **75–85%** of that advantage (EWA-EWC) and
+**~90–108%** (KO-PEP) is the filter re-marking its own parameters against today's price, not P&L a
+trader could collect: EWA-EWC's tradable line sits at **0.528–0.550** under all three hedges tested
+(rolling LS, basic Kalman, momentum Kalman; SE 0.18–0.23) even as the book line ranges
+0.634–3.290, and KO-PEP's tradable line (0.076 / 0.120 / -0.046) is zero within noise under all
+three. The tradable line is **hedge-invariant** — this section's own finding, that the dynamic
+hedge buys almost nothing real, reproduced on someone else's pair and someone else's code. And this
+repository's own accounting is clean for the right reason: `evaluate_pair_signals` applies executed
+holdings to price changes directly, confirmed by showing a naive diff-of-spread line on the same
+holdings would overstate real P&L by 2.13x.
+
 ---
 
 ## 5. What is actually inside the P&L that exists
