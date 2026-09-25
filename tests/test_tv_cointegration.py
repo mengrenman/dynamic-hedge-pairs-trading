@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 # ── the DGP itself ───────────────────────────────────────────────────────────
 
 class TestSimulator:
-    def test_follows_the_papers_section_4_parameterisation(self):
+    def test_follows_the_papers_section_4_parameterization(self):
         """These constants are not arbitrary — Table 1's size and power are measured on them."""
         d = simulate_tvssm(200, theta=0.8, sigma_eta=0.0, seed=11)
         assert {"y", "x", "beta_true", "w_true"} == set(d.columns)
@@ -131,7 +131,7 @@ class TestGate:
     def test_each_regime_gets_the_hedge_it_should(self, theta, sigma_eta, want_hedge, want_verdict):
         """The paper's DGP and notebook 07's seed: changing either changes what 'correct' means.
 
-        Single draws at n=100, so this pins behaviour rather than proving the test's power —
+        Single draws at n=100, so this pins behavior rather than proving the test's power —
         notebook 07 §4 measures that properly and finds the theta test weak at this sample size.
         """
         d = simulate_tvssm(100, theta, sigma_eta, seed=11)
@@ -155,7 +155,7 @@ class TestGate:
     ])
     def test_a_time_varying_verdict_is_downgraded_on_an_implausible_theta(
             self, monkeypatch, theta, expect_hedge, expect_plausible, why):
-        """The optimiser leaves theta unconstrained and it wanders.
+        """The optimizer leaves theta unconstrained and it wanders.
 
         On this repository's 2,151 screen survivors, 14% of fits return |theta| > 1 and 30% of the
         time-varying verdicts do. The paper's classification is reported unchanged; the hedge
@@ -174,7 +174,7 @@ class TestGate:
         """A theta that never left its 0.9 starting value is an input, not an estimate.
 
         6% of daily fits over this repository's screen survivors come back exactly 0.9, the
-        optimiser's own start, on a flat likelihood. statsmodels reports convergence and the gate
+        optimizer's own start, on a flat likelihood. statsmodels reports convergence and the gate
         must read it.
         """
         import pairs.stats.tv_cointegration as tv

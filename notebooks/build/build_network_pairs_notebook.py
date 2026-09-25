@@ -187,7 +187,7 @@ display(edges.groupby("filter").agg(edges=("fold", "size"),
 md(r"""
 ### What the filtered networks look like
 
-The paper's Fig. 1 shows its TMFG and PMFG with nodes coloured by Louvain community and **sized in
+The paper's Fig. 1 shows its TMFG and PMFG with nodes colored by Louvain community and **sized in
 proportion to $X+Y$, so that peripheral nodes are the large ones**. The same two panels for one
 formation of the day lake, drawn the same way.
 
@@ -221,7 +221,7 @@ def draw_network(ax, filt, title, color_by="community", highlight=None):
         cols = [cmap[role.get(v, "middle")] if (highlight is None or v in highlight) else "0.9"
                 for v in G]
         k = len(highlight) if highlight is not None else len(G)
-        sub_t = f"{k} eligible assets of {len(G)} highlighted; the rest in grey"
+        sub_t = f"{k} eligible assets of {len(G)} highlighted; the rest in gray"
     nx.draw_networkx_edges(G, pos, ax=ax, width=0.25, alpha=0.35, edge_color="0.5")
     nx.draw_networkx_nodes(G, pos, ax=ax, node_size=sizes.to_numpy(), node_color=cols,
                            linewidths=0.2, edgecolors="white")
@@ -318,7 +318,7 @@ found here is closer to a fresh draw each period than to a durable property of a
 $p<0.05$ graph is **−0.542** (negative because small $X+Y$ means central, which means high degree),
 ranging −0.32 to −0.71, for about **29%** of shared rank variance. So this repository's existing hub
 finding — 250 of 279 significant pairs on CCL or NCLH, and notebook 05's hub-driven edge — is
-measuring a genuinely overlapping phenomenon rather than an artefact of a cruder instrument. The
+measuring a genuinely overlapping phenomenon rather than an artifact of a cruder instrument. The
 other 71% is what the five-measure composite adds, and §6 is where we find out whether it is worth
 anything.
 
@@ -505,12 +505,12 @@ for i, (filt, (sp, sc)) in enumerate(paired.items()):
 ax.axhline(0, color="k", lw=0.8)
 ax.axhline(mc["cointegration (BH top-20)"]["Sharpe"], color="steelblue", ls="--", lw=1.6,
            label="cointegration benchmark")
-ax.set_xticks([0, 2]); ax.set_xticklabels(list(paired)); ax.set_ylabel("annualised Sharpe")
+ax.set_xticks([0, 2]); ax.set_xticklabels(list(paired)); ax.set_ylabel("annualized Sharpe")
 ax.set_title(f"{NMC} random 20-pair portfolios per cell", fontsize=10); ax.legend(fontsize=8)
 
 ax = axes[1]
 x = nodes[nodes["filter"] == "TMFG"]
-ax.hist(x["xy1"], bins=40, color="slategrey", alpha=0.8)
+ax.hist(x["xy1"], bins=40, color="slategray", alpha=0.8)
 for q, c, lab in ((x["xy1"].quantile(0.25), "indianred", "central quartile"),
                   (x["xy1"].quantile(0.75), "seagreen", "peripheral quartile")):
     ax.axvline(q, color=c, ls="--", lw=1.6, label=lab)
@@ -556,8 +556,8 @@ from sampling noise:
 
 Three things to say about that significant cell before anyone gets excited.
 
-*It is a difference between two zeros.* The winner posts an annualised Sharpe of **+0.044**. The
-standard deviation across random 20-pair draws is 0.12–0.14, so a single realised portfolio of either
+*It is a difference between two zeros.* The winner posts an annualized Sharpe of **+0.044**. The
+standard deviation across random 20-pair draws is 0.12–0.14, so a single realized portfolio of either
 kind is a coin flip several times larger than the effect.
 
 *The $p$-value measures less than it appears to.* Forty repetitions resample a **fixed pool** of
@@ -572,7 +572,7 @@ benchmark. On the day lake the benchmark wins by a wide margin, and the network 
 achievement is to lose slightly less money in one of four configurations.
 
 Note also how little §5's whole-pool comparison was worth: it showed peripheral ahead in every cell,
-and the moment portfolio size is equalised most of that advantage disappears. The pool sizes differ
+and the moment portfolio size is equalized most of that advantage disappears. The pool sizes differ
 threefold, and that was the effect.
 """)
 
@@ -582,7 +582,7 @@ md(r"""
 **Does the paper replicate on US equities?** Directionally yes, substantively no.
 
 Peripheral pairs beat central ones on both filters — the sign the paper predicts — and on the PMFG
-the gap clears a paired test over 40 repetitions ($+0.087$, $p=0.008$). But the winner's annualised
+the gap clears a paired test over 40 repetitions ($+0.087$, $p=0.008$). But the winner's annualized
 Sharpe is $+0.044$ against a per-draw standard deviation of 0.14, the TMFG shows nothing
 ($p=0.81$), and the plain Benjamini–Hochberg cointegration benchmark returns $+0.370$ — eight times
 more, on half the trades. The paper's actual headline is that peripheral portfolios *beat* the

@@ -29,7 +29,7 @@ def _trivial_fit(df_train):
     return {"mu": float(df_train["resid"].mean()), "sigma": float(df_train["resid"].std())}
 
 
-def _trivial_signals(df_test, artefact):
+def _trivial_signals(df_test, artifact):
     """Signal function: all flat."""
     return pd.DataFrame({
         "pos": 0, "n1": 0.0, "n2": 0.0,

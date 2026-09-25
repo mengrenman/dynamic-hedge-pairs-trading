@@ -81,7 +81,7 @@ _PRICE_COLUMN = {"split": "close_split", "tr": "close_tr", "raw": "close"}
 # ───────────────────────── layout detection & file selection ─────────────────
 
 def detect_day_lake_layout(root: str | Path) -> str:
-    """Return ``"ticker"`` or ``"market"`` for a day-lake root (raises if neither is recognised)."""
+    """Return ``"ticker"`` or ``"market"`` for a day-lake root (raises if neither is recognized)."""
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"day lake root does not exist: {root}")
@@ -179,7 +179,7 @@ def load_daily_bars(
     and, optionally, ``dividend``. ``frame.attrs["ticker_collisions"]`` is a list of dicts naming the
     tickers that mapped to more than one instrument in the window, the instrument kept and those
     dropped; wrap it in ``pd.DataFrame`` to inspect it. (A list, not a frame, so that the result can be
-    written straight to parquet — pandas serialises ``attrs`` as JSON.)
+    written straight to parquet — pandas serializes ``attrs`` as JSON.)
     """
     if price not in _PRICE_COLUMN:
         raise ValueError(f"price must be one of {sorted(_PRICE_COLUMN)}; got {price!r}")
@@ -255,7 +255,7 @@ def load_daily_bars(
     }, index=pd.MultiIndex.from_arrays([df["ticker"].to_numpy(), df["datetime"].to_numpy()],
                                        names=["ticker", "datetime"]))
     if with_dividends:
-        # vectorised equivalent of recover_dividends applied within each ticker
+        # vectorized equivalent of recover_dividends applied within each ticker
         tmp = pd.DataFrame({"t": df["ticker"].to_numpy(), "px": df["_base"].to_numpy(),
                             "f": df["tr_price_factor"].astype(float).to_numpy()})
         g = tmp.groupby("t", sort=False)
@@ -287,7 +287,7 @@ def liquidity_screen(
 
     A ticker is eligible when it traded on at least ``min_coverage`` of the window's sessions, its
     median close is at least ``min_price``, its median dollar volume is at least
-    ``min_dollar_volume``, its annualised volatility is at least ``min_ann_vol``, its largest
+    ``min_dollar_volume``, its annualized volatility is at least ``min_ann_vol``, its largest
     absolute one-day return is at most ``max_abs_return``, and it is not in ``exclude``.
 
     Two of those gates exist because a raw market lake is not a curated index list:

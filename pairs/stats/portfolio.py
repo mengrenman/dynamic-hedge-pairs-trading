@@ -39,7 +39,7 @@ def pair_return_correlations(
 
     Returns
     -------
-    Symmetric N×N DataFrame, index and columns labelled "T1/T2".
+    Symmetric N×N DataFrame, index and columns labeled "T1/T2".
     Diagonal entries are 1.0 (or NaN if a pair's series is all NaN).
     """
     if method not in ("pearson", "spearman"):

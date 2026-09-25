@@ -61,7 +61,7 @@ import sys, time, warnings
 
 repo_root = Path.cwd().parent           # notebooks/ → repo root
 sys.path.insert(0, str(repo_root))
-warnings.filterwarnings("ignore")       # statsmodels optimiser / KPSS interpolation chatter
+warnings.filterwarnings("ignore")       # statsmodels optimizer / KPSS interpolation chatter
 
 import numpy as np
 import pandas as pd
@@ -217,7 +217,7 @@ def fit_tvssm(y, x, fixed: dict | None = None, maxiter: int = 500):
     '''ML fit; `fixed` (e.g. {"theta": 1.0}) imposes a restriction for the bootstrap.'''
     model = TVCointModel(y, x)
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")            # optimiser chatter (joblib resets the kernel's filters)
+        warnings.simplefilter("ignore")            # optimizer chatter (joblib resets the kernel's filters)
         if fixed:
             with model.fix_params(fixed):
                 return model.fit(disp=False, maxiter=maxiter, cov_type="oim")
@@ -265,7 +265,7 @@ print(summarize_fit(res_naive)[["T", "|sigma_eta|", "sigma_eps"]].round(3).to_st
 fig, ax = plt.subplots(figsize=(11, 4))
 ax.plot(df_rw0["P1"].values, "k", lw=1.6, label=r"$y_t$")
 ax.plot(res_naive.fittedvalues, "k--", lw=1.2, label=r"$\hat y_{t|t-1}$  (one-step-ahead prediction)")
-ax.plot(res_naive.resid, color="grey", label=r"$e_{t|t-1}$  (prediction error)")
+ax.plot(res_naive.resid, color="gray", label=r"$e_{t|t-1}$  (prediction error)")
 ax.plot(df_rw0["P2"].values, ":", color="C0", label=r"$x_t$")
 ax.set_title("Naive TVSSM (θ fixed at 0) on two independent random walks — cf. paper Figure 1"); ax.legend(ncol=4)
 plt.tight_layout()
@@ -398,7 +398,7 @@ fig, ax = plt.subplots(figsize=(9, 3.5))
 ax.hist(bt["boot"], bins=30, density=True, alpha=0.6, label=r"bootstrap $t_\theta^{(b)}$ under $H_0:\theta=1$")
 grid = np.linspace(-6, 3, 200); ax.plot(grid, np.exp(-grid**2 / 2) / np.sqrt(2 * np.pi), "k--", label="N(0,1)")
 ax.axvline(bt["crit_5pct"], color="C3", label=f"bootstrap 5% critical value = {bt['crit_5pct']:.2f}")
-ax.axvline(-1.645, color="grey", ls=":", label="asymptotic 5% critical value = −1.645")
+ax.axvline(-1.645, color="gray", ls=":", label="asymptotic 5% critical value = −1.645")
 ax.set_title("Bootstrap null distribution of the θ = 1 test statistic (no-cointegration DGP, N = 100)"); ax.legend(fontsize=8)
 plt.tight_layout()
 """)
@@ -466,7 +466,7 @@ display(show(paper_sigma, "H0: σ_η = 0 — paper Table 1, middle panel (bootst
 md(r"""
 **Reading.** The qualitative pattern of the paper reproduces: power against $\theta<1$ rises as $\theta_0$ falls and *declines* as $\sigma_\eta$ grows (more coefficient variation makes a weak cointegrating relation harder to distinguish from a spurious one), while the $\sigma_\eta$ test is powerful and nearly unaffected by $\theta_0$. For the $\sigma_\eta$ test the size-adjusted rates land close to the paper's numbers.
 
-For the $\theta$ test the levels do not match and it is worth being precise about how. The asymptotic critical value over-rejects under the null by a factor of three, which is the paper's case for the bootstrap. Once size is corrected, our power is roughly half the paper's for $\theta_0\ge0.9$ — and, curiously, our *uncorrected* rejection rates sit very close to the paper's bootstrap rates. Candidate explanations, none verified here: the paper's bootstrap conditions on the observed $x_t$ path and on the restricted estimates, whereas the size adjustment above uses the unconditional null quantile; the ML optimiser and the $\beta_0$ initialisation may differ; and $M=200$ leaves a couple of percentage points of noise. Reproducing the paper's bootstrap inside the Monte Carlo (their fast double bootstrap) is the way to settle it.
+For the $\theta$ test the levels do not match and it is worth being precise about how. The asymptotic critical value over-rejects under the null by a factor of three, which is the paper's case for the bootstrap. Once size is corrected, our power is roughly half the paper's for $\theta_0\ge0.9$ — and, curiously, our *uncorrected* rejection rates sit very close to the paper's bootstrap rates. Candidate explanations, none verified here: the paper's bootstrap conditions on the observed $x_t$ path and on the restricted estimates, whereas the size adjustment above uses the unconditional null quantile; the ML optimizer and the $\beta_0$ initialization may differ; and $M=200$ leaves a couple of percentage points of noise. Reproducing the paper's bootstrap inside the Monte Carlo (their fast double bootstrap) is the way to settle it.
 """)
 
 # ───────────────────────────── 5. real pairs ─────────────────────────────
@@ -499,7 +499,7 @@ logw = np.log(weekly)
 print(f"{weekly.shape[0]} weekly bars, {weekly.index.min().date()} → {weekly.index.max().date()}")
 """)
 code(r"""
-def analyse_pair(a: str, b: str, B: int = 199) -> dict:
+def analyze_pair(a: str, b: str, B: int = 199) -> dict:
     y, x = logw[a], logw[b]
     eg_p = coint(y, x, trend="c")[1]
     st = repo_kalman(pd.DataFrame({"P1": weekly[a], "P2": weekly[b]}))     # package defaults on price levels
@@ -509,7 +509,7 @@ def analyse_pair(a: str, b: str, B: int = 199) -> dict:
     return out
 
 t0 = time.time()
-real = pd.DataFrame([analyse_pair(a, b) for a, b in PAIRS]).set_index("pair")
+real = pd.DataFrame([analyze_pair(a, b) for a, b in PAIRS]).set_index("pair")
 print(f"{len(PAIRS)} pairs in {time.time() - t0:.0f}s")
 real.style.format({"EG p (levels)": "{:.3f}", "Kalman-resid ADF p": "{:.3f}", "theta_hat": "{:.3f}", "t_theta": "{:+.2f}",
                    "p_theta": "{:.3f}", "sigma_eta_hat": "{:.4f}", "t_sigma": "{:.2f}", "p_sigma": "{:.3f}"})
@@ -534,7 +534,7 @@ axes[0].plot(logw.index, res.filtered_state[0], "C3", lw=2, label=r"paper model 
 axes[0].fill_between(logw.index, res.filtered_state[0] - 2 * sd, res.filtered_state[0] + 2 * sd, color="C3", alpha=0.15)
 axes[0].set_title(f"{a}/{b}: hedge ratio (log prices)"); axes[0].legend(fontsize=8)
 axes[1].plot(logw.index, res.filtered_state[1], "C0", label=r"paper model $\hat w_{t|t}$ (persistence θ = %.2f)" % res.params[3])
-axes[1].plot(logw.index, st_log["resid"], color="grey", lw=1, label="package Kalman residual")
+axes[1].plot(logw.index, st_log["resid"], color="gray", lw=1, label="package Kalman residual")
 axes[1].set_title("error / spread"); axes[1].legend(fontsize=8)
 plt.tight_layout()
 print(summarize_fit(res).round(4).to_string())
@@ -560,7 +560,7 @@ md(r"""
 
 **The problem is older than the paper.**
 * Canarella, Pollard & Lai (1990), [*Cointegration between exchange rates and relative prices: another view*](https://www.sciencedirect.com/science/article/abs/pii/001429219090002G), EER 34 — used time-varying coefficients to "rescue" PPP.
-* Honohan (1993), *Cointegration and time-varying parameters: a comment*, EER 37(6) — the first statement of the trap: a time-varying cointegrating vector lets a lack of cointegration go unnoticed. Eroğlu, Miller & Yiğit formalise exactly this point.
+* Honohan (1993), *Cointegration and time-varying parameters: a comment*, EER 37(6) — the first statement of the trap: a time-varying cointegrating vector lets a lack of cointegration go unnoticed. Eroğlu, Miller & Yiğit formalize exactly this point.
 * Kim (2006), *Time-varying parameter models with endogenous regressors*, Economics Letters 91 — the endogeneity side of TVP models with integrated regressors.
 
 **Kalman filtering with integrated series — what asymptotics exist.**
@@ -580,7 +580,7 @@ md(r"""
 * Hansen (1992b), *Heteroskedastic cointegration*; Harris, McCabe & Leybourne (2002), *Stochastic cointegration*; McCabe, Leybourne & Harris (2006), [*A residual-based test for stochastic cointegration*](https://www.cambridge.org/core/journals/econometric-theory/article/abs/residualbased-test-for-stochastic-cointegration/B3193D38887FF6FBB886A64A1C1D134C) — the "stochastic freedom in the cointegrating vector" strand.
 * A typical applied use of a time-varying cointegrating vector that the present paper's test would vet: [*Interest rate linkages: a Kalman filter approach to detecting structural change*](https://www.sciencedirect.com/science/article/abs/pii/S0264999303001032), Economic Modelling.
 
-**Pairs-trading practice.** The random-walk-$\beta_t$ Kalman hedge used in this package is the standard recipe in the practitioner literature — e.g. [QuantStart](https://www.quantstart.com/articles/Dynamic-Hedge-Ratio-Between-ETF-Pairs-Using-the-Kalman-Filter/), [Palomar's *Portfolio Optimization* §15.6](https://portfoliooptimizationbook.com/book/15.6-kalman-pairs-trading.html), and Krauss (2017), [*Statistical arbitrage pairs trading strategies: review and outlook*](https://www.iwf.rw.fau.de/files/2016/03/09-2015.pdf), J. Econ. Surveys 31 — none of which tests whether the resulting stationary spread is an artefact of the filter. If part of the in-sample mean reversion is manufactured by the filter, the pairs that look best in sample should be the ones that break down most often out of sample; that is a testable prediction for the package's own walk-forward results.
+**Pairs-trading practice.** The random-walk-$\beta_t$ Kalman hedge used in this package is the standard recipe in the practitioner literature — e.g. [QuantStart](https://www.quantstart.com/articles/Dynamic-Hedge-Ratio-Between-ETF-Pairs-Using-the-Kalman-Filter/), [Palomar's *Portfolio Optimization* §15.6](https://portfoliooptimizationbook.com/book/15.6-kalman-pairs-trading.html), and Krauss (2017), [*Statistical arbitrage pairs trading strategies: review and outlook*](https://www.iwf.rw.fau.de/files/2016/03/09-2015.pdf), J. Econ. Surveys 31 — none of which tests whether the resulting stationary spread is an artifact of the filter. If part of the in-sample mean reversion is manufactured by the filter, the pairs that look best in sample should be the ones that break down most often out of sample; that is a testable prediction for the package's own walk-forward results.
 """)
 
 nb["cells"] = cells

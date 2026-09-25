@@ -115,8 +115,8 @@ def folds(wf: pd.DataFrame, headline: float, key: str) -> str:
         fig, axes = plt.subplots(1, 2, figsize=(11.6, 2.7),
                                  gridspec_kw={"width_ratios": [2.1, 1]})
         ax = axes[0]
-        colour = ["seagreen" if v > 0 else "indianred" for v in wf["sharpe"]]
-        ax.bar(range(len(wf)), wf["sharpe"], color=colour, alpha=0.85)
+        color = ["seagreen" if v > 0 else "indianred" for v in wf["sharpe"]]
+        ax.bar(range(len(wf)), wf["sharpe"], color=color, alpha=0.85)
         ax.axhline(0, color="k", lw=0.8)
         ax.axhline(headline, color="steelblue", ls="--", lw=1.5,
                    label=f"whole window = {headline:+.2f}")
@@ -128,7 +128,7 @@ def folds(wf: pd.DataFrame, headline: float, key: str) -> str:
 
         ax = axes[1]
         ax.hist(wf["sharpe"], bins=min(12, max(4, len(wf) // 2)),
-                color="slategrey", alpha=0.85)
+                color="slategray", alpha=0.85)
         ax.axvline(0, color="k", lw=0.8)
         ax.axvline(headline, color="steelblue", ls="--", lw=1.5)
         med, pos = wf["sharpe"].median(), (wf["sharpe"] > 0).mean() * 100
@@ -150,7 +150,7 @@ def portfolio(pnl: pd.Series, active: pd.Series, key: str, title: str) -> str:
         axes[0].set_ylabel("cumulative net P&L ($)", fontsize=9)
         axes[0].set_title(title, fontsize=11)
         axes[0].grid(alpha=0.3); axes[0].tick_params(labelsize=9)
-        axes[1].fill_between(active.index, active, 0, color="slategrey", alpha=0.5, step="mid")
+        axes[1].fill_between(active.index, active, 0, color="slategray", alpha=0.5, step="mid")
         axes[1].set_ylabel("pairs held", fontsize=9)
         axes[1].grid(alpha=0.3); axes[1].tick_params(labelsize=9)
         fig.tight_layout()

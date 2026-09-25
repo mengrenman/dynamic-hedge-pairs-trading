@@ -167,7 +167,7 @@ class TestTickerReuse:
         _, market_root = lakes
         b = load_daily_bars(["AAA", "DUP"], "2024-09-02", "2024-11-29", market_root, with_dividends=True)
         f = tmp_path / "bars.parquet"
-        b.to_parquet(f)                                     # attrs are serialised as JSON: must not be a frame
+        b.to_parquet(f)                                     # attrs are serialized as JSON: must not be a frame
         pd.testing.assert_frame_equal(pd.read_parquet(f), b)
 
     def test_layouts_agree_once_reuse_is_resolved(self, lakes):

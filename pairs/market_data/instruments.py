@@ -10,7 +10,7 @@ The obvious fix — a hand-curated ticker list — is brittle, incomplete and su
 list of the seventeen names notebook 11 happened to trade misses DGAZ, UGAZ, DRIP, GUSH, LABD,
 BOIL and dozens of others, and cannot know about funds that delisted before anyone looked.
 
-So this detects them by behaviour instead. A leveraged or inverse fund is, by construction, a
+So this detects them by behavior instead. A leveraged or inverse fund is, by construction, a
 near-exact scalar multiple of some other listed thing, and it is the *magnified* side of that
 relationship:
 
@@ -38,7 +38,7 @@ Two known limitations, both visible rather than hidden:
   Partial coverage with no false positives is worth more here than full coverage that would gut
   the universe.
 * SVXY changed from −1× to −0.5× in February 2018, so across that boundary it is not a constant
-  multiple of anything and no behavioural test can see it.
+  multiple of anything and no behavioral test can see it.
 
 The ``duplicate`` arm (|corr| high, beta ~ 1) is reported separately and gated separately. It is
 dominated by index funds tracking the same index — AGG and BND, ACWI and VT — which are equally
@@ -74,7 +74,7 @@ def scaled_instrument_report(prices: pd.DataFrame, *,
     across the candidates and this test turns on the top of the correlation distribution.
 
     Returns a frame indexed by ticker with the closest relative, the correlation and implied beta
-    against it, annualised volatility, and a ``kind`` of ``scaled`` / ``duplicate`` / ``ordinary``.
+    against it, annualized volatility, and a ``kind`` of ``scaled`` / ``duplicate`` / ``ordinary``.
     """
     if tickers is not None:
         prices = prices[[t for t in tickers if t in prices.columns]]

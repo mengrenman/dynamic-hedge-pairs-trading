@@ -95,7 +95,7 @@ class CircuitBreakerConfig:
         Bars to stay flat after a drawdown trigger fires (inclusive of the
         trigger bar).  Must be >= 1.  Default: 20.
     capital_base : float or None
-        Denominator for drawdown % normalisation.  ``None`` → auto-detected
+        Denominator for drawdown % normalization.  ``None`` → auto-detected
         from the shadow evaluation (median in-position gross exposure, same
         logic as ``evaluate_pair_signals``).
     evaluate_kwargs : dict
@@ -171,7 +171,7 @@ def _find_z_halt_windows(
     Return a boolean Series (True = bar is inside a z-halt window).
 
     Algorithm (O(n)):
-    1. Build a ``halt_end`` array initialised to -1.
+    1. Build a ``halt_end`` array initialized to -1.
     2. At each trigger bar *t* (|z[t]| > z_halt): set
        ``halt_end[t] = max(halt_end[t], t + cb_cooldown_bars)``.
     3. Forward-fill: ``halt_end[i] = max(halt_end[i], halt_end[i-1])``
@@ -462,7 +462,7 @@ def apply_circuit_breaker(
     halt_bars : int
         Bars to stay flat after a drawdown trigger fires.  Default: 20.
     capital_base : float or None
-        Capital base for normalising drawdown %.  ``None`` → auto-detected.
+        Capital base for normalizing drawdown %.  ``None`` → auto-detected.
     evaluate_kwargs : dict or None
         Keyword arguments forwarded to ``evaluate_pair_signals`` in the
         shadow pass (e.g., ``cost_bps``, ``borrow_bps_per_year``).

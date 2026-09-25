@@ -32,7 +32,7 @@ Three additive cost components are supported:
    (positive floats, *shares* traded per day), the impact cost is computed
    and tracked in ``daily["impact_cost"]`` and ``summary["impact_cost_total"]``.
    Setting ``avg_daily_volume_*`` to ``None`` (default) disables impact
-   modelling for that leg.
+   modeling for that leg.
 
 Inputs
 ------
@@ -81,7 +81,7 @@ def market_impact_bps(
         \\sigma_{\\text{annual}} \\cdot P \\cdot
         \\sqrt{\\frac{|\\Delta q|}{\\text{ADV}}} \\cdot |\\Delta q|
 
-    where :math:`\\sigma_{\\text{annual}}` is the *fractional* annualised
+    where :math:`\\sigma_{\\text{annual}}` is the *fractional* annualized
     volatility of the stock (e.g. 0.30 for 30 %).
 
     The leading factor is the square-root **price concession per share**; the
@@ -93,14 +93,14 @@ def market_impact_bps(
     ----------
     shares_traded : array-like or scalar
         Absolute number of shares traded (``|Δq|``).  May be an array for
-        vectorised evaluation.
+        vectorized evaluation.
     price : array-like or scalar
         Current mid/close price of the stock.
     avg_daily_volume : float
         Average daily volume in *shares* (ADV).  Must be positive.
     ann_vol_bps : array-like or scalar
-        Annualised return volatility expressed in **basis points** (bps).
-        E.g. 3000 bps ≡ 30 % annualised vol.  May be an array.
+        Annualized return volatility expressed in **basis points** (bps).
+        E.g. 3000 bps ≡ 30 % annualized vol.  May be an array.
     eta : float
         Calibration constant.  Almgren (2005) estimates η ≈ 0.05–0.20 for
         US large-cap equities; 0.14 is the BARRA median value.
@@ -172,7 +172,7 @@ def evaluate_pair_signals(
 
         impact_$ = η × σ_annual × P × √(|Δshares| / ADV)
 
-    Annualised vol (σ_annual) is estimated from a rolling window of
+    Annualized vol (σ_annual) is estimated from a rolling window of
     ``impact_ann_vol_window`` bars of log-returns for each leg.  Impact
     costs are included in ``daily["impact_cost"]`` and ``cost_total``, and
     the running total surfaces as ``summary["impact_cost_total"]``.
@@ -186,7 +186,7 @@ def evaluate_pair_signals(
         Calibration constant η.  Default 0.14 (BARRA median for US equities).
         Increase toward 0.3 for smaller / less-liquid names.
     impact_ann_vol_window : int
-        Rolling window (bars) for estimating annualised price vol used in the
+        Rolling window (bars) for estimating annualized price vol used in the
         impact model.  Default 63 (~one quarter of daily bars).
 
     Returns

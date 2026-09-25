@@ -16,7 +16,7 @@ The architecture follows what things actually cost, measured on one pair of 1,50
 | tier | what changes | cost | how the UI treats it |
 |---|---|---|---|
 | **1** | thresholds, z-method, costs, capital | signals + evaluate + render ≈ **250–430 ms** | live; submit on change |
-| **2** | hedge model, `q`, `em_iters`, the pair | `fit_kalman_hedge` ≈ **1.8 s** (static/rolling ≈ 2 ms) | explicit run, memoised per spec |
+| **2** | hedge model, `q`, `em_iters`, the pair | `fit_kalman_hedge` ≈ **1.8 s** (static/rolling ≈ 2 ms) | explicit run, memoized per spec |
 | **3** | the portfolio backtest, the screen | **minutes to an hour** | background job, polled every 2 s, cancellable |
 
 Grouping the knobs by what they cost is deliberate. Hiding a two-second refit behind the same

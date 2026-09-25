@@ -83,7 +83,7 @@ md(r"""
 ## 1. Data and the daily return panel
 
 The same cached day-lake frame notebooks 09–11 use. Returns are total returns, with the dividend
-recovered from the adjustment factors credited on its ex-date, winsorised at ±100% a day as a last
+recovered from the adjustment factors credited on its ex-date, winsorized at ±100% a day as a last
 data-quality guard, and exchange test symbols dropped by name.
 """)
 code(r"""
@@ -117,7 +117,7 @@ factor returns.
 
 **Residuals and weights.** Each day, every name's trailing 60 sessions are regressed on those factor
 returns. A signal is formed from the recent residual (or raw) returns, the weight vector is projected
-orthogonal to the loading matrix so the book carries no factor exposure, then centred to be
+orthogonal to the loading matrix so the book carries no factor exposure, then centered to be
 dollar-neutral and scaled to \$1M gross.
 """)
 code(r"""
@@ -140,8 +140,8 @@ def eigenportfolios(R, k=N_FACTORS):
     Q = Q / np.abs(Q).sum(axis=0, keepdims=True)         # unit gross per eigenportfolio
     return pd.DataFrame(Q, index=R.columns, columns=[f"f{i}" for i in range(len(idx))]), vals[idx] / vals.sum()
 
-def neutralise(w, B):
-    # project weights orthogonal to the factor loadings B (N x k), then dollar-neutralise and scale
+def neutralize(w, B):
+    # project weights orthogonal to the factor loadings B (N x k), then dollar-neutralize and scale
     BtB = B.T @ B + 1e-8 * np.eye(B.shape[1])
     w = w - B @ np.linalg.solve(BtB, B.T @ w)
     w = w - w.mean()
@@ -448,7 +448,7 @@ else:
         if fd is None: continue
         sig = signals_from(fd["R"], fd["resid"], fd["vol"])
         for s in BUILD:
-            targets[s][d] = pd.Series(neutralise(np.nan_to_num(sig[s], nan=0.0), fd["B"]), index=fd["cols"])
+            targets[s][d] = pd.Series(neutralize(np.nan_to_num(sig[s], nan=0.0), fd["B"]), index=fd["cols"])
         fwd_ret[d] = ret.iloc[i + 1].reindex(fd["cols"])
     pickle.dump((targets, fwd_ret), open(f_t, "wb"), protocol=5)
     print(f"targets built in {time.time() - t0:.0f}s")
@@ -652,7 +652,7 @@ print(f"charging unpriced names the year's 75th percentile instead of its median
 md(r"""
 **Six of the ten configurations cross from negative to positive**, where at 5 bps exactly one did. The
 best is no longer a knife-edge 0.046 but 0.18. That is a real change in the table: the conclusion §5
-reached — that all but one variant is under water — was an artefact of the assumed rate rather than a
+reached — that all but one variant is under water — was an artifact of the assumed rate rather than a
 property of the strategy.
 
 It is not, however, a strategy. A Sharpe of 0.18 over 19.6 years carries a standard error of 0.23, so
@@ -854,7 +854,7 @@ neither.
 §5.5 measures the *spread* a name pays but nothing here models market impact or borrow, and a \$1M book
 moving a quarter of itself daily across 500 names is small enough that ignoring impact is defensible
 where a larger one would not be; the book is equal-gross rather than
-risk-optimised; no shorting constraints or locate costs; and the signal menu was chosen by the author,
+risk-optimized; no shorting constraints or locate costs; and the signal menu was chosen by the author,
 so the ICs in §3 carry a selection effect of their own even though none of the trading rules were tuned.
 """)
 

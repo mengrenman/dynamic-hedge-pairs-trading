@@ -26,7 +26,7 @@ coefficient actually moves: at :math:`\\sigma_\\eta = 0` the relationship is fix
 that *upwards* is what licenses a dynamic hedge.
 
 Together they give three regimes, which is the whole point — "fixed or time-varying" becomes a
-testable question rather than a modelling assumption:
+testable question rather than a modeling assumption:
 
 ===========================  ======================  ==================================
 reject :math:`\\theta = 1`?    reject :math:`\\sigma_\\eta = 0`?   verdict
@@ -162,7 +162,7 @@ def fit_tvssm(y, x, fixed: Optional[Dict[str, float]] = None, maxiter: int = 500
     """
     model = TVCointModel(y, x)
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore")            # optimiser chatter; joblib resets kernel filters
+        warnings.simplefilter("ignore")            # optimizer chatter; joblib resets kernel filters
         if fixed:
             with model.fix_params(fixed):
                 return model.fit(disp=False, maxiter=maxiter, cov_type="oim")
@@ -270,7 +270,7 @@ def classify_cointegration(y, x, *, B: int = 199, seed: int = 0, level: float = 
     p = dict(zip(PARAM_NAMES, th["res_U"].params))
     # A fit that never left its starting value is not an estimate. statsmodels reports it and the
     # gate must read it: on this repository's screen survivors 6% of daily fits return theta
-    # exactly 0.9, the optimiser's own start, with a flat likelihood behind them.
+    # exactly 0.9, the optimizer's own start, with a flat likelihood behind them.
     converged = bool(th["res_U"].mle_retvals.get("converged", False))
     return {"theta_hat": float(p["theta"]), "t_theta": th["stat"], "p_theta": th["p_value"],
             "sigma_eta_hat": float(abs(p["sigma_eta"])), "t_sigma": sg["stat"],
@@ -284,7 +284,7 @@ class HedgeVerdict:
     hedge: str                  # "dynamic" | "static" | "none"
     verdict: str                # the paper's classification, unmodified
     theta_plausible: bool       # is theta_hat in (0, 1), a decaying non-oscillating error?
-    converged: bool             # did the unrestricted optimiser actually converge?
+    converged: bool             # did the unrestricted optimizer actually converge?
     theta_hat: float
     sigma_eta_hat: float
     p_theta: float
@@ -329,7 +329,7 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
     c = classify_cointegration(y, x, B=B, seed=seed, level=level, n_jobs=n_jobs)
     v = c["verdict"]
     th = c["theta_hat"]
-    # The model constrains T to (0, 1) but leaves theta free, so the optimiser can and does wander
+    # The model constrains T to (0, 1) but leaves theta free, so the optimizer can and does wander
     # outside the stationary region: on this repository's own screen survivors, 14% of fits return
     # |theta| > 1, and 30% of the "time-varying" verdicts do. A theta at or beyond 1 describes a
     # non-stationary error, which is the null the test is supposed to reject, so the classification
@@ -345,7 +345,7 @@ def recommend_hedge(y, x, *, B: int = 199, seed: int = 0, level: float = 0.05,
             hedge="static", verdict=UNDECIDED, theta_plausible=False, converged=False,
             theta_hat=th, sigma_eta_hat=c["sigma_eta_hat"], p_theta=c["p_theta"],
             p_sigma=c["p_sigma"],
-            reason="the likelihood optimiser did not converge, so neither parameter is an "
+            reason="the likelihood optimizer did not converge, so neither parameter is an "
                    "estimate; the conservative default is the hedge with fewer moving parts")
     if v == TIME_VARYING and plausible:
         hedge, reason = "dynamic", ("the coefficient moves: sigma_eta = 0 is rejected, so a filter "

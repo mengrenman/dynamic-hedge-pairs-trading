@@ -94,7 +94,7 @@ def _kalman_dynamic_hedge(
     **``em_iters > 0`` silently overrides ``init_cov``.** pykalman's ``em_vars`` defaults to
     re-estimating ``initial_state_mean`` and ``initial_state_covariance`` along with Q and R, so a
     deliberately diffuse ``init_cov=1e6`` comes back at around 1e-4 and the prior this function
-    validates has no effect. The behaviour is not worse -- EM also learns a sensible starting
+    validates has no effect. The behavior is not worse -- EM also learns a sensible starting
     beta, where the diffuse prior starts at zero and takes ~20 bars to converge -- but it is not
     what the signature implies. Pass ``em_vars=("transition_covariance",
     "observation_covariance")`` to learn only Q and R and keep the prior.

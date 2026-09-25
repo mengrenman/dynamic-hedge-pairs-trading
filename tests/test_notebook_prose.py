@@ -45,7 +45,7 @@ import pytest
 
 NOTEBOOKS = sorted((Path(__file__).resolve().parent.parent / "notebooks").glob("pairs_trading_*.ipynb"))
 
-# A comma inside a number is part of it: without the "," in the lookbehind, "\$2,074.58" tokenises
+# A comma inside a number is part of it: without the "," in the lookbehind, "\$2,074.58" tokenizes
 # as the meaningless "074.58" and then passes by matching some unrelated 74.58.
 NUM = r"\d+(?:,\d{3})*\.\d{2,4}"
 PROSE_NUM = re.compile(rf"(?<![\w.$/,-])({NUM})(?![\d/])")

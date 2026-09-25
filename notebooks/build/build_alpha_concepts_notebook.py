@@ -26,7 +26,7 @@ distinctions are numbers rather than vocabulary.
 The running example is notebook 11's pairs book: the top-20 BH-FDR dual-gate cointegrated pairs at each
 of 39 semi-annual formations, static OLS hedge, robust $z$-score, entry at $|z|\ge2$, exit at
 $|z|\le0.5$, stop at $|z|\ge4$, \$10k a pair, 5 bps a leg-side plus 50 bp/year borrow. 287 pair-folds,
-723 trades, 2006–2025, realised Sharpe **0.402** over the 3,677 sessions it held an allocation and
+723 trades, 2006–2025, realized Sharpe **0.402** over the 3,677 sessions it held an allocation and
 **0.330** over all 5,438 in the lake. Both figures are used below and neither is "the" Sharpe — §3
 explains why carrying two of them is the honest choice rather than an oversight.
 
@@ -101,7 +101,7 @@ r_t - r_{f,t} \;=\; \alpha \;+\; \sum_{k=1}^{K}\beta_k\, f_{k,t} \;+\; \varepsil
 $$
 
 $\alpha$ is the average return **left over** after paying for the factor exposures you chose to
-recognise. It is a realised, backward-looking quantity, measured in return units, and it is perfectly
+recognize. It is a realized, backward-looking quantity, measured in return units, and it is perfectly
 well-defined — *once the factor set is fixed*.
 
 That last clause carries all the weight. **There is no model-free alpha.** Add a factor that happens to
@@ -117,14 +117,14 @@ $$
 $$
 
 the expected **residual** return of asset $i$ given what you know at time $t$. This is forward-looking:
-it is a *forecast*, not something that happened. Grinold's refined forecast turns a standardised signal
+it is a *forecast*, not something that happened. Grinold's refined forecast turns a standardized signal
 into one:
 
 $$
 \alpha \;=\; \sigma \cdot \mathrm{IC} \cdot z
 $$
 
-with $\sigma$ the residual volatility, $z$ the signal standardised cross-sectionally (or, for a single
+with $\sigma$ the residual volatility, $z$ the signal standardized cross-sectionally (or, for a single
 spread, in its own history), and $\mathrm{IC}$ the *information coefficient* — the correlation between
 the signal and the subsequent residual return. §5 measures the IC of this repository's signal and §6
 puts it through the formula.
@@ -175,7 +175,7 @@ Most of the time, separating a signal from a factor exposure requires a risk mod
 buy or build. In a pairs trade the risk model is one line of the strategy itself, which makes this
 repository a good place to see the definitions line up.
 
-**The hedge ratio is a one-factor neutralisation.** The formation-window regression
+**The hedge ratio is a one-factor neutralization.** The formation-window regression
 
 $$
 P^{(1)}_t \;=\; a \;+\; b\,P^{(2)}_t \;+\; \epsilon_t
@@ -196,10 +196,10 @@ kind, and it carries an extra assumption Jensen's does not need.
 That extra assumption is where the money and the risk both live. §8's placebo is what happens when you
 form the identical residual without it.
 
-**The $z$-score plays the role of Grinold's $z$.** `zscore_from_spread` standardises the residual
+**The $z$-score plays the role of Grinold's $z$.** `zscore_from_spread` standardizes the residual
 against its own recent history, which is what the $z$ in $\alpha=\sigma\cdot\mathrm{IC}\cdot z$ is for.
-Again not identically: Grinold standardises *across assets* at one date, and this standardises *across
-dates* for one spread. The entry rule "trade when $|z|\ge2$" is then a crude discretisation of "trade
+Again not identically: Grinold standardizes *across assets* at one date, and this standardizes *across
+dates* for one spread. The entry rule "trade when $|z|\ge2$" is then a crude discretization of "trade
 when the forecast alpha is large" — crude because it throws away the magnitude, which §6 shows costs
 the strategy most of what the Fundamental Law would otherwise promise it.
 
@@ -406,7 +406,7 @@ mkt = fac[["SPY"]]
 r_pairs = book.loc[LIVE, "ret"]
 r_long  = lo_ret.loc[LIVE]
 
-# Both books on both samples, because the sample is itself a modelling choice and section 4 leans on
+# Both books on both samples, because the sample is itself a modeling choice and section 4 leans on
 # how much the answer moves when only the sample changes.
 SPECS3 = [("pairs book (allocated sessions)", r_pairs,      mkt.loc[LIVE]),
           ("pairs book (all sessions)",       book["ret"],  mkt),
@@ -449,7 +449,7 @@ Two honest qualifications, both visible in the table:
 * **Beta is economically negligible but statistically real.** At $t=2.26$ (and $t=2.89$ at the shorter
   Newey–West lag) it is not zero. A book built from long/short equity pairs picks up a little market
   exposure because the hedge ratio is a price regression fitted on a past window, not a beta
-  neutralisation, and the two are not the same thing.
+  neutralization, and the two are not the same thing.
 * **The alpha itself is not significant.** $t=1.39$. After twenty years and 723 trades, this book's
   alpha cannot be distinguished from zero. The sign is right and the magnitude is plausible; the
   evidence is not there. This is the ordinary outcome of honest alpha research, and it is worth sitting
@@ -554,8 +554,8 @@ were built to price.
 
 Compare that with what happened when the **sample** changed rather than the model: M1 gives 1.586% on
 all 3,677 allocated sessions and 1.385% on the 2,918 where every factor exists. Restricting the sample
-moved alpha by 0.20 points; adding three factors to it moved it by 0.07. Both are modelling choices,
-and the one nobody thinks of as a modelling choice mattered three times more.
+moved alpha by 0.20 points; adding three factors to it moved it by 0.07. Both are modeling choices,
+and the one nobody thinks of as a modeling choice mattered three times more.
 
 The leveraged-ETF factor is the instructive failure. Its loading is 0.015 ($t=0.82$) on the common
 sample and looks like nothing — but the basket only has all 17 names priced between 2015-07 and
@@ -672,27 +672,27 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### The null settles it, and not in the screen's favour
+### The null settles it, and not in the screen's favor
 
 Read the two per-fold rows. At five sessions the screened pairs give a mean per-fold IC of **0.197**;
 the random pairs give **0.205**. At twenty sessions the random pairs are *ahead*, 0.365 against 0.249.
 Restricted to the rows the rule actually trades, $|z|\ge2$, it is 0.342 screened against 0.281 random.
 
 The per-fold IC — the one with the careful error bar and the $t$-statistic of 14 — measures almost
-nothing about cointegration. It measures that a rolling standardised level tends to be followed by a
-move back toward its rolling centre, which is true of a great many series and is true of random pairs
+nothing about cointegration. It measures that a rolling standardized level tends to be followed by a
+move back toward its rolling center, which is true of a great many series and is true of random pairs
 run through the same hedge and the same $z$. **A $t$-statistic of 14 on a quantity the null also
 produces is not evidence.**
 
 The pooled IC does separate them: 0.296 screened against 0.012 random at five sessions. That gap is
-real and it is where the screen earns its keep — pooling requires the standardisation to be comparable
+real and it is where the screen earns its keep — pooling requires the standardization to be comparable
 *across* pairs, which is close to a statement that the spreads are genuinely stationary on a common
 scale. But note that the pooled number is the one with the dishonest error bar, and the honest-looking
 number is the one with no content. Neither statistic is simply "the IC".
 
 This is the §1.3 warning made concrete. A signal's IC is not a property of the signal alone; it is a
 property of the signal, the target, the estimator, the region, and the null you did or did not run.
-Reporting one number for it is how a construction artefact gets published as an alpha.
+Reporting one number for it is how a construction artifact gets published as an alpha.
 """)
 
 md(r"""
@@ -701,14 +701,14 @@ md(r"""
 $\alpha=\sigma\cdot\mathrm{IC}\cdot z$ converts a score into a return forecast. The IC below is the
 five-day per-fold mean, so **every other term has to be on the five-day horizon too**: $\sigma$ is the
 pairs book's daily standard deviation scaled by $\sqrt{5}$, the forecast is a return over five
-sessions, and the annualisation is $\times(252/5)$, not $\times 252$. Getting this wrong — pairing a
-five-day IC with a daily $\sigma$ and annualising by 252 — inflates the forecast by more than a factor
+sessions, and the annualization is $\times(252/5)$, not $\times 252$. Getting this wrong — pairing a
+five-day IC with a daily $\sigma$ and annualizing by 252 — inflates the forecast by more than a factor
 of two, and is the most common arithmetic error made with this formula. $z$ runs over the range the
 rule actually sees.
 """)
 code(r"""
 # Units are the classic trap here. An IC measured against a 5-session forward move produces a
-# forecast for 5 sessions, so sigma must be the 5-session volatility and the annualisation is
+# forecast for 5 sessions, so sigma must be the 5-session volatility and the annualization is
 # x(252/5). Treating a 5-day IC as a daily one overstates the forecast by more than a factor of two.
 H = 5
 sig_d = float(r_pairs.std(ddof=1))
@@ -720,13 +720,13 @@ IC5 = float(per5.mean())
 grid = pd.DataFrame({"z": [-4, -3, -2, -1, 0, 1, 2, 3, 4]})
 grid["signal s = -z"] = -grid["z"]
 grid[f"forecast alpha (bp per {H} sessions)"] = sig_h * IC5 * grid["signal s = -z"] * 1e4
-grid["annualised (%)"] = sig_h * IC5 * grid["signal s = -z"] * (ANN / H) * 100
+grid["annualized (%)"] = sig_h * IC5 * grid["signal s = -z"] * (ANN / H) * 100
 print(f"sigma = {sig_d*100:.3f}% per session → {sig_h*100:.3f}% per {H} sessions; "
       f"IC({H}d, per-fold mean) = {IC5:.4f}")
 display(grid.set_index("z").round(2))
 print(f"the rule's own entry at |z| = {Z_ENTRY:g} corresponds to a forecast of "
       f"{sig_h*IC5*Z_ENTRY*1e4:.1f} bp over {H} sessions "
-      f"({sig_h*IC5*Z_ENTRY*(ANN/H)*100:.1f}% annualised) — against a round trip that costs "
+      f"({sig_h*IC5*Z_ENTRY*(ANN/H)*100:.1f}% annualized) — against a round trip that costs "
       f"{4*COST_BPS:.0f} bp in commission and slippage alone.")
 """)
 
@@ -756,7 +756,7 @@ folds_per_year = panel.groupby(panel.index.year)["fold"].nunique().mean()
 BRs = {
     "(a) active pair-folds/yr x independent holding periods/yr":
         folds_per_year * (ANN / max(hold / 4, 1)),
-    "(b) realised trades per year": n_trades / span_years,
+    "(b) realized trades per year": n_trades / span_years,
 }
 ICs = {"per-fold mean IC (5d)": IC5,
        "pooled IC (5d)": float(panel[["s", "fwd5"]].dropna().corr().iloc[0, 1])}
@@ -766,14 +766,14 @@ print(f"span {span_years:.1f} years; {n_trades:,} trades; mean pair-fold length 
 print("breadth estimates: " + ", ".join(f"{k.split(')')[0]}) {v:,.0f}" for k, v in BRs.items()))
 print("\npredicted IR = IC * sqrt(BR):")
 display(law.round(3))
-print(f"\nrealised annualised Sharpe of the book: {sharpe(r_pairs):.3f}")
+print(f"\nrealized annualized Sharpe of the book: {sharpe(r_pairs):.3f}")
 """)
 
 # ───────────────────────────── 7. decay ─────────────────────────────
 md(r"""
 ### What the law says here
 
-Predicted IR runs from 1.14 to 3.38 depending on which IC and which breadth you feed it. Realised
+Predicted IR runs from 1.14 to 3.38 depending on which IC and which breadth you feed it. Realized
 Sharpe is **0.402**. The law overstates by a factor of three to eight.
 
 None of that is a failure of the law; it is the assumptions being false, and each one is worth naming
@@ -785,7 +785,7 @@ because each is a real defect of the strategy rather than of the arithmetic:
 * **Positions are not sized on the forecast.** Every trade is a flat \$10k whether $z$ is 2.0 or 4.0.
   The law assumes the optimal proportional sizing; a rule that throws away the magnitude of its own
   forecast cannot collect what the law promises.
-* **The IC fed in is the wrong IC.** §5 just showed the per-fold IC is largely a construction artefact
+* **The IC fed in is the wrong IC.** §5 just showed the per-fold IC is largely a construction artifact
   that the placebo reproduces. Feeding a null-inflated IC into $\mathrm{IC}\sqrt{\mathrm{BR}}$
   produces a null-inflated IR.
 * **Costs are not in the law at all.** The Grinold grid above forecasts 30 bp over five sessions at the
@@ -902,9 +902,9 @@ The leave-2022-out lines answer that, and they answer it differently for the two
   *below* the first. "The strategy got better" was one year; "the signal did not decay" was not.
 
 That is the distinction this whole notebook is about, arriving from an unexpected direction. Forecast
-quality (§1.2) and realised performance (§1.4) are different objects, and here they genuinely come
+quality (§1.2) and realized performance (§1.4) are different objects, and here they genuinely come
 apart: the signal held up while the money did not. A strategy whose record rests on a single year has
-one observation, not a track record — notebook 11 put the standard error of an annualised Sharpe on
+one observation, not a track record — notebook 11 put the standard error of an annualized Sharpe on
 this book near 0.23, and with the P&L concentrated as the table shows, even that overstates what is
 known.
 
@@ -1057,7 +1057,7 @@ Five clauses. The value of writing it this way is that every clause is a measure
 repository can perform all five on its own book. The trick that makes the first one clean is to put
 profit and cost in the *same units*: basis points of the notional the bet actually turns over. The
 backtest already charges `cost_bps` on traded notional, so expressing gross P&L on that same base makes
-the two directly subtractable and removes every unit ambiguity — no annualisation, no capital base, no
+the two directly subtractable and removes every unit ambiguity — no annualization, no capital base, no
 choice of denominator.
 
 $$\text{net edge per bet (bps)}\;=\;\underbrace{\frac{\text{gross P\&L}}{\text{notional traded}}\times10^4}_{\text{what the forecast earns}}\;-\;\underbrace{c}_{\text{what the trade costs}}$$
@@ -1154,7 +1154,7 @@ expensive per share.
 A pair pays a blend of its two legs, weighted by the notional each leg turns over — **not** a plain
 average of the two rates. `generate_pair_signals` sizes a trade as $\\text{capital}/(P_1+|\\beta|P_2)$,
 so the legs are equal only when $P_1=|\\beta|P_2$, and in this book two thirds of pair-folds sit
-outside a 40/60 split. The weights come from the realised per-leg turnover of each fold.
+outside a 40/60 split. The weights come from the realized per-leg turnover of each fold.
 """)
 code(r"""
 def fold_ledger(pair, formation):
@@ -1326,7 +1326,7 @@ a.annotate(f"{(e < c.median()).mean() * 100:.0f}% earn less than\nthe median cos
 a.annotate(f"against each pair's own cost, {(net < 0).mean() * 100:.0f}% fail",
            xy=(-76, 93), fontsize=8.4, color="firebrick")
 a.annotate(f"{(e.abs() > 80).mean() * 100:.0f}% lie outside this window,\n"
-           f"from {e.min():.0f} to {e.max():+.0f} bps", xy=(-76, 8), fontsize=8, color="dimgrey")
+           f"from {e.min():.0f} to {e.max():+.0f} bps", xy=(-76, 8), fontsize=8, color="dimgray")
 a.set_xlabel("gross edge, bps of the notional the round trip turned over")
 a.set_ylabel("round trips at or below (%)")
 a.set_title("The typical round trip barely clears its own cost", fontsize=10)
@@ -1448,11 +1448,11 @@ quality** — the same conclusion §6 reached from the Fundamental Law, arrived 
 direction.
 
 **Why this is a useful definition even though the answer is no.** It converts "is there an edge" from
-a matter of judgement into five arithmetic questions, and it localises the failure. A strategy failing
+a matter of judgment into five arithmetic questions, and it localizes the failure. A strategy failing
 clause (0) would need cheaper execution or a coarser horizon. This one clears (0) by a factor of
 fifteen and stalls on (a) through (c) — one at the boundary, one fatally, one for want of data.
 Nothing there is fixed by trading better; it is fixed by finding more, and more nearly independent,
-opportunities. That is a different research programme from the one notebooks 01–19 have been running,
+opportunities. That is a different research program from the one notebooks 01–19 have been running,
 and knowing which one you are on is most of the value of measuring at all.
 """)
 
@@ -1512,7 +1512,7 @@ without its qualifiers.
 
 **Alpha and edge are not the same claim.** Everything above §9 asks whether the signal forecasts.
 Section 9 asks whether acting on it would have made money worth keeping, and gives that question a
-definition with five arithmetic clauses rather than a judgement. The two answers differ: the forecast
+definition with five arithmetic clauses rather than a judgment. The two answers differ: the forecast
 is real enough to survive some of the tests in §5, and the edge fails four of the five in §9.
 
 **The practical rule.** A claim of alpha is incomplete unless it names four things: the **factor model**

@@ -84,7 +84,7 @@ def test_the_underlying_is_never_gated_only_the_magnified_side(synthetic):
     assert abs(rep.loc["BULL3", "scaled_beta"]) == pytest.approx(3.0, abs=0.1)
 
 
-def test_thresholds_are_honoured(synthetic):
+def test_thresholds_are_honored(synthetic):
     strict = Thresholds(rho_min=0.999999, beta_tol=0.15)
     assert detect_scaled_instruments(synthetic, thresholds=strict) <= {"BULL3", "BEAR2"}
     loose = Thresholds(rho_min=0.95, beta_tol=5.0)      # nothing is 5x away from unit beta here

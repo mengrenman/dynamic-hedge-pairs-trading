@@ -20,8 +20,8 @@ Typical usage
 ...     train_bars=504,         # ~2 years of daily bars
 ...     test_bars=126,          # ~6 months
 ...     step_bars=63,           # advance by ~1 quarter each fold
-...     fit_fn=my_kalman_fit,   # callable(df_train) -> fitted artefact
-...     signal_fn=my_signals,   # callable(df_test, artefact) -> signals
+...     fit_fn=my_kalman_fit,   # callable(df_train) -> fitted artifact
+...     signal_fn=my_signals,   # callable(df_test, artifact) -> signals
 ...     eval_fn=my_evaluate,    # callable(df_test, signals) -> summary dict
 ... )
 """
@@ -188,7 +188,7 @@ def walk_forward_backtest(
     1. Slice the *training* window from ``df``.
     2. Call ``fit_fn(df_train)`` to fit a model / calibrate parameters.
     3. Slice the *test* window from ``df``.
-    4. Call ``signal_fn(df_test, artefact)`` to generate trading signals.
+    4. Call ``signal_fn(df_test, artifact)`` to generate trading signals.
     5. Call ``eval_fn(df_test, signals)`` to compute performance metrics.
 
     All fold results are collected into a summary DataFrame indexed by fold.
@@ -206,11 +206,11 @@ def walk_forward_backtest(
         How many bars to slide the window forward each fold.
         Defaults to ``test_bars`` (non-overlapping test windows).
     fit_fn : callable
-        Signature: ``fit_fn(df_train: pd.DataFrame) -> artefact``
+        Signature: ``fit_fn(df_train: pd.DataFrame) -> artifact``
         Fits/calibrates the model on the training slice.  The returned
-        artefact is passed to ``signal_fn``.
+        artifact is passed to ``signal_fn``.
     signal_fn : callable
-        Signature: ``signal_fn(df_test: pd.DataFrame, artefact) -> signals``
+        Signature: ``signal_fn(df_test: pd.DataFrame, artifact) -> signals``
         Generates trading signals for the test slice.
     eval_fn : callable
         Signature: ``eval_fn(df_test: pd.DataFrame, signals: pd.DataFrame) -> dict``
@@ -280,7 +280,7 @@ def walk_forward_backtest(
 
         # ── Fit ────────────────────────────────────────────────────────────
         try:
-            artefact = fit_fn(df_train)
+            artifact = fit_fn(df_train)
         except Exception as e:
             warnings.warn(
                 f"Fold {fold_num}: fit_fn raised {type(e).__name__}: {e}. Skipping.",
@@ -288,7 +288,7 @@ def walk_forward_backtest(
             )
             continue
 
-        if artefact is None:
+        if artifact is None:
             warnings.warn(
                 f"Fold {fold_num}: fit_fn returned None (degenerate training data). Skipping.",
                 UserWarning, stacklevel=2,
@@ -297,7 +297,7 @@ def walk_forward_backtest(
 
         # ── Signal ─────────────────────────────────────────────────────────
         try:
-            signals = signal_fn(df_test, artefact)
+            signals = signal_fn(df_test, artifact)
         except Exception as e:
             warnings.warn(
                 f"Fold {fold_num}: signal_fn raised {type(e).__name__}: {e}. Skipping.",

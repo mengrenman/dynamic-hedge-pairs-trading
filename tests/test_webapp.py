@@ -55,7 +55,7 @@ def test_holdout_reproduces_notebook_01_exactly():
 
 
 @YAHOO
-def test_tier_two_is_memoised_so_tier_one_never_pays_for_it():
+def test_tier_two_is_memoized_so_tier_one_never_pays_for_it():
     spec = HedgeSpec()
     first = fit_hedge(spec)
     assert fit_hedge(spec) is first, "an identical spec must not refit"
@@ -99,7 +99,7 @@ def test_sources_report_their_own_availability():
 
 @YAHOO
 def test_memo_is_reentrant_across_keys():
-    """fit_hedge asks the registry for prices from inside a memoised call.
+    """fit_hedge asks the registry for prices from inside a memoized call.
 
     A single non-reentrant lock deadlocks here; the per-key locks must not.
     """
@@ -198,7 +198,7 @@ def test_job_lifecycle_runs_and_cancels():
         if j.done:
             break
         time.sleep(0.01)
-    assert j.status == "cancelled" and j.done
+    assert j.status == "canceled" and j.done
 
     ok = jobs.submit("quick", lambda job: 42)
     for _ in range(300):

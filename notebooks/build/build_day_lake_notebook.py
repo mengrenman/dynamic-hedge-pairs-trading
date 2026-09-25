@@ -244,7 +244,7 @@ md(r"""
 
 At each formation date the universe is rebuilt from what was tradeable **then**. Over the trailing
 two-year window a ticker qualifies if it traded on at least 99% of sessions, its median **unadjusted**
-close was at least \$5, its median dollar volume was at least \$20M, its annualised volatility was at
+close was at least \$5, its median dollar volume was at least \$20M, its annualized volatility was at
 least 15%, its largest one-day move was under 100%, and it is not an exchange test symbol.
 
 The volatility floor is the one rule that needs its own argument; §6 makes it.
@@ -343,7 +343,7 @@ it flatter a backtest before any strategy is applied?
 
 Both universes below are held to identical rules — equal weight, semi-annual rebalance, total return with
 the recovered dividends, the same price basis and the same eligibility gates. The only difference is
-whether a name had to be in *today's* index to be held. Returns are winsorised at ±100% a day as a last
+whether a name had to be in *today's* index to be held. Returns are winsorized at ±100% a day as a last
 data-quality guard, and the number of observations that touches is reported.
 """)
 code(r"""
@@ -359,7 +359,7 @@ div = bars["dividend"].unstack("ticker").reindex_like(px).fillna(0.0)
 ret = (px + div) / px.shift(1) - 1.0
 clipped = int((ret.abs() > 1.0).sum().sum())
 ret = ret.clip(-1.0, 1.0)
-print(f"daily returns winsorised at ±100%: {clipped:,} observations of {int(ret.notna().sum().sum()):,} "
+print(f"daily returns winsorized at ±100%: {clipped:,} observations of {int(ret.notna().sum().sum()):,} "
       f"({clipped / ret.notna().sum().sum():.4%})")
 
 def equal_weight_curve(selector):
@@ -420,7 +420,7 @@ curated index list hides.
 
 One more rule falls out of the data rather than from principle: the **volatility floor**. Ranked by
 dollar volume, the liquid universe is led by index ETFs and mega caps — but a pure liquidity screen also
-admits money-market funds like BIL and SGOV, at annualised volatilities under 1.5%. A series that is already nearly constant satisfies a
+admits money-market funds like BIL and SGOV, at annualized volatilities under 1.5%. A series that is already nearly constant satisfies a
 stationarity test against almost anything, so without the floor they dominate the screen.
 
 Notebook 10 now applies all of this to the question the strategy depends on.

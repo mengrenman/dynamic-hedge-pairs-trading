@@ -317,7 +317,7 @@ Finding one clean example in 1.7 million tests is a fair summary of the evidence
 md(r"""
 ## 6. The distance method as a benchmark
 
-Gatev et al. (2006) select pairs without any test: normalise both price series to 1 at the start of the
+Gatev et al. (2006) select pairs without any test: normalize both price series to 1 at the start of the
 formation window and take the pairs with the smallest sum of squared deviations. It is the oldest and
 most replicated pairs-trading rule, and it makes a useful control — if cointegration testing adds
 nothing, the two selections should perform alike in notebook 11.

@@ -92,7 +92,7 @@ z-score look-back and warm-up history from the training window (the look-ahead f
 * **OLS rolling**: a trailing-window hedge refit every day from past data only.
 
 The z-score look-back is normally the half-life of the model's own training residual; one variant takes
-it from the *static* spread instead, because the Kalman residual's half-life is a filter artefact
+it from the *static* spread instead, because the Kalman residual's half-life is a filter artifact
 (`pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb`).
 """)
 code(r"""
@@ -315,7 +315,7 @@ def series(block, pair, i, period):
     if period == "valid": return s[s.index >= VALID_START]
     return s
 
-def analyse(block, pairs=None):
+def analyze(block, pairs=None):
     pairs = pairs or pairs_all
     grid = block["grid"]; d_idx = cfg_index(grid, DEFAULT_SIG)
     n_cfg = len(grid)
@@ -353,7 +353,7 @@ def analyse(block, pairs=None):
 
 tables, choices = {}, {}
 for key, block in blocks.items():
-    tables[key], choices[key] = analyse(block)
+    tables[key], choices[key] = analyze(block)
 valid_tab = pd.concat({f"{n} | train {tb}": t for (n, tb), t in tables.items()}, names=["model | window", "procedure"])
 valid_tab.style.format({"tune Sharpe": "{:.2f}", "valid Sharpe": "{:.2f}", "valid P&L ($k)": "{:.1f}", "median pair Sharpe": "{:.2f}"}) \
     .background_gradient(subset=["valid Sharpe"], cmap="RdYlGn", vmin=-1, vmax=2.5)
@@ -363,7 +363,7 @@ sub = valid_tab.xs("valid Sharpe", axis=1).unstack("procedure").loc[[f"{n} | tra
 sub.columns.name = None
 fig, ax = plt.subplots(figsize=(15, 5.5))
 x = np.arange(len(sub)); w = 0.2
-for k, (proc, color) in enumerate((("default", "steelblue"), ("per-pair tuned", "darkorange"), ("pooled tuned", "seagreen"), ("oracle (peeks at validation)", "lightgrey"))):
+for k, (proc, color) in enumerate((("default", "steelblue"), ("per-pair tuned", "darkorange"), ("pooled tuned", "seagreen"), ("oracle (peeks at validation)", "lightgray"))):
     ax.bar(x + (k - 1.5) * w, sub[proc], width=w, label=proc, color=color, edgecolor="black" if proc.startswith("oracle") else None)
 ax.axhline(0, color="black", lw=0.8)
 ax.set_xticks(x); ax.set_xticklabels([i.replace(" | train 504", "") for i in sub.index], rotation=30, ha="right", fontsize=8)
@@ -558,7 +558,7 @@ for lbl, ser in hold_series.items():
                  "pairs +": f"{int(sum(s.sum() > 0 for s in ser.values()))}/{len(ser)}", "hub pairs": sh_hub, "non-hub pairs": sh_nh}
 hold_tab = pd.DataFrame(rows).T.sort_values("hold-out Sharpe", ascending=False)
 se = 1 / np.sqrt(len(hold) / 252)
-print(f"Hold-out is {len(hold)} bars: the standard error of an annualised Sharpe measured on it is ≈ {se:.2f}, "
+print(f"Hold-out is {len(hold)} bars: the standard error of an annualized Sharpe measured on it is ≈ {se:.2f}, "
       f"so anything with |Sharpe| < {2 * se:.1f} is indistinguishable from zero.")
 hold_tab.style.format({"hold-out Sharpe": "{:.2f}", "hold-out P&L ($k)": "{:.1f}", "hub pairs": "{:.2f}", "non-hub pairs": "{:.2f}"}) \
     .background_gradient(subset=["hold-out Sharpe"], cmap="RdYlGn", vmin=-2, vmax=2)
@@ -573,7 +573,7 @@ agree = (np.sign(j["valid"]) == np.sign(j["hold-out Sharpe"])).mean()
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 5), gridspec_kw={"width_ratios": [1, 1.3]})
 ax = axes[0]
-ax.axhspan(-2 * se, 2 * se, color="grey", alpha=0.15, label=f"±2 s.e. of a {len(hold)}-bar Sharpe")
+ax.axhspan(-2 * se, 2 * se, color="gray", alpha=0.15, label=f"±2 s.e. of a {len(hold)}-bar Sharpe")
 ax.scatter(j["valid"], j["hold-out Sharpe"], s=28, color="steelblue")
 for lbl, row in j.iterrows():
     if abs(row["hold-out Sharpe"]) > 0.9 or row["valid"] > 1.8 or "default) | default" in lbl:
@@ -591,8 +591,8 @@ plt.tight_layout(); plt.show()
 """)
 md(r"""
 **Reading.** The validation ranking carries a little information about the hold-out this time, but not
-much: ρ = 0.34 across 33 procedures, with sign agreement of 70%. The grey band says why an honest reading
-stops there: an annualised Sharpe measured on 174 bars carries a standard error of about 1.2, so every
+much: ρ = 0.34 across 33 procedures, with sign agreement of 70%. The gray band says why an honest reading
+stops there: an annualized Sharpe measured on 174 bars carries a standard error of about 1.2, so every
 procedure in the table sits inside the noise. Validation's leader does *not* repeat — static per-pair
 tuned, 1.48 in 2025, comes 6th at 1.07 — and the next two fade outright: `K em0 q1e-5` pooled-tuned
 (1.16 on validation) is 19th at 0.27 and the z-window variant's per-pair tuning (1.12) is 16th at 0.46.

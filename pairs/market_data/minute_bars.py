@@ -31,7 +31,7 @@ Conventions
   a trade carry the last traded price forward (within the session only — a session never
   inherits the previous close), ``volume`` 0 and ``n_traded`` 0. Minutes before a session's
   first trade stay NaN. A ticker-session with no trades at all is absent from the output.
-* ``freq`` aggregates the minute grid per session: ``"5min"`` etc. (bars labelled by their
+* ``freq`` aggregates the minute grid per session: ``"5min"`` etc. (bars labeled by their
   start, last bar of the session may be shorter) or ``"session"`` (one row per session with
   open/close/volume/dollar volume, traded-minute count and a Roll effective-spread estimate).
 
@@ -71,7 +71,7 @@ EARLY_CLOSE_MINUTE = 13 * 60       # 13:00 (exclusive) on early-close days
 # ───────────────────────── layout & calendar helpers ─────────────────────────
 
 def detect_lake_layout(root: str | Path) -> str:
-    """Return ``"ticker"`` or ``"market"`` for a lake root (raises if neither is recognised)."""
+    """Return ``"ticker"`` or ``"market"`` for a lake root (raises if neither is recognized)."""
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"lake root does not exist: {root}")
@@ -252,7 +252,7 @@ def _process(raw: pd.DataFrame, *, price: str, freq: str, tz: str, early: pd.Dat
     session = lvl_dt.normalize()
     tick = out.index.get_level_values("ticker")
 
-    if k is not None:  # k-minute bars, labelled by bar start, bins anchored at 09:30
+    if k is not None:  # k-minute bars, labeled by bar start, bins anchored at 09:30
         label = pd.DatetimeIndex(session + pd.to_timedelta(RTH_OPEN_MINUTE + (minute_in_session // k) * k, unit="m"))
         g = out.groupby([tick, label], sort=True, observed=True)
         agg = g.agg(close=("close", "last"), volume=("volume", "sum"), n_traded=("n_traded", "sum"))
@@ -321,7 +321,7 @@ def load_minute_bars(
 
     Returns
     -------
-    DataFrame indexed by (ticker, datetime) — timezone-naive ``tz`` timestamps labelling bar
+    DataFrame indexed by (ticker, datetime) — timezone-naive ``tz`` timestamps labeling bar
     starts — with columns ``close``, ``volume``, ``n_traded`` (minutes in the bar with a trade);
     for ``freq="session"`` the index holds session dates and the columns are ``open``, ``close``,
     ``volume``, ``dollar_volume``, ``n_traded``, ``n_bars``, ``roll_spread_bps``.

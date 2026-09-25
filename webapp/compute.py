@@ -6,7 +6,7 @@ Measured on this machine, one pair, 1508 daily bars:
     tier 2   fit_kalman_hedge (em_iters=5)                             ~1770 ms
     tier 3   the dual-gate screen over 44,850 pairs x 39 formations       ~1 h
 
-Tier 1 is live under HTMX, tier 2 is a button, tier 3 is a background job or a cached artefact.
+Tier 1 is live under HTMX, tier 2 is a button, tier 3 is a background job or a cached artifact.
 Keeping that split explicit in the code is what stops the UI promising interactivity it cannot
 deliver.
 

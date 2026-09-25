@@ -35,7 +35,7 @@ On top of that: a cost sweep, a dividend accounting check, a decomposition by re
 that matters most for reading notebooks 01–05 — the same backtest run on today's index members instead
 of the point-in-time universe.
 
-Thirty-nine folds spanning 2006–2025 give roughly 4,900 trading days, so an annualised Sharpe carries a
+Thirty-nine folds spanning 2006–2025 give roughly 4,900 trading days, so an annualized Sharpe carries a
 standard error near 0.23. For the first time in this repository the sample is large enough to separate a
 small edge from nothing.
 
@@ -373,7 +373,7 @@ if len(trades):
 """)
 md(r"""
 This is one fold of one pair, and the best one of the 287 — it is the *shape* that is worth reading, not
-the number. Four things in it generalise, and the last one is uncomfortable.
+the number. Four things in it generalize, and the last one is uncomfortable.
 
 **The position is on for a small fraction of the window.** The shaded spans are where the rule holds
 anything; most of the fold is flat. That is what a Sharpe computed on deployed capital means in §3, and
@@ -517,7 +517,7 @@ Nothing above asked what the tickers *are*. A 3× fund on a liquid index is liqu
 volatile, so it clears every gate — and cointegrating one against its own underlying is an arithmetic
 identity, not an economic relationship.
 
-`pairs.market_data.instruments` finds these by behaviour rather than from a list: an instrument is
+`pairs.market_data.instruments` finds these by behavior rather than from a list: an instrument is
 flagged when its returns are a near-exact **magnified** multiple of its closest relative
 ($|\rho|\ge0.95$, $|\beta|\ge1.15$). Only the magnified side is flagged, or the underlying would be
 gated out along with its fund. A curated list is the wrong tool here — the seventeen names this notebook
@@ -577,7 +577,7 @@ Two changes at once, because they touch the same runs.
 
 **The hold-out.** Nothing in notebooks 09–12 was ever held back: every number so far is in-sample in the
 weak sense that the whole span was visible while the design was chosen. The last five formations —
-2023-06-30 onward, about 2.6 years — are now reported separately. That window is short: an annualised
+2023-06-30 onward, about 2.6 years — are now reported separately. That window is short: an annualized
 Sharpe over 2.6 years carries a standard error near **0.62**, against 0.25 for the 16.5-year development
 span, so single cells prove little and only the pattern across them is worth reading.
 """)
@@ -623,7 +623,7 @@ md(r"""
 
 **The gate costs the strategy about a quarter of its P&L and a fifth of its Sharpe.** BH dual-gate
 goes from +0.402 to **+0.309**, and from \$43.6k to **\$32.5k**, on 123 fewer allocated sessions. The
-edge is not an artefact of leveraged funds — it survives their removal — but it is meaningfully
+edge is not an artifact of leveraged funds — it survives their removal — but it is meaningfully
 smaller than the headline, and the honest number to quote going forward is the gated one. The raw-$p$
 rule crosses zero (+0.040 to −0.018) and the distance rule is untouched (−0.412 to −0.414), which is
 what one would expect: distance selection never liked these instruments in the first place.
@@ -644,7 +644,7 @@ The cell that matters is the second row — the rule this repository recommends,
 gate this notebook just argued for, evaluated on a window chosen before it was looked at. It returns
 **−0.913**, on 532 sessions and −\$4.5k.
 
-**How much weight that carries.** Not much on its own. An annualised Sharpe over 2.6 years has a
+**How much weight that carries.** Not much on its own. An annualized Sharpe over 2.6 years has a
 standard error near 0.62, so −0.913 against a development +0.412 is a gap of about 2.1 hold-out
 standard errors: suggestive, not settled. And the development span contains 2022, which §6 showed is
 more than half of all the P&L, so any split that puts 2022 on one side flatters that side. What the

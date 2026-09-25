@@ -171,7 +171,7 @@ def test_impact_is_concession_times_shares():
 def test_impact_cost_grows_superlinearly_with_size():
     """
     Total impact must scale as |Δq|^{3/2}. If it scales as √|Δq| the model has
-    stopped penalising size — each dollar traded gets *cheaper* as the order
+    stopped penalizing size — each dollar traded gets *cheaper* as the order
     grows, which inverts the only effect the model exists to capture.
     """
     base = float(market_impact_bps(1_000, 50.0, 500_000, 3000, eta=0.14))

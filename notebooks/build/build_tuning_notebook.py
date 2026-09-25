@@ -106,7 +106,7 @@ md(r"""
 nb02 picks the pair with a walk-forward driver but runs it with hand-set parameters. Here the same
 folds (train 504 / test 126 / step 63 bars, 2020–2025) score a grid of configurations for the selected
 pair. The objective is the **pooled out-of-fold Sharpe**: the out-of-fold daily net returns of all folds
-are concatenated into one series and a single annualised Sharpe is computed on it, with a fixed $10k
+are concatenated into one series and a single annualized Sharpe is computed on it, with a fixed $10k
 capital base so returns are comparable across folds. Because the 126-bar test windows overlap (step 63),
 each fold contributes only the 63 bars before the next refit (the last fold contributes all of its bars),
 so every bar from bar 505 onward has exactly one out-of-fold return, from the most recently refitted
@@ -191,7 +191,7 @@ EVAL_KW = dict(cost_bps=1, borrow_bps_per_year=50, days_per_year=252, bars_per_y
                capital_base=10_000)      # fixed base: out-of-fold returns are comparable across folds
 
 def _pooled_sharpe(n, s1, s2, periods=252):
-    # Annualised Sharpe of a return series known only through its count, sum and sum of squares
+    # Annualized Sharpe of a return series known only through its count, sum and sum of squares
     # (mean / population std). Lets any subset of folds be pooled without keeping the returns.
     n = np.asarray(n, float); s1 = np.asarray(s1, float); s2 = np.asarray(s2, float)
     with np.errstate(divide="ignore", invalid="ignore"):
@@ -362,7 +362,7 @@ md(r"""
 The winner is the best pooled out-of-fold Sharpe among configurations with enough trades. As a guard
 against a configuration that is idiosyncratic to the selected pair, the same configuration is
 re-scored on the next three candidates from the §3.5 shortlist (each with its own walk-forward folds):
-a genuine improvement in the *strategy* should not evaporate on neighbouring pairs.
+a genuine improvement in the *strategy* should not evaporate on neighboring pairs.
 """),
 code(r"""
 TUNED = {k: valid.iloc[0][k] for k in KALMAN_KEYS + SIGNAL_KEYS}
@@ -468,7 +468,7 @@ signals_tuned = generate_pair_signals(df_pair_tuned, capital_per_pair=10_000, **
 print(f"in-sample trades — default: {int(signals['entry'].sum())}, tuned: {int(signals_tuned['entry'].sum())}")
 signals_tuned.tail(5)
 """
-get(33, "4.3 Visualise in-sample trades").source = "## 4.3 Visualise in-sample trades (tuned configuration)"
+get(33, "4.3 Visualize in-sample trades").source = "## 4.3 Visualize in-sample trades (tuned configuration)"
 get(34, "plot_pair_legs_with_trades(").source = r"""
 from pairs import plot_pair_legs_with_trades
 
@@ -571,7 +571,7 @@ daily_te_t, trades_te_t, summary_te_t = evaluate_pair_signals(df_pair_te_t[["P1"
 print("=== Out-of-Sample Performance (2026-01-01 → 2026-06-25) ===")
 print(pd.DataFrame({"default": pd.Series(summary_te), "tuned": pd.Series(summary_te_t)}).to_string())
 """
-get(43, "4b.3 Visualise OOS trades").source = "## 4b.3 Visualise OOS trades (tuned configuration)"
+get(43, "4b.3 Visualize OOS trades").source = "## 4b.3 Visualize OOS trades (tuned configuration)"
 get(44, "plot_pair_legs_with_trades(").source = r"""
 from pairs import plot_pair_legs_with_trades
 

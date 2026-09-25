@@ -82,7 +82,7 @@ class Registry:
     def _memo(self, key: str, fn):
         """Compute-once cache with a lock **per key**.
 
-        One global lock would deadlock: a memoised function may itself call _memo for a different
+        One global lock would deadlock: a memoized function may itself call _memo for a different
         key (fit_hedge asks for prices), and threading.Lock is not reentrant. Per-key locks also
         stop a 2.6 s day-lake load from blocking an unrelated 0.2 s Yahoo request, which a single
         lock would do.

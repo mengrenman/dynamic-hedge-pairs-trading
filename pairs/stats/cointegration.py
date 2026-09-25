@@ -144,7 +144,7 @@ def _build_series_map(
     data: pd.DataFrame,
 ) -> Tuple[dict, List[str], pd.Timestamp, pd.Timestamp]:
     """
-    Split a normalised (ticker, datetime) frame into per-ticker 'close' series.
+    Split a normalized (ticker, datetime) frame into per-ticker 'close' series.
 
     Returns (series_map, tickers, full_start, full_end). Keys are native ``str``
     (never ``np.str_``) so they pickle cleanly into worker processes.
@@ -386,7 +386,7 @@ def find_cointegrated_pairs_dualgate(
     applied to the raw EG p-values before determining ``eg_pass``.  The
     corrected p-value is stored in the ``eg_p_fdr`` column.  Setting
     ``fdr_method="none"`` reverts to the uncorrected raw p-value gate used in
-    earlier versions (reproduces the original behaviour).
+    earlier versions (reproduces the original behavior).
 
     Parameters
     ----------
@@ -425,7 +425,7 @@ def find_cointegrated_pairs_dualgate(
     if fdr_method not in ("bh", "none"):
         raise ValueError(f"fdr_method must be 'bh' or 'none', got {fdr_method!r}")
 
-    # ---- Validate and normalise index ----------------------------------------
+    # ---- Validate and normalize index ----------------------------------------
     if "close" not in data.columns:
         raise ValueError("data must have column 'close' and a MultiIndex (ticker, datetime).")
     data = normalize_multiindex(data)

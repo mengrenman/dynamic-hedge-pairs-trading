@@ -190,14 +190,14 @@ def plot_pair_legs_with_trades(
         z = df["z"].astype(float)
         ax3.plot(X, z.to_numpy(), linewidth=1.2, color="tab:blue", label="z of spread", zorder=2)
         ax3.axhline(0.0, color="k", linewidth=0.9, zorder=1)
-        for lv, colour, name in ((z_entry, sell_color, "entry"),
+        for lv, color, name in ((z_entry, sell_color, "entry"),
                                  (z_exit, buy_color, "exit"),
                                  (z_stop, "0.35", "stop")):
             if lv is None:
                 continue
-            ax3.axhline(lv, color=colour, linestyle="--", linewidth=1.0,
+            ax3.axhline(lv, color=color, linestyle="--", linewidth=1.0,
                         label=f"{name} ±{lv:g}", zorder=1)
-            ax3.axhline(-abs(lv), color=colour, linestyle="--", linewidth=1.0, zorder=1)
+            ax3.axhline(-abs(lv), color=color, linestyle="--", linewidth=1.0, zorder=1)
 
         # mark where the position opens and closes, so one trade can be followed
         # down the three panels: z leaves the band -> legs are traded -> z reverts

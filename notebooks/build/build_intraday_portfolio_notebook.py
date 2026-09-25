@@ -238,7 +238,7 @@ def portfolio(fits, k, cfg, cost=None, adv_shares=None):
     n_sessions = pnl.index.normalize().nunique()
     hold = pd.concat([t["bars"] for t in trades.values() if len(t)]) if any(len(t) for t in trades.values()) else pd.Series(dtype=float)
     return {"pnl": pnl, "daily": daily, "trades": trades, "signals": sigs, "sharpe": sharpe,
-            "sharpe_se": float(np.sqrt(252 / n_sessions)),          # ≈ s.e. of an annualised Sharpe over n_sessions
+            "sharpe_se": float(np.sqrt(252 / n_sessions)),          # ≈ s.e. of an annualized Sharpe over n_sessions
             "pnl_k": pnl.sum().sum() / 1e3, "cost_k": sum(d["cost"].sum() for d in daily.values()) / 1e3,
             "trades_n": int(sum(len(t) for t in trades.values())), "hold_sessions": float(hold.median() / BARS[k]) if len(hold) else np.nan,
             "pairs_positive": int((pnl.sum() > 0).sum()),
@@ -259,14 +259,14 @@ sessions before it, positions carried across refits:
 
 * **intraday** — the design notebook 18 carried forward: its best hedge and sampling frequency with the
   untuned rule (3 × half-life look-back, entry 2, exit 0.5, overnight allowed);
-* **intraday, grid best** — the same hedge and frequency with the look-back/entry cell that maximised the
+* **intraday, grid best** — the same hedge and frequency with the look-back/entry cell that maximized the
   training-span pooled Sharpe in notebook 18 (the "tuned" version);
 * **daily bars, same hedge** — the same pairs and hedge on session closes with the same rule: the
   apples-to-apples test of whether minute resolution adds anything;
 * **daily bars, daily Kalman** — session closes with the EM Kalman hedge of the earlier notebooks and
   their defaults, i.e. notebook 02's method on this candidate set over the same period.
 
-The standard error of an annualised Sharpe over ~150 sessions is about 1.3, so only differences of several
+The standard error of an annualized Sharpe over ~150 sessions is about 1.3, so only differences of several
 units would mean anything; the table is reported, not interpreted as a ranking.
 """)
 code(r"""
@@ -346,7 +346,7 @@ a trade count in the dozens, and why its Sharpe carries a standard error above o
 It is worth sitting with, because the summary table invites the opposite picture. A row reading "ten pairs,
 153 sessions" suggests a book that is continuously invested and diversified across names. What the shading
 shows is a book that is flat almost all the time and, when it is on, is usually on in one pair at a time.
-The capital is committed for the whole window; the *risk* is taken in a handful of episodes. Any annualised
+The capital is committed for the whole window; the *risk* is taken in a handful of episodes. Any annualized
 number computed over the full window — Sharpe included — is describing a strategy that was mostly doing
 nothing.
 
@@ -383,7 +383,7 @@ the design is execution-insensitive.
 
 The base case charges 1 bp commission and slippage plus half the Roll spread per leg per side (≈ 2.5–3
 bps). Sweeping the per-leg-side cost from zero to 10 bps gives the break-even cost — the one number that
-summarises how much of the gross edge microstructure eats.
+summarizes how much of the gross edge microstructure eats.
 """)
 code(r"""
 COSTS = [0.0, 1.0, 2.0, 3.0, 5.0, 7.5, 10.0]

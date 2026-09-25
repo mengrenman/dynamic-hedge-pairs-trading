@@ -28,7 +28,7 @@ _MAX_KEPT = 20
 class Job:
     id: str
     label: str
-    status: str = "queued"               # queued | running | done | failed | cancelled
+    status: str = "queued"               # queued | running | done | failed | canceled
     progress: float = 0.0                # 0..1
     message: str = ""
     result: Any = None
@@ -43,17 +43,17 @@ class Job:
 
     @property
     def done(self) -> bool:
-        return self.status in ("done", "failed", "cancelled")
+        return self.status in ("done", "failed", "canceled")
 
     def cancel(self) -> None:
         self._cancel.set()
 
     @property
-    def cancelled(self) -> bool:
+    def canceled(self) -> bool:
         return self._cancel.is_set()
 
 
-class Cancelled(RuntimeError):
+class Canceled(RuntimeError):
     """Raised inside a worker when the user asks it to stop."""
 
 
@@ -62,8 +62,8 @@ def submit(label: str, fn: Callable[["Job"], Any]) -> Job:
     job = Job(id=uuid.uuid4().hex[:12], label=label)
 
     def tick(frac: float, msg: str = "") -> None:
-        if job.cancelled:
-            raise Cancelled()
+        if job.canceled:
+            raise Canceled()
         job.progress = max(0.0, min(1.0, frac))
         if msg:
             job.message = msg
@@ -76,9 +76,9 @@ def submit(label: str, fn: Callable[["Job"], Any]) -> Job:
             job.status = "done"
             job.progress = 1.0
             job.message = job.message or "finished"
-        except Cancelled:
-            job.status = "cancelled"
-            job.message = "cancelled"
+        except Canceled:
+            job.status = "canceled"
+            job.message = "canceled"
         except Exception as exc:                            # surfaced in the UI, not swallowed
             job.status = "failed"
             job.error = f"{type(exc).__name__}: {exc}"

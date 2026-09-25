@@ -10,7 +10,7 @@ from pairs.market_data.openbb_history import download_history_openbb, normalize_
 from pairs.market_data.polygon_lake import load_polygonio_lake, select_lake_files
 
 
-# ── OpenBB: symbol normalisation ─────────────────────────────────────────────
+# ── OpenBB: symbol normalization ─────────────────────────────────────────────
 
 class TestNormalizeSymbol:
     def test_yfinance_share_class_uses_dash(self):
@@ -152,7 +152,7 @@ class TestPolygonLake:
         end = pd.Timestamp("2024-01-31 23:59:59", tz="US/Eastern")
         assert df.index.get_level_values("datetime").max() <= end
 
-    def test_tz_naive_parquet_is_localised(self, tmp_path):
+    def test_tz_naive_parquet_is_localized(self, tmp_path):
         _write_day_lake(tmp_path, "AAPL", [(2024, 1)], tz=None)
         out = load_polygonio_lake(["AAPL"], "2024-01-01", "2024-01-31", tmp_path,
                                   source_tz="US/Eastern")

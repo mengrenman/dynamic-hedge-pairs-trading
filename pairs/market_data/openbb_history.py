@@ -16,7 +16,7 @@ def normalize_symbol(ticker: str, provider: str) -> str:
     Alternate spelling of a ticker to *retry* with when the provider returns nothing.
 
     S&P / Nasdaq constituent lists write share classes as ``BRK.B`` / ``BF.B``;
-    yfinance only recognises ``BRK-B`` / ``BF-B``. But yfinance also uses dots for
+    yfinance only recognizes ``BRK-B`` / ``BF-B``. But yfinance also uses dots for
     exchange suffixes (``VOD.L``, ``RY.TO``) that must keep the dot, so the spelling
     cannot be decided up front: the loader requests the ticker exactly as given
     first and falls back to this spelling only if that returns no data. The caller

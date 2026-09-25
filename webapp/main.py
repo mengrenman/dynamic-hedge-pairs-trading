@@ -94,7 +94,7 @@ def explorer(request: Request):
 
 @app.post("/explore/run", response_class=HTMLResponse)
 async def explore_run(request: Request):
-    """Tier 1 (and tier 2 when the pair or hedge changed — fit_hedge memoises either way)."""
+    """Tier 1 (and tier 2 when the pair or hedge changed — fit_hedge memoizes either way)."""
     hedge, sig = _specs(await request.form())
     try:
         ctx = _explorer_context(hedge, sig)

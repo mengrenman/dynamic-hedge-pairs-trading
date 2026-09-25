@@ -14,7 +14,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 
 # ───────────────────────────── title ─────────────────────────────
 md(r"""
-# Visualising cointegrated pairs across a universe
+# Visualizing cointegrated pairs across a universe
 
 Universe-wide screening and its visual diagnostics, built on the package API:
 
@@ -23,7 +23,7 @@ Universe-wide screening and its visual diagnostics, built on the package API:
    Benjamini–Hochberg (BH) correction on the Nasdaq-100 *and* on the combined S&P 500 + Nasdaq-100
    universe. The Nasdaq-100 alone is the cautionary tale: its raw-p "cointegration network" collapses to
    nothing once false discoveries are controlled.
-3. **The network** (combined universe) — heatmap, Kamada-Kawai graph with community colouring and hub
+3. **The network** (combined universe) — heatmap, Kamada-Kawai graph with community coloring and hub
    detection, degree distribution, the network with the hubs removed, and a clustered heatmap.
 4. **Trading diagnostics** — Kalman hedge on every surviving pair, spread half-life and stationarity
    summary, and a gallery of the most tradeable spreads.
@@ -155,7 +155,7 @@ def draw_network(G: nx.Graph, ax, title: str, *, label: str = "all", hub_q: floa
                  communities: bool = True, font_size: int = 7, label_min_degree: int = 2):
     # label: "all" | "hubs" (nodes with degree >= label_min_degree) | "none"
     if G.number_of_edges() == 0:
-        ax.text(0.5, 0.5, "no significant pairs", ha="center", va="center", fontsize=13, color="grey")
+        ax.text(0.5, 0.5, "no significant pairs", ha="center", va="center", fontsize=13, color="gray")
         ax.set_title(title); ax.set_axis_off(); return [], []
     pos = nx.kamada_kawai_layout(G, weight="dist")
     deg = dict(G.degree()); dv = np.array([deg[n] for n in G.nodes()])
@@ -240,7 +240,7 @@ web. The graph view makes that explicit.
 
 ### 3.2 Network: Kamada-Kawai layout, communities and hubs
 
-Node size is degree, colour is the greedy-modularity community, edge width and opacity are strength.
+Node size is degree, color is the greedy-modularity community, edge width and opacity are strength.
 Hubs are nodes at or above the 90th percentile of degree.
 """)
 code(r"""
@@ -317,7 +317,7 @@ Two spreads are computed for every dual-gate pair, and it matters which one you 
 * The **static spread** — the Engle–Granger residual, price minus a fixed OLS hedge — is the object the
   cointegration test was run on. Its **half-life** is the honest measure of tradeability at daily
   frequency: a few days to a few weeks is tradeable, hundreds of days is cointegration you cannot
-  monetise, `NaN` means no mean reversion was found.
+  monetize, `NaN` means no mean reversion was found.
 * The **Kalman spread** (the pipeline's `fit_kalman_hedge`, smoothed, EM-fitted, cached) is what the
   strategy notebooks trade. A time-varying hedge ratio makes *any* residual look stationary
   (`pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb`), so its ADF verdict and half-life describe the filter, not the pair.
@@ -381,7 +381,7 @@ ax = axes[2]
 both = diag.dropna(subset=["halflife_static", "halflife_kalman"])
 ax.scatter(both["halflife_static"], both["halflife_kalman"], s=14, alpha=0.7, color="darkorange")
 lim = (0.1, max(both["halflife_static"].max(), 1) * 1.5)
-ax.plot(lim, lim, color="grey", ls="--", lw=1, label="equal half-lives")
+ax.plot(lim, lim, color="gray", ls="--", lw=1, label="equal half-lives")
 ax.set_xscale("log"); ax.set_yscale("log"); ax.set_xlim(lim); ax.set_ylim(0.05, lim[1])
 ax.set_xlabel("static-spread half-life (bars)"); ax.set_ylabel("Kalman-spread half-life (bars)")
 ax.set_title(f"The smoothed EM Kalman spread compresses half-lives ~{(both['halflife_static'] / both['halflife_kalman']).median():.0f}×")
@@ -393,7 +393,7 @@ md(r"""
 guaranteed that — but the half-lives cluster around forty bars, and the hub pairs all sit there: a
 two-month half-life is a slow, regime-driven reversion, not a daily trading signal. Only a couple of dozen
 pairs fall in the tradeable band, and none of them involve the cruise-line hubs. Most static spreads are
-labelled *inconclusive* rather than *stationary*: ADF rejects the unit root (as the screen implies) but
+labeled *inconclusive* rather than *stationary*: ADF rejects the unit root (as the screen implies) but
 KPSS rejects level-stationarity too, which is what a spread that reverts slowly around a drifting level
 looks like. The third panel is the `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` result in one picture: the smoothed,
 EM-fitted Kalman spread reports half-lives of a fraction of a bar for the very same pairs.
@@ -401,7 +401,7 @@ EM-fitted Kalman spread reports half-lives of a fraction of a bar for the very s
 ### 4.1 Gallery: the most tradeable spreads
 
 Dual-gate pairs whose static-spread half-life falls in the tradeable band, ranked by BH p-value. Each
-panel is the standardised static spread over the whole window with ±2σ lines; the eye is a good judge of
+panel is the standardized static spread over the whole window with ±2σ lines; the eye is a good judge of
 whether "mean-reverting" means regular oscillation or one big excursion that the test mistook for a
 relationship.
 """)
@@ -414,11 +414,11 @@ fig, axes = plt.subplots(nrow, ncol, figsize=(18, 3.2 * nrow), sharex=True, sque
 for ax, ((a, b), row) in zip(axes.ravel(), top.iterrows()):
     r = ols[(a, b)][0]; z = (r - r.mean()) / r.std()
     ax.plot(z.index, z, lw=0.8, color="steelblue")
-    for lvl in (-2, 0, 2): ax.axhline(lvl, color="grey", ls="--" if lvl else "-", lw=0.7)
+    for lvl in (-2, 0, 2): ax.axhline(lvl, color="gray", ls="--" if lvl else "-", lw=0.7)
     ax.set_title(f"{a}/{b}   p_BH={row['eg_p_fdr']:.3f}   β={row['hedge_ratio_static']:.2f}   half-life {row['halflife_static']:.0f}d", fontsize=9)
     ax.tick_params(labelsize=7)
 for ax in axes.ravel()[len(top):]: ax.set_axis_off()
-fig.suptitle("Standardised static spreads of the most tradeable dual-gate pairs", y=1.0)
+fig.suptitle("Standardized static spreads of the most tradeable dual-gate pairs", y=1.0)
 plt.tight_layout(); plt.show()
 """)
 
@@ -467,7 +467,7 @@ md(r"""
 * **BH controls the false-discovery *rate*, not each edge.** At 5% FDR, about one in twenty surviving pairs
   is still expected to be spurious, and the Johansen gate at 5% is not corrected at all.
 * **Community structure is descriptive.** Greedy modularity on a star-shaped graph mostly partitions the
-  hub's neighbours; it is shown for orientation, not as a claim about sectors.
+  hub's neighbors; it is shown for orientation, not as a claim about sectors.
 * **Tradeability is judged on the static spread.** The Kalman spread's half-lives and verdicts describe
   the filter, which has already made the residual as stationary as it can; see
   `pairs_trading_07_tv_cointegration_kalman_yahoo.ipynb` for why that is not evidence of a long-run relation.

@@ -4,7 +4,7 @@
 
 Runs with the notebook's own directory as the working directory (for the notebooks in this
 repo that is notebooks/, and they resolve the repo root as Path.cwd().parent), stores the
-outputs back into the file, normalises cell ids, and exits non-zero if any cell raised. Cell
+outputs back into the file, normalizes cell ids, and exits non-zero if any cell raised. Cell
 errors do not stop the run, so the failing cell and every later one are visible in the saved
 notebook.
 """
