@@ -36,31 +36,24 @@ NB = ROOT / "notebooks"
 BUILD = NB / "build"
 
 # old stem -> new stem. Order is irrelevant; the pass is atomic.
+# 2026-09-25: make the numbers follow the data source -- day lake 08-16, minute lake 17-19.
 MOVES: dict[str, str] = {
-    # 01-05 keep their numbers and names
-    "visualize_cointegrated_pairs_yahoo":   "pairs_trading_06_cointegration_network_yahoo",
-    "tv_cointegration_kalman_yahoo":        "pairs_trading_07_tv_cointegration_kalman_yahoo",
-    "pairs_trading_06_yahoo_vs_day_lake":   "pairs_trading_08_yahoo_vs_day_lake",
-    "pairs_trading_07_day_lake":          "pairs_trading_09_day_lake",
-    "pairs_trading_08_daily_cointegration": "pairs_trading_10_daily_cointegration",
-    "pairs_trading_09_daily_portfolio":     "pairs_trading_11_daily_portfolio",
-    "pairs_trading_10_daily_cross_sectional": "pairs_trading_12_daily_cross_sectional",
-    "network_pairs_day_lake":               "pairs_trading_13_market_networks_day_lake",
-    "alpha_concepts_day_lake":              "pairs_trading_14_alpha_concepts_day_lake",
-    "pairs_trading_11_minute_data":         "pairs_trading_15_minute_data",
-    "pairs_trading_12_intraday_backtest":   "pairs_trading_16_intraday_backtest",
-    "pairs_trading_13_intraday_portfolio":  "pairs_trading_17_intraday_portfolio",
+    "pairs_trading_18_avellaneda_lee_day_lake":        "pairs_trading_15_avellaneda_lee_day_lake",
+    "pairs_trading_19_kalman_pnl_accounting_day_lake": "pairs_trading_16_kalman_pnl_accounting_day_lake",
+    "pairs_trading_15_minute_data":                    "pairs_trading_17_minute_data",
+    "pairs_trading_16_intraday_backtest":              "pairs_trading_18_intraday_backtest",
+    "pairs_trading_17_intraday_portfolio":             "pairs_trading_19_intraday_portfolio",
 }
 
-# old number -> new number, for prose references. The two notebooks that had no number before are
-# absent: references to them are by name and are handled by the stem substitution above.
-NUMS: dict[int, int] = {1: 1, 2: 2, 3: 3, 4: 4, 5: 5,
-                        6: 8, 7: 9, 8: 10, 9: 11, 10: 12, 11: 15, 12: 16, 13: 17}
+# old number -> new number, for prose references (identity for the untouched ones).
+NUMS: dict[int, int] = {**{n: n for n in range(1, 15)}, 15: 17, 16: 18, 17: 19, 18: 15, 19: 16}
 
 # Ranges written without a "notebook"/"nb" prefix cannot be matched safely by pattern -- a bare
 # "11-13" is indistinguishable from a date or a count -- so the few that exist are listed here.
 EXTRA: dict[str, str] = {
-    "**day lake** and 11\u201313 the **minute lake**": "**day lake** and 15\u201317 the **minute lake**",
+    "Notebooks 08\u201314, 18 and 19 read a local": "Notebooks 08\u201316 read a local",
+    "**08\u201314**, **18** and **19** read": "**08\u201316** read",
+    "and **15\u201317** read the **minute": "and **17\u201319** read the **minute",
 }
 
 _STEMS = sorted(MOVES, key=len, reverse=True)      # longest first so prefixes cannot shadow
@@ -122,7 +115,7 @@ def main() -> int:
 
     text_files = (sorted(BUILD.glob("*.py")) + sorted(BUILD.glob("*.md"))
                   + sorted((ROOT / "pairs").rglob("*.py")) + sorted((ROOT / "tests").glob("*.py"))
-                  + [ROOT / "README.md", ROOT / "HANDOFF.md"])
+                  + [ROOT / "README.md", ROOT / "HANDOFF.md", ROOT / "SYNTHESIS.md"])
     text_files = [f for f in text_files if f.name != "renumber.py"]
     nb_files = sorted(NB.glob("*.ipynb"))
 
@@ -170,8 +163,13 @@ def main() -> int:
             f.write_text(new)
     for f in nb_files:
         patch_notebook(f)
-    for src, dst in renames:
-        subprocess.run(["git", "mv", str(src), str(dst)], cwd=ROOT, check=True)
+    # two phases: park every source under a temporary name first, so a cyclic mapping
+    # (15->17 while 17->19 and 18->15) never tries to move onto a file that still exists
+    tmp = [(src, src.with_name("_renumber_tmp_" + src.name)) for src, _ in renames]
+    for src, t in tmp:
+        subprocess.run(["git", "mv", str(src), str(t)], cwd=ROOT, check=True)
+    for (src, dst), (_, t) in zip(renames, tmp):
+        subprocess.run(["git", "mv", str(t), str(dst)], cwd=ROOT, check=True)
 
     print(f"\napplied: {len(renames)} renames, references rewritten in "
           f"{len(text_files)} text files and {len(nb_files)} notebooks.")

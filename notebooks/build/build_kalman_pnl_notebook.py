@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_19_kalman_pnl_accounting_day_lake.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_16_kalman_pnl_accounting_day_lake.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_kalman_pnl_notebook.py [--out PATH]
 """
@@ -15,7 +15,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — VI. The second way a Kalman backtest flatters itself
 
-## `pairs_trading_19_kalman_pnl_accounting_day_lake.ipynb`
+## `pairs_trading_16_kalman_pnl_accounting_day_lake.ipynb`
 
 ## 0. Why
 
@@ -802,7 +802,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "pairs_trading_19_kalman_pnl_accounting_day_lake.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_16_kalman_pnl_accounting_day_lake.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

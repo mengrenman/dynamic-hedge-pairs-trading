@@ -126,7 +126,7 @@ md(r"""
 For one pair and one fold:
 
 1. **Hedge.** Ordinary least squares of $P_1$ on $P_2$ over the formation window, frozen for the trading
-   window. Notebook 16 found on minute bars that a hedge which re-estimates faster than the spread
+   window. Notebook 18 found on minute bars that a hedge which re-estimates faster than the spread
    reverts destroys the signal; the daily equivalent of that caution is a hedge fixed per fold. A Kalman
    alternative is compared in §4.
 2. **Signal.** Robust z-score of the residual, look-back $3\times$ its half-life over the formation
@@ -137,7 +137,7 @@ For one pair and one fold:
    ex-date: long legs receive them, short legs pay them.
 
 Each pair-fold is run independently and starts flat, so a spread still wide at a re-formation is closed
-and reopened rather than held across the boundary. (Notebook 16 stitches folds on minute bars; this one
+and reopened rather than held across the boundary. (Notebook 18 stitches folds on minute bars; this one
 does not, which if anything understates the rule by charging a round-trip it need not pay.)
 """)
 code(r"""
@@ -429,7 +429,7 @@ print(f"ignoring dividends changes twenty-year P&L by "
 """)
 md(r"""
 The frozen per-fold regression beats the Kalman hedge, 0.402 against 0.315, and the mechanism is the
-one notebook 16 found on minute bars: the filter re-estimates the hedge faster than the spread reverts,
+one notebook 18 found on minute bars: the filter re-estimates the hedge faster than the spread reverts,
 so it absorbs part of the signal into its state and trades more than twice as often (1,698 round trips
 against 723) for less money. On daily bars the effect is milder than intraday, but it points the same way.
 

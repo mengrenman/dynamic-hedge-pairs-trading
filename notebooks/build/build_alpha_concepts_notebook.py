@@ -1382,7 +1382,7 @@ scen = pd.DataFrame([
     {"costs charged": "measured, per pair",
      **book_at(lambda f, a, b: COSTMAP.get((f, a, b), np.nan) if
                np.isfinite(COSTMAP.get((f, a, b), np.nan)) else c.mean())},
-    {"costs charged": f"flat {COST_BPS:g} bps (what notebooks 11-13 assume)",
+    {"costs charged": f"flat {COST_BPS:g} bps (what notebooks 11–13 assume)",
      **book_at(lambda f, a, b: COST_BPS)},
 ]).set_index("costs charged")
 display(scen.round(3))
@@ -1452,7 +1452,7 @@ a matter of judgement into five arithmetic questions, and it localises the failu
 clause (0) would need cheaper execution or a coarser horizon. This one clears (0) by a factor of
 fifteen and stalls on (a) through (c) — one at the boundary, one fatally, one for want of data.
 Nothing there is fixed by trading better; it is fixed by finding more, and more nearly independent,
-opportunities. That is a different research programme from the one notebooks 01–17 have been running,
+opportunities. That is a different research programme from the one notebooks 01–19 have been running,
 and knowing which one you are on is most of the value of measuring at all.
 """)
 
@@ -1467,7 +1467,7 @@ not: "alpha signal" is a hypothesis with no units, and "the alpha" is money.
 
 **What this repository is doing** is alpha-signal research in exactly sense §1.3, aimed at §1.2. The
 $z$-score of a cointegrated spread is a function of past prices, proposed as a forecast of that
-spread's residual return. The hedge ratio is the risk model (§2). Everything in notebooks 01–17 is
+spread's residual return. The hedge ratio is the risk model (§2). Everything in notebooks 01–19 is
 either the search for such a function, the measurement of how much it forecasts, or the accounting of
 what is left after costs. That is the whole discipline.
 

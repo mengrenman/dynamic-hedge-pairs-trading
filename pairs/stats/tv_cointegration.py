@@ -44,7 +44,7 @@ costs a few seconds a pair and is the default here.
 
 **What this does not do.** It does not silently change any hedge. :func:`recommend_hedge` returns a
 recommendation and the evidence behind it; wiring it into a screen is the caller's choice, because
-forcing it would move every result in notebooks 01-17. Notebook 07 §6 argues it belongs *upstream*
+forcing it would move every result in notebooks 01–19. Notebook 07 §6 argues it belongs *upstream*
 of the Kalman step, alongside the Engle-Granger and Johansen gates, not downstream of it.
 
 Scope, following the notebook: one regressor and :math:`k = 0` extra :math:`\\Delta w` lags, where

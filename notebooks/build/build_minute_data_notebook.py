@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_15_minute_data.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_17_minute_data.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_minute_data_notebook.py [--out PATH]
 """
@@ -16,7 +16,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on minute bars — I. The minute lake and the microstructure of the spread
 
-## `pairs_trading_15_minute_data.ipynb`
+## `pairs_trading_17_minute_data.ipynb`
 
 The Yahoo daily notebooks (`pairs_trading_01`–`05`) screen, hedge and trade on daily closes. This series moves
 the same pipeline to **minute aggregates** from a local Polygon-derived parquet lake:
@@ -32,8 +32,8 @@ Everything runs on the package API. Two additions were made for minute data:
 (Roll spread, signature plot, Epps effect, bounce autocorrelation).
 
 **Data span.** Sessions from 2022-01-03 to 2025-08-13 (the last day in the lake). The **training span**
-is 2022-01-03 → 2024-12-31; 2025 is reserved as the hold-out for notebook 17. The cointegration screen
-below, and every design choice in notebook 16, use the training span only. One caveat worth stating: the
+is 2022-01-03 → 2024-12-31; 2025 is reserved as the hold-out for notebook 19. The cointegration screen
+below, and every design choice in notebook 18, use the training span only. One caveat worth stating: the
 liquidity universe is built from session statistics over the *whole* span, and requires full coverage of
 it, so hold-out information does reach ticker **eligibility** — though not pair selection.
 
@@ -70,7 +70,7 @@ CACHE = Path("cache"); CACHE.mkdir(exist_ok=True)
 
 START, TRAIN_END, END = "2022-01-03", "2024-12-31", "2025-08-13"
 UNIVERSE = "spx_ndx_combined"
-N_CANDIDATES = 24                                     # pairs carried into notebooks 16 and 13
+N_CANDIDATES = 24                                     # pairs carried into notebooks 18 and 13
 
 plt.rcParams.update({"axes.grid": True, "grid.alpha": 0.3, "figure.dpi": 100})
 LAKE_LABEL = f"~/{LAKE.relative_to(Path.home())}" if LAKE.is_relative_to(Path.home()) else str(LAKE)
@@ -199,7 +199,7 @@ trading-session grid**:
   start, close = last, volume = sum, `n_traded` = traded minutes in the bar; `freq="session"` gives one row
   per session with open/close/volume/dollar volume, traded minutes, grid length and a Roll spread estimate.
 * bars are labelled by their **start** minute (the lake's convention): the close of the bar labelled 09:30
-  is the last trade before 09:31. Signal timing in notebook 16 is built on this.
+  is the last trade before 09:31. Signal timing in notebook 18 is built on this.
 """)
 code(r"""
 print("early closes in the span:", [d.date().isoformat() for d in nyse_early_closes(START, END)])
@@ -299,7 +299,7 @@ Johansen). Two reasons not to screen on minute bars directly:
 2. the cost — the ADF regressions inside Engle–Granger scale with the sample, and the 58k pairs this
    screen actually tests, at 290k observations each, is not a screen, it is a weekend.
 
-The candidates handed to notebooks 16 and 13 are the passing pairs with the smallest BH-corrected
+The candidates handed to notebooks 18 and 13 are the passing pairs with the smallest BH-corrected
 Engle–Granger p-value, at most `N_CANDIDATES`. The 2025 hold-out is not part of the screen.
 
 Under Benjamini–Hochberg at 5% on ~58k tests only a handful of pairs pass — far fewer than the daily
@@ -338,7 +338,7 @@ display(candidates[["eg_t", "eg_p", "eg_p_fdr", "joh_stat"]].round(4))
 md(r"""
 ## 5. Minute bars for the candidate tickers
 
-The full minute grid is loaded only for the tickers in the candidate pairs (both spans, since notebook 17
+The full minute grid is loaded only for the tickers in the candidate pairs (both spans, since notebook 19
 needs 2025) and cached. Wide frames — one column per ticker — are the working format for the rest of the
 notebook.
 """)
@@ -367,7 +367,7 @@ md(r"""
 For these diagnostics the spread of each candidate is the **static** Engle–Granger residual,
 $s_t = P_{1,t} - \hat\beta P_{2,t} - \hat\alpha$ with $\hat\alpha, \hat\beta$ from OLS on the training-span
 session closes — the same hedge the screen implicitly tested. It is deliberately not the Kalman hedge:
-a filter that re-estimates the hedge every minute would absorb part of what we want to measure (notebook 16
+a filter that re-estimates the hedge every minute would absorb part of what we want to measure (notebook 18
 compares Kalman hedges against this static one at five-minute bars, then sweeps frequency with the
 static hedge).
 
@@ -518,10 +518,10 @@ md(r"""
   ≈ 15 times a typical minute move. A strategy that flattens at the close forfeits much of the reversion and
   re-enters after the gap.
 * **Fast hedges are dangerous.** A Kalman filter re-estimating the hedge every minute will absorb the
-  slow reversion into its state and leave a residual that is white at the bar scale (notebook 16 shows this
+  slow reversion into its state and leave a residual that is white at the bar scale (notebook 18 shows this
   directly). The hedge should move at most daily.
 
-Notebook 16 turns these into a walk-forward comparison: hedge cadence, sampling frequency, session rule,
+Notebook 18 turns these into a walk-forward comparison: hedge cadence, sampling frequency, session rule,
 look-back and threshold — chosen on pooled out-of-fold Sharpe over 2022–2024 with 2025 untouched.
 """)
 
@@ -529,7 +529,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_15_minute_data.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_17_minute_data.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

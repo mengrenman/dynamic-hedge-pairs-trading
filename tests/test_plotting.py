@@ -2,7 +2,7 @@
 """
 Tests for plot_pair_legs_with_trades, including the optional z-score panel.
 
-The panel is opt-in on purpose: notebooks 01-03 are hand-written, network-bound
+The panel is opt-in on purpose: notebooks 01–03 are hand-written, network-bound
 and ship with stored outputs, so the two-panel default must keep returning
 exactly two axes with the caption in the same place.  These tests pin that.
 """
@@ -33,7 +33,7 @@ def pair_and_signals():
 
 
 def test_default_is_unchanged_two_panels(pair_and_signals):
-    """The two-panel default must not move: notebooks 01-03 depend on it."""
+    """The two-panel default must not move: notebooks 01–03 depend on it."""
     df, sig = pair_and_signals
     fig, axes = plot_pair_legs_with_trades(df, sig, label1="AAA", label2="BBB")
     assert len(axes) == 2

@@ -203,8 +203,8 @@ def summarize_spread_stationarity_joblib(
 
     .. warning::
        The Sharpe column is spelled **``shapre``**, not ``sharpe``. The misspelling is kept
-       because notebooks 01-05 and their cached parquet files depend on it, but it has already
-       cost this repository once: notebooks 01-04 score candidates with
+       because notebooks 01–05 and their cached parquet files depend on it, but it has already
+       cost this repository once: notebooks 01–04 score candidates with
        ``final_df.get("sharpe_train", pd.Series(0.0, ...))``, which never matches, so the
        documented five-metric composite score has only ever had four live terms. A ``.get`` with
        a default is what turns the typo into silence. Index the column directly, or assert it is

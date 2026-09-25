@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_16_intraday_backtest.ipynb (cells only; outputs are produced by execute.py).
+"""Build notebooks/pairs_trading_18_intraday_backtest.ipynb (cells only; outputs are produced by execute.py).
 
     python notebooks/build/build_intraday_backtest_notebook.py [--out PATH]
 """
@@ -16,9 +16,9 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on minute bars — II. Intraday walk-forward: which design survives out of fold?
 
-## `pairs_trading_16_intraday_backtest.ipynb`
+## `pairs_trading_18_intraday_backtest.ipynb`
 
-Notebook 15 established the candidates and the facts that matter: the cointegrated spreads of liquid
+Notebook 17 established the candidates and the facts that matter: the cointegrated spreads of liquid
 large caps revert over **weeks** (half-life ≈ 20 sessions) at every sampling interval, microstructure
 noise is mild, about 40% of the spread's variance happens overnight, and a round trip costs ≈ 8 bps
 against a reversion worth 16 bps with a one-hour look-back or 130 bps with a five-session one.
@@ -35,7 +35,7 @@ own past. The knobs, in the order they are examined:
 3. **Session rule** — carry positions overnight, or flatten before the close and never enter late.
 4. **Look-back and entry threshold** — a small grid, read with the winner's curse in mind.
 
-The 2025 hold-out is untouched; notebook 17 spends it once. The cold run takes about 10 minutes on 16
+The 2025 hold-out is untouched; notebook 19 spends it once. The cold run takes about 10 minutes on 16
 cores (most of it the naive Kalman port); fitted states are cached under `notebooks/cache/`, and a warm
 run takes about a minute.
 
@@ -91,7 +91,7 @@ print("pairs", pairs.__version__)
 md(r"""
 ## 1. Data
 
-Everything comes from the caches notebook 15 writes; if they are missing they are rebuilt here with the
+Everything comes from the caches notebook 17 writes; if they are missing they are rebuilt here with the
 same calls (universe pass → liquidity rule → dual-gate screen on training-span session closes → 1-minute
 bars for the candidate tickers).
 """)
@@ -155,7 +155,7 @@ z-score, next-bar execution and dollar-neutral $10{,}000 sizing as notebook 02 a
 **stitched**: the position held at the end of one fold is carried into the next (`initial_position`),
 re-sized to the new hedge ratio on its first bar, and the whole out-of-fold path of each pair is
 evaluated once, so multi-week trades are neither truncated nor restarted at fold boundaries. Costs:
-commission and slippage of 1 bp per leg per side plus half the Roll spread of each leg (notebook 15), a
+commission and slippage of 1 bp per leg per side plus half the Roll spread of each leg (notebook 17), a
 50 bp/year borrow on the short leg, no market impact. Sharpe ratios are annualised with the number of bars
 per year at the sampling frequency.
 """)
@@ -317,7 +317,7 @@ display(table(res_hedge))
 plot_equity(res_hedge, "3.1 Hedge estimation at 5-minute bars — pooled out-of-fold P&L, 2022–2024")
 """)
 md(r"""
-The ordering is the one notebook 15 predicted, and the mechanism is visible in the last two columns.
+The ordering is the one notebook 17 predicted, and the mechanism is visible in the last two columns.
 The **static** hedge leaves a residual whose half-life is weeks, so the rule picks a ~23-session look-back,
 trades ~380 times in two years, holds for about a session, and comes out positive for eight of ten pairs.
 Every faster hedge shortens the residual's memory and the look-back with it: the **daily-cadence Kalman**
@@ -361,7 +361,7 @@ plot_equity(res_rule, f"3.3 Session rule ({BEST_HEDGE} @ {BEST_K} min)")
 md(r"""
 Forcing positions flat by the close and blocking entries after 15:30 turns 1.5 into 0.1: two and a
 half times the trades, twice the costs, a median hold of under a session against 2.7, and four positive
-pairs instead of eight. Notebook 15 measured 40% of the spread's variance overnight; an intraday-only rule
+pairs instead of eight. Notebook 17 measured 40% of the spread's variance overnight; an intraday-only rule
 gives that reversion up and pays to re-establish the position the next morning. These spreads are not an
 intraday strategy, whatever the bar size.
 
@@ -390,7 +390,7 @@ print(f"best cell: look-back {int(best.lookback)} sessions, entry {best.z_entry}
 """)
 md(r"""
 The grid says two things, one solid and one suspect. Solid: a one-session look-back loses at every
-threshold (Sharpe −2.3 to −2.8) — the economics of notebook 15 §6.4 in action, a short window scores
+threshold (Sharpe −2.3 to −2.8) — the economics of notebook 17 §6.4 in action, a short window scores
 noise against a spread that reverts over weeks. Suspect: the 20-session row peaks at 1.8–2.5 while its
 neighbours at 10 and 30 sessions sit at 0.6–1.3 and 0.9–1.2, and the half-life rule (a look-back that
 varies by pair and fold around 22 sessions) gives 1.5. The whole positive region is within about one
@@ -399,7 +399,7 @@ once on the same folds is what the winner's curse looks like, not what structure
 made the same point on daily bars with a much larger grid. The default rule is therefore what goes to the
 hold-out, and the grid's best cell goes along only as the "tuned" comparison.
 
-## 4. The design carried into notebook 17
+## 4. The design carried into notebook 19
 
 * hedge: static OLS per fold, refitted every 20 sessions on the prior 250;
 * bars: 30 minutes;
@@ -408,7 +408,7 @@ hold-out, and the grid's best cell goes along only as the "tuned" comparison.
 * costs: 1 bp + half the Roll spread per leg per side, 50 bp/year borrow.
 
 Pooled out-of-fold Sharpe 1.5 over 2023–2024 (s.e. ≈ 0.7), 229 trades, 8 of 10 pairs positive. The
-grid's best cell (look-back 20 sessions, entry 2.5; 2.5) is recorded alongside for notebook 17.
+grid's best cell (look-back 20 sessions, entry 2.5; 2.5) is recorded alongside for notebook 19.
 """)
 code(r"""
 design = {"hedge": BEST_HEDGE, "k": BEST_K,
@@ -425,7 +425,7 @@ nb.cells = cells
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_16_intraday_backtest.ipynb")
+    ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "pairs_trading_18_intraday_backtest.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")

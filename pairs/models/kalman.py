@@ -80,7 +80,7 @@ def _kalman_dynamic_hedge(
     **``mode="smooth"`` looks ahead.** The smoother conditions every state on the *whole* sample,
     including bars after it, so a spread built from smoothed betas knows the future. It is the
     right choice for describing how a hedge ratio behaved and the wrong one for deciding a trade.
-    The default is ``"filter"`` for that reason; notebooks 01-04 were built before the distinction
+    The default is ``"filter"`` for that reason; notebooks 01–04 were built before the distinction
     was drawn and the correction is documented in their prose.
 
     **Nothing here asks whether a dynamic hedge is warranted.** This function will fit a

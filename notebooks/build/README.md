@@ -16,11 +16,11 @@ diffed and reviewed like source:
 | `build_cross_sectional_notebook.py` | `../pairs_trading_12_daily_cross_sectional.ipynb` | scratch (needs the local **day** lake; cold run ≈ 11 min on 16 cores; caches `cache/xs_ic_panel.parquet` and `cache/xs_targets.pkl`) |
 | `build_network_pairs_notebook.py` | `../pairs_trading_13_market_networks_day_lake.ipynb` | scratch (needs notebook 10's `day_screen.parquet` and notebook 09's `day_market_bars.parquet`; cold run ≈ 13 min, almost all of it the exact PMFG; caches `cache/net_graphs.parquet` and `cache/net_folddaily.parquet`) |
 | `build_alpha_concepts_notebook.py` | `../pairs_trading_14_alpha_concepts_day_lake.ipynb` | scratch (needs notebook 09's `day_market_bars.parquet` and notebook 10's `day_rule_bh_dual.parquet`; cold run ≈ 6 min; caches `cache/alpha_*.parquet`) |
-| `build_minute_data_notebook.py` | `../pairs_trading_15_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
-| `build_intraday_backtest_notebook.py` | `../pairs_trading_16_intraday_backtest.ipynb` | scratch (reads notebook 15's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
-| `build_intraday_portfolio_notebook.py` | `../pairs_trading_17_intraday_portfolio.ipynb` | scratch (reads notebook 16's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
-| `build_avellaneda_lee_notebook.py` | `../pairs_trading_18_avellaneda_lee_day_lake.ipynb` | scratch (needs the local **day** lake and the minute lake for ETF/SPY cost measurement; reuses notebook 12's `cache/day_market_bars.parquet`, `xs_cost_by_ticker_year.parquet` and `xs_targets.pkl`; cold run ≈ 26 min; caches `cache/al_etf_costs.parquet`) |
-| `build_kalman_pnl_notebook.py` | `../pairs_trading_19_kalman_pnl_accounting_day_lake.ipynb` | scratch (needs notebook 09's `cache/day_market_bars.parquet` — the day-lake cache — and notebook 12's `cache/xs_cost_by_ticker_year.parquet` — the cost cache; cold run ≈ 30 s) |
+| `build_avellaneda_lee_notebook.py` | `../pairs_trading_15_avellaneda_lee_day_lake.ipynb` | scratch (needs the local **day** lake and the minute lake for ETF/SPY cost measurement; reuses notebook 12's `cache/day_market_bars.parquet`, `xs_cost_by_ticker_year.parquet` and `xs_targets.pkl`; cold run ≈ 26 min; caches `cache/al_etf_costs.parquet`) |
+| `build_kalman_pnl_notebook.py` | `../pairs_trading_16_kalman_pnl_accounting_day_lake.ipynb` | scratch (needs notebook 09's `cache/day_market_bars.parquet` — the day-lake cache — and notebook 12's `cache/xs_cost_by_ticker_year.parquet` — the cost cache; cold run ≈ 30 s) |
+| `build_minute_data_notebook.py` | `../pairs_trading_17_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
+| `build_intraday_backtest_notebook.py` | `../pairs_trading_18_intraday_backtest.ipynb` | scratch (reads notebook 17's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
+| `build_intraday_portfolio_notebook.py` | `../pairs_trading_19_intraday_portfolio.ipynb` | scratch (reads notebook 18's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
 
 **Renumbering.** `renumber.py` moves the whole series in one atomic pass — file renames via
 `git mv`, plus every `pairs_trading_NN` / `nbNN` / `notebook NN` reference in the builders, both
@@ -56,5 +56,5 @@ Notes
   otherwise; the minute-bar notebooks (09–11) use `~/local/parquet_lake/minute_adj` unless `MINUTE_LAKE`
   says otherwise.
 - Run each series in order on a cold cache. Notebook 11 needs notebook 10's `day_rule_*.parquet` and
-  raises if they are missing; notebooks 16 and 13 rebuild notebook 15's caches if missing, but 11 also
+  raises if they are missing; notebooks 18 and 13 rebuild notebook 17's caches if missing, but 11 also
   wants 10's `min_design.json` (it falls back to the design recorded in its own text).

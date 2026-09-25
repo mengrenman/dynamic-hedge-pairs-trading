@@ -1,4 +1,4 @@
-"""Build notebooks/pairs_trading_18_avellaneda_lee_day_lake.ipynb (cells only; outputs from execute.py).
+"""Build notebooks/pairs_trading_15_avellaneda_lee_day_lake.ipynb (cells only; outputs from execute.py).
 
     python notebooks/build/build_avellaneda_lee_notebook.py [--out PATH]
 """
@@ -15,7 +15,7 @@ code = lambda s: cells.append(nbf.v4.new_code_cell(s.strip("\n")))
 md(r"""
 # Pairs trading on the day lake — V. Avellaneda-Lee, the half notebook 12 skipped
 
-## `pairs_trading_18_avellaneda_lee_day_lake.ipynb`
+## `pairs_trading_15_avellaneda_lee_day_lake.ipynb`
 
 Notebook 12 ran the cross-section two ways: plain reversal against the day's own history, and a
 PCA factor model borrowed from Avellaneda & Lee (2010). It never ran the paper's *own*
@@ -1227,7 +1227,7 @@ nb.cells = cells
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path,
-                    default=Path(__file__).resolve().parent.parent / "pairs_trading_18_avellaneda_lee_day_lake.ipynb")
+                    default=Path(__file__).resolve().parent.parent / "pairs_trading_15_avellaneda_lee_day_lake.ipynb")
     args = ap.parse_args()
     nbf.write(nb, args.out)
     print(f"wrote {args.out} ({len(cells)} cells)")
