@@ -25,7 +25,8 @@ rebalanced target. It also never hedged the PCA book against anything, so that b
 uncompensated market beta throughout. This notebook fills in that half.
 
 The question is narrow: does the paper's own machinery carry more gross edge per unit of turnover
-than notebook 12's best variant, and does any of it survive 2016–2025? Notebook 12 already
+than notebook 12's plain-reversal baseline (its `raw reversal 5d, blend 0.25` book, rebuilt live here as
+run f), and does any of it survive 2016–2025? Notebook 12 already
 established (its numbers are re-printed here from this notebook's own baseline run, not quoted)
 that turnover was the binding constraint on the PCA/reversal book and that its gross edge died
 after 2015. Three things are new here:
@@ -42,17 +43,20 @@ after 2015. Three things are new here:
 Six books are built side by side, all sharing the same universe, cost machinery and evaluation
 window: two calendar/trading-time bang-bang books, two calendar/trading-time continuous books, a
 hedged PCA bang-bang book, and notebook 12's own raw-reversal baseline. The short version of the
-answer the numbers give, on a per-turnover basis pooling stock and ETF legs: no — no configuration
-tested here earns more gross P&L per dollar traded than notebook 12's plain reversal signal (break-even
-5.703 bps, against a best of 4.423 bps for the paper's own machinery); counted on stock legs only, the
-only turnover notebook 12's book has, the trading-time books do clear it (6.857 and 5.837 bps; §4.3). Net of
-*measured* costs, though, the answer flips: the corrected trading-time bang-bang book is the single
-best-performing run in the notebook. Getting "trading time" right took correcting two independent
-bugs, not one — a scoring bug in this notebook's own s-score call, and, on top of that, which
-regression eq. 20's volume weighting actually describes (§3, §6) — and the usual
-pre-2016-works/post-2016-doesn't pattern seen elsewhere in this repository shows up, to varying
-degrees, in five of the six runs on a two-decade split, though five-year blocks (§5) complicate even
-that reading (§7).
+answer the numbers give, on a per-turnover basis pooling stock and ETF legs: yes for most of the
+paper's machinery, now that notebook 12's own baseline has had a leaked index-reversal position
+removed — four of the five paper variants tested here earn more gross P&L per dollar traded than
+notebook 12's corrected plain-reversal signal (break-even 2.933 bps, against a best of 4.423 bps for
+the paper's own machinery); only the hedged PCA book falls short, at 1.936 bps. Against notebook 12's best corrected configuration rather than its
+plain baseline (`resid reversal 5d, blend 0.25`: break-even `3.222 bps`, net `0.052` at measured cost), runs (b)
+and (d) still win on break-even and four of the five win net of measured costs. Net of *measured*
+costs, the corrected trading-time bang-bang book is also the single best-performing run in the
+notebook, now well clear of notebook 12's own baseline, whose net Sharpe has fallen to 0.007. Getting
+"trading time" right took correcting two independent bugs, not one — a scoring bug in this notebook's
+own s-score call, and, on top of that, which regression eq. 20's volume weighting actually describes
+(§3, §6) — and the usual pre-2016-works/post-2016-doesn't pattern seen elsewhere in this repository
+shows up, to varying degrees, in five of the six runs on a two-decade split, though five-year blocks
+(§5) complicate even that reading (§7).
 """)
 
 md("## 0.1 Setup")
@@ -722,6 +726,16 @@ md(r"""
 Loaded from `cache/xs_targets.pkl` if present (else rebuilt with notebook 12's own code) and
 evaluated with the same cost machinery as runs (a)-(e), so it is directly comparable rather than
 merely quoted.
+
+**Correction (2026-09-28).** Book (f) below is rebuilt on notebook 12's corrected `xs_targets.pkl`.
+Notebook 12's `neutralize` used to project each day's weight vector orthogonal to the PCA loadings
+and then demean it; because the first PCA loading is close to a constant vector, that demean step
+re-injected exposure to it, an index-reversal bet that carried about half of the old
+baseline's P&L per traded dollar at this blend (break-even `5.703` to 2.933 bps) and two thirds at full
+rebalancing. The projection is now against the loadings and a constant column
+jointly, in the code cell below. The earlier, leaked baseline's headline numbers — break-even
+`5.703 bps`, net Sharpe (measured) `0.180` — are no longer printed by any cell in this notebook;
+every book-(f) number quoted from here on is the corrected one.
 """)
 code(r"""
 f_t = CACHE / "xs_targets.pkl"
@@ -750,10 +764,13 @@ else:
         sig = -Z(win.to_numpy()[-5:].sum(0))
         Qw = Qb.reindex(win.columns).to_numpy()
         Bt = Qb.reindex(win.columns).to_numpy()
-        # project orthogonal to factor loadings, dollar-neutralize, scale
-        BtB = Bt.T @ Bt + 1e-8 * np.eye(Bt.shape[1])
-        w = sig - Bt @ np.linalg.solve(BtB, Bt.T @ sig)
-        w = w - w.mean(); gnorm = np.abs(w).sum()
+        # project orthogonal to [loadings, 1] jointly, then scale -- the same joint projection as
+        # notebook 12's corrected neutralize (the earlier project-then-demean form re-injected a
+        # factor tilt; found in notebook 17's review, 2026-09-28)
+        B1 = np.column_stack([Bt, np.ones(Bt.shape[0])])
+        BtB = B1.T @ B1 + 1e-8 * np.eye(B1.shape[1])
+        w = sig - B1 @ np.linalg.solve(BtB, B1.T @ sig)
+        gnorm = np.abs(w).sum()
         w = w / gnorm if gnorm > 1e-12 else w
         targets["raw reversal 5d"][d] = pd.Series(w, index=win.columns)
         fwd_ret[d] = ret.iloc[i + 1].reindex(win.columns)
@@ -837,31 +854,34 @@ for k in "abcdef":
 """)
 
 md(r"""
-No configuration tested here out-earns notebook 12's baseline on a per-turnover basis, on pooled
-traded dollars: run (f)'s break-even, **5.703 bps**, remains the highest of the six. Counted on stock
-legs alone the picture changes: run (f) trades nothing but stock legs (its hedge is a projection inside
-the stock weights), while runs (a)–(e) also trade sector-ETF or SPY hedge legs at a measured cost of
-about 1.31 bps, so the pooled column and the flat-5-bps column charge those legs at the stock rate. The
-stock-leg break-even is **5.277 bps** for run (a), **6.857** for run (b), **4.144** for (c), **5.837**
-for (d) and **2.371** for (e) — both trading-time books clear run (f)'s 5.703 on that basis. The
+Four of the five paper variants tested here now out-earn notebook 12's corrected baseline on a
+per-turnover basis, on pooled traded dollars: run (f)'s break-even, **2.933 bps**, sits below run
+(d)'s **4.423**, run (b)'s **4.357**, run (a)'s **3.207** and run (c)'s **3.086** — only the hedged
+PCA book (run e), at **1.936 bps**, earns less per dollar traded than the corrected baseline. Counted
+on stock legs alone the picture is the same: run (f) trades nothing but stock legs (its hedge is a
+projection inside the stock weights), while runs (a)–(e) also trade sector-ETF or SPY hedge legs at a
+measured cost of about 1.31 bps, so the pooled column and the flat-5-bps column charge those legs at
+the stock rate. The stock-leg break-even is **5.277 bps** for run (a), **6.857** for run (b), **4.144**
+for (c), **5.837** for (d) and **2.371** for (e) — every ETF-residual variant (a-d) clears run (f)'s
+**2.933** on that basis too; only the hedged PCA book (e) falls short of it. The
 net-of-measured-cost column, which prices each leg at its own cost, is the fairest cross-book comparison. Run (a) — ETF residuals, calendar clock,
 bang-bang rule, the paper's base configuration — earns **3.207 bps** of gross P&L per dollar traded
 (equivalently, its one-way break-even cost); the best-performing paper variant on this per-turnover
 measure is run (d) (ETF residuals, trading time, continuous), at **4.423 bps**, with run (b) (ETF
-residuals, trading time, bang-bang) close behind at **4.357 bps** — both still short of run (f)'s
-5.703. By raw gross Sharpe the ranking is different again: run (b) posts the highest gross Sharpe of
-any run tested, **0.732**, ahead of run (a)'s 0.537 and notebook 12's 0.371 — and, under the
+residuals, trading time, bang-bang) close behind at **4.357 bps** — both now clear run (f)'s
+**2.933**. By raw gross Sharpe the ranking is different again: run (b) posts the highest gross Sharpe of
+any run tested, **0.732**, ahead of run (a)'s 0.537 and notebook 12's 0.367 — and, under the
 paper-faithful trading-time construction used throughout this notebook (see below), that gross
 Sharpe is *not* bought with extra turnover: run (b) turns over **0.250** of its gross book per
 session (the `turnover` column above), essentially the same as run (a)'s **0.245**, and its average gross exposure
 (**$1,181,856**) is actually *lower* than run (a)'s (**$1,208,830**). At *measured* costs, run (b)
-is the single highest net Sharpe of any run tested, **0.366**, ahead of notebook 12's baseline
-(**0.180**) and run (a) (**0.179**); only the hedged PCA book (run e) posts a negative net Sharpe
-(**-0.062**). At the paper's own assumed flat 5 bps every ETF/PCA variant (a-e) still goes net
-negative — run (a) falls to **-0.300**, run (b) to **-0.108**, and run (d) to **-0.066**, the
-smallest deficit of the five paper variants — while notebook 12's baseline still clears cost,
-barely, at **0.046**, because its break-even sits comfortably above 5 bps and every paper variant's
-sits at or below it.
+is the single highest net Sharpe of any run tested, **0.366**, ahead of run (d) (**0.241**) and run
+(a) (**0.179**); notebook 12's corrected baseline is now nearly flat, at **0.007**, and only the
+hedged PCA book (run e) posts a lower, negative net Sharpe (**-0.062**). At the paper's own assumed
+flat 5 bps every run in the notebook now goes net negative — run (d) has the smallest deficit at
+**-0.066**, run (b) is next at **-0.108**, run (c) at **-0.215**, notebook 12's corrected baseline
+falls to **-0.259**, run (a) to **-0.300**, and the hedged PCA book (run e) is worst at **-0.572** —
+because every run's break-even now sits below 5 bps.
 
 **The trading-time result needed two independent corrections, not one.** An earlier version of this
 notebook reported that section 6's volume correction made every paper variant worse, the opposite of
@@ -895,23 +915,23 @@ hundredths of a bp below run (d)'s (**4.423**), not a wide, turnover-driven gap 
 gross Sharpe by a similar amount under either rule (bang-bang **+0.195**, continuous **+0.157**; §6)
 without materially changing how much of the book turns over (**0.250** for run (b) against run
 (a)'s **0.245**). The hedged PCA bang-bang book (run e) sits at the bottom on break-even
-(**1.936 bps** — below every ETF-model run and the baseline) despite a mid-pack gross Sharpe
-(**0.361**), with the lowest average gross of the five new runs (**$984,630**).
+(**1.936 bps** — below every ETF-model run and the baseline) despite a gross Sharpe
+(**0.361**) that ranks fifth of six, with the lowest average gross of the five new runs (**$984,630**).
 """)
 
 md(r"""
 ### 4.4 Baseline check
 
-Run (f)'s decade Sharpes, checked directly against notebook 12's printed 0.77 (2006-2015) / 0.02
-(2016-2025) gross Sharpe for the same signal and blend.
+Run (f)'s decade Sharpes, checked directly against the 0.77 (2006-2015) / -0.04 (2016-2025) gross
+Sharpe notebook 12 prints for the same signal and blend after its `neutralize` correction.
 """)
 code(r"""
 dec1_f = books["f"][books["f"].index < DECADE_SPLIT]
 dec2_f = books["f"][books["f"].index >= DECADE_SPLIT]
 S1, S2 = sharpe(dec1_f["pnl_gross"] / CAP), sharpe(dec2_f["pnl_gross"] / CAP)
 print(f"run f gross Sharpe: 2006-2015 = {S1:.2f}, 2016-2025 = {S2:.2f} "
-      f"(notebook 12 printed 0.77 / 0.02)")
-BASELINE_MATCH = abs(S1 - 0.77) < 0.02 and abs(S2 - 0.02) < 0.02
+      f"(notebook 12 printed 0.77 / -0.04)")
+BASELINE_MATCH = abs(S1 - 0.77) < 0.02 and abs(S2 - (-0.04)) < 0.02
 print(f"reproduces notebook 12 within rounding: {BASELINE_MATCH}")
 """)
 
@@ -982,26 +1002,30 @@ The usual pattern in this repository — a working book before 2016 that goes fl
 — holds, to varying degrees, for **5 of the 6** runs on the 2016 split; only run (a) does not
 (its gross Sharpe *rises*, **0.533** to **0.548**). But the 2016 split alone is not a reliable guide
 to *when* a run worked: the five-year-block table above tells a less tidy story than "run (a) is the
-exception." Notebook 12's baseline (run f) and the hedged PCA bang-bang book (run e) still show the
-clearest decay on the 2016 split — gross Sharpe **0.774** to **0.019** (run f) and **0.680** to
-**0.087** (run e), drops of **1.67** and **1.31** standard errors of the drop itself
+exception." Notebook 12's corrected baseline (run f) and the hedged PCA bang-bang book (run e) still
+show the clearest decay on the 2016 split — gross Sharpe **0.774** to **-0.038** (run f) and **0.680**
+to **0.087** (run e), drops of **1.8** and **1.31** standard errors of the drop itself
 (`sqrt(se1^2 + se2^2) ≈ 0.452`, printed above as `se of drop`; each decade's own SE is
 **≈0.32**, `sqrt(252/sessions)`) — but both also post a *negative* five-year block (run f:
-**-0.21** in 2016-2020; run e: **-0.13** in 2021-2025), which a two-decade split cannot distinguish
-from "merely weaker." Run (a), the one run whose 2016-split Sharpe rises, is in fact the run with the
-*most* five-year blocks below 0.15 (**2 of 4** — 2011-2015 at **0.09** and 2021-2025 at **0.02**;
-runs (c), (d), (e) and (f) each have exactly one such block, printed above); its apparently
-clean 2016-split result comes from a weak 2011-2015 and a strong 2016-2020 (**1.01**) offsetting each
-other within the "before" and "after" halves respectively. Run (b) — the trading-time bang-bang book,
-now built under the paper-faithful reading of §3/§4.3 — is the only run with **zero** blocks below
-0.15 (**0.91**, **0.63**, **1.10**, **0.21**), the steadiest of the six on this coarser cut, even
-though its 2016-split drop (**0.784** to **0.698**, **0.19** SE) looks unremarkable next to run (a)'s
-apparent rise. Overall, **2021-2025 is the single weakest block for five of the six runs** (a, b, c,
-d and e each bottom out there); only run (f) is weaker in 2016-2020 (**-0.21**) than in 2021-2025
-(**0.40**). **2016-2020 is the single strongest block for four of the six runs** (a, b, c, d); the
-other two (e, f) peak earlier, in 2006-2010. This is why the two-decade split reads run (a) as not
-decaying: its weak 2011-2015 (**0.09**) and strong 2016-2020 (**1.01**) sit on opposite sides of the
-2016 cut and roughly cancel, the same way runs (c) and (d) also have a weaker second block (**0.25**/**0.61**, 2011–2015) offsetting a stronger third block
+**-0.12** in 2021-2025; run e: **-0.13** in 2021-2025), which a two-decade split cannot distinguish
+from "merely weaker." Run (a), the one run whose 2016-split Sharpe rises, used to be the run with the
+most five-year blocks below 0.15; that is no longer true once book (f) is corrected. Run (f) now has
+the *most* — **3 of 4** (2011-2015 at **0.11**, 2016-2020 at **0.04**, 2021-2025 at **-0.12**) —
+ahead of run (a)'s **2 of 4** (2011-2015 at **0.09** and 2021-2025 at **0.02**); runs (c), (d) and (e)
+each still have exactly one such block, and run (b) has none (all printed above). Run (a)'s apparently
+clean 2016-split result still comes from a weak 2011-2015 and a strong 2016-2020 (**1.01**) offsetting
+each other within the "before" and "after" halves respectively — that reading is unaffected by the
+baseline correction. Run (b) — the trading-time bang-bang book, now built under the paper-faithful
+reading of §3/§4.3 — is the only run with **zero** blocks below 0.15 (**0.91**, **0.63**, **1.10**,
+**0.21**), the steadiest of the six on this coarser cut, even though its 2016-split drop (**0.784**
+to **0.698**, **0.19** SE) looks unremarkable next to run (a)'s apparent rise. Overall, **2021-2025
+is now the single weakest block for all six runs**: run (f), previously the one exception (weaker
+in 2016-2020 than in 2021-2025), now also bottoms out in 2021-2025 (**-0.12**, against **0.04** in
+2016-2020) once its baseline is corrected. **2016-2020 is the single strongest block for four of the
+six runs** (a, b, c, d); the other two (e, f) peak earlier, in 2006-2010 (run f's **1.20**). This is
+why the two-decade split reads run (a) as not decaying: its weak 2011-2015 (**0.09**) and strong
+2016-2020 (**1.01**) sit on opposite sides of the 2016 cut and roughly cancel, the same way runs (c)
+and (d) also have a weaker second block (**0.25**/**0.61**, 2011–2015) offsetting a stronger third block
 (**0.70**/**0.77**, 2016–2020) within their own decades —
 it is not that run (a) is somehow immune to the pattern the rest of the book shows, it is that the
 2016 cutline happens to fall where its own up-and-down blocks even out. §7 weighs run (b)'s better
@@ -1009,7 +1033,7 @@ turnover economics (§4.3) against its unremarkable block-level record, rather t
 cut alone as decisive.
 
 Year by year (runs a, b, f), no run posts a positive gross Sharpe every year: run (a) is negative
-in 3 of its 20 years (worst: 2021 at **-0.86**), run (f) in 5 (worst: 2007 at **-0.90**), and run
+in 3 of its 20 years (worst: 2021 at **-0.86**), run (f) in 8 (worst: 2007 at **-1.58**), and run
 (b) is at or below zero in 4 (2010, essentially flat at **-0.00**; 2014 at **-0.36**; 2021 at
 **-0.29**; and its worst, 2022, at **-0.41**).
 """)
@@ -1048,30 +1072,35 @@ sector-ETF factor model still beats the PCA eigenportfolio model, both run calen
 **+0.175** of gross Sharpe for ETF residuals over PCA residuals — a real advantage for using an
 actual (if crudely assigned) sector structure instead of a statistical one, at least under this
 rule. On a raw gross-Sharpe basis notebook 12's raw-reversal signal is *lower* than run (a) —
-**-0.166**, i.e. **0.371** against **0.537** — and lower than run (b) too (**0.371** against
-**0.732**); but, as §4.3 showed, the per-turnover ranking still favors notebook 12 (break-even
-**5.703** bps against run (a)'s **3.207** and run (d)'s now-highest-among-paper-variants
-**4.423**), while net of measured costs run (b) is now the *highest* of the six (**0.366** against
-**0.180** for notebook 12 and **0.179** for run (a)). Ranked by magnitude, the four deltas cluster
+**-0.170**, i.e. **0.367** against **0.537** — and lower than run (b) too (**0.367** against
+**0.732**); and, as §4.3 now shows, the per-turnover ranking no longer favors notebook 12 either:
+its break-even (**2.933** bps) sits below run (a)'s **3.207** and run (d)'s now-highest-among-paper-
+variants **4.423** — only the hedged PCA book (run e, **1.936**) earns less per dollar traded than
+the corrected baseline. Net of measured costs run (b) is still the *highest* of the six (**0.366**),
+but notebook 12's corrected baseline is now far behind, at **0.007**, barely ahead of run (e)'s
+**-0.062** and well below run (a)'s **0.179**. Ranked by magnitude, the four deltas cluster
 fairly tightly — **0.157** to **0.228** — with the trading-time rule effect (**0.228**) at the top
 and the continuous-clock effect (**0.157**) at the bottom, not far from the model effect
-(**0.175**) or the signal effect (**0.166**); no single delta dominates the way an earlier, scaled-
+(**0.175**) or the signal effect (**0.170**); no single delta dominates the way an earlier, scaled-
 intercept reading of "trading time" made the clock effect look artificially large relative to the
 rest.
 """)
 
 md("## 7. Honest assessment")
 md(r"""
-**The answer is still no on a per-turnover basis, but the margin is narrower than an earlier,
-buggier version of this notebook found, and net of measured costs the paper's machinery now wins
-outright.** The paper's own configuration — sector-ETF residuals, the section 6 trading-time
-correction, and the bang-bang open/close rule — does not carry more gross edge per unit of turnover
-than notebook 12's plain 5-day reversal signal: the best paper variant by break-even is run (d)
-(ETF residuals, trading time, continuous), at **4.423 bps** of gross P&L per dollar traded, against
-**5.703 bps** for notebook 12's baseline (run f); every other paper variant tested here (a, b, c, e)
-earns less than that. But the trading-time correction (runs b, d) does make the signal better, not
-worse, consistent with the paper's own reported result for that correction, and at *measured* costs
-run (b) is now the single best-performing book in the entire notebook.
+**The answer is now yes on a per-turnover basis for most of the paper's machinery, now that notebook
+12's own baseline has been corrected for a leaked index-reversal position, and net of measured costs
+the paper's machinery still wins outright.** The paper's own configuration — sector-ETF residuals, the
+section 6 trading-time correction, and the bang-bang open/close rule — carries more gross edge per
+unit of turnover than notebook 12's plain 5-day reversal signal in four of its five variants: the
+best paper variant by break-even is run (d) (ETF residuals, trading time, continuous), at
+**4.423 bps** of gross P&L per dollar traded, against **2.933 bps** for notebook 12's corrected
+baseline (run f); runs (b), (a) and (c) also clear it, at **4.357**, **3.207** and **3.086 bps**;
+only the hedged PCA book (run e, **1.936 bps**) earns less. The trading-time correction (runs b, d)
+still makes the signal better, not worse, consistent with the paper's own reported result for that
+correction, and at *measured* costs run (b) remains the single best-performing book in the entire
+notebook — now well ahead of notebook 12's own baseline, whose net-of-measured-cost Sharpe has fallen
+to **0.007**.
 
 **What is genuinely new here.** Five findings were not visible in notebook 12:
 
@@ -1096,20 +1125,21 @@ run (b) is now the single best-performing book in the entire notebook.
    (t=**2.8439**, next-day) and **0.0099** (t=**3.2420**, five days) against the ETF-hedged forward
    return (§3), ahead of the calendar s-score's **0.0061**/**0.0065**, and the book-level results
    confirm it: run (b) posts this notebook's highest gross Sharpe (**0.732**), run (d) posts a
-   higher break-even than its calendar counterpart run (c) (**4.423** against **3.086** bps), and —
-   genuinely new relative to every earlier version of this notebook — run (b)'s net-of-measured-cost
-   Sharpe (**0.366**) is the *highest of any run tested*, ahead of notebook 12's own baseline
-   (**0.180**), reversing this notebook's own earlier "notebook 12's baseline remains the top net
-   Sharpe run" conclusion.
+   higher break-even than its calendar counterpart run (c) (**4.423** against **3.086** bps), and
+   run (b)'s net-of-measured-cost Sharpe (**0.366**) is the *highest of any run tested*, as it already
+   was before notebook 12's correction; what the correction changed is the margin over notebook 12's
+   baseline, now at **0.007**.
 3. Five of the six runs show this repository's usual pre/post-2016 decay on the 2016 split (higher
    gross Sharpe in 2006-2015 than 2016-2025); only run (a) does not (flat: **0.533** to **0.548**).
-   But five-year blocks (§5) show this is a 2016-cutline artifact, not immunity: run (a) actually has
-   the *most* blocks below 0.15 gross Sharpe of any run (**2 of 4**, both below the 2016 split's own
-   noise floor), and its clean two-decade read comes from a weak 2011-2015 and a strong 2016-2020
-   canceling across the cut. Run (b) — the corrected trading-time bang-bang book — is the steadiest
-   run on this coarser cut (**zero** blocks below 0.15) even though its own 2016-split drop
-   (**0.784** to **0.698**, **0.19** SE of the drop) looks unremarkable next to run (a)'s apparent
-   rise; neither cut alone should be read as decisive.
+   But five-year blocks (§5) show this is a 2016-cutline artifact, not immunity — and, once notebook
+   12's own baseline is corrected, run (a) is no longer even the choppiest run on this cut: run (f)
+   now has the *most* blocks below 0.15 gross Sharpe of any run (**3 of 4** — 2011-2015 at **0.11**,
+   2016-2020 at **0.04**, and 2021-2025 at **-0.12**), ahead of run (a)'s **2 of 4** (2011-2015 at
+   **0.09**, 2021-2025 at **0.02**). Run (a)'s clean two-decade read still comes from a weak
+   2011-2015 and a strong 2016-2020 canceling across the cut. Run (b) — the corrected trading-time
+   bang-bang book — remains the steadiest run on this coarser cut (**zero** blocks below 0.15) even
+   though its own 2016-split drop (**0.784** to **0.698**, **0.19** SE of the drop) looks
+   unremarkable next to run (a)'s apparent rise; neither cut alone should be read as decisive.
 4. The 30-day mean-reversion gate's near-universal raw pass rate (**99.1%** calendar, **99.3%**
    trading time) is mostly small-sample AR(1) bias, not real fast reversion: bias-correcting the
    AR(1) coefficient (Kendall's small-sample result, 59 pairs) drops the pass rate to **66.2%**
@@ -1209,17 +1239,19 @@ md(r"""
   predictive content. Both gaps mean notebook 12's printed ICs are not a valid comparator for the
   numbers in §3 above.
 - *Costs are measured, not assumed, and that choice matters more than any signal design decision
-  tested here.* At the paper's own flat 5 bps, five of six runs go net-negative (only notebook 12's
-  baseline clears it, barely, at **0.046**); at this repository's measured costs (stock median
-  **1.98 bps**, ETF/SPY median **1.31 bps**), **five of six** post a positive net Sharpe over the
-  full sample — only the hedged PCA book (run e, **-0.062**) does not. Under the paper's flat
-  assumption notebook 12's baseline is still the only positive figure in that column (**0.046**); but
-  under measured costs it is no longer the top run — run (b) (ETF, trading time, bang-bang) is,
-  at **0.366** against notebook 12's **0.180** and run (a)'s **0.179** — so which cost assumption is
-  used changes which book actually looks best, not just by how much.
-- *Reproduction.* Run (f)'s gross Sharpe reproduces notebook 12's own printed 0.77 (2006-2015) /
-  0.02 (2016-2025) exactly within rounding — this notebook's own run prints **0.77** / **0.02** —
-  so every comparison above is against a live baseline computed in this notebook, not a quoted one.
+  tested here.* At the paper's own flat 5 bps, **every run now goes net-negative** — the smallest
+  deficit is run (d)'s **-0.066**, next is run (b)'s **-0.108**; notebook 12's corrected baseline
+  falls to **-0.259**. At this repository's measured costs (stock median **1.98 bps**, ETF/SPY
+  median **1.31 bps**), **five of six** still post a positive net Sharpe over the full sample —
+  notebook 12's baseline is one of them, though only barely, at **0.007** — and only the hedged PCA
+  book (run e, **-0.062**) does not. Under the paper's flat assumption no run is profitable any
+  more; under measured costs the top run is still run (b) (ETF, trading time, bang-bang), at
+  **0.366**, now well ahead of notebook 12's corrected baseline (**0.007**) and run (a) (**0.179**)
+  — so which cost assumption is used still changes which book actually looks best.
+- *Reproduction.* Run (f)'s gross Sharpe reproduces notebook 12's corrected book exactly: this notebook
+  prints **0.77** (2006-2015) / **-0.04** (2016-2025) and `reproduces notebook 12 within rounding` prints
+  `True`. Book (f) is built from notebook 12's corrected `xs_targets.pkl` (§4.2's Correction note), so
+  every comparison in this notebook is against a live, freshly computed baseline, not a quoted one.
 """)
 
 nb.cells = cells

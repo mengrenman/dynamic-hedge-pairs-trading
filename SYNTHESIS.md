@@ -69,7 +69,7 @@ deciding it. Measured on the minute lake instead:
 | book | measured cost | against |
 |---|---|---|
 | nb11 pairs (287 pair-folds) | **2.2 bps** a transaction, notional-weighted | 33.9 bps of edge |
-| nb12 cross-section (11,913 cells) | **2.94 bps** turnover-weighted | break-even 0.7–5.7 |
+| nb12 cross-section (11,913 cells) | **2.94 bps** turnover-weighted | break-even 0.6–3.2 |
 
 Running notebook 11's whole book at three cost levels: **0.407** at the assumed flat 5 bps,
 **0.490** at measured costs, **0.545** entirely free. Measuring the cost is worth +0.083 of Sharpe;
@@ -106,27 +106,30 @@ The repository contains both halves of the problem and never combines them:
 | | edge per unit turnover | breadth | what binds |
 |---|---|---|---|
 | **nb11** pairs | 33.9 bps | 38 bets/yr | breadth |
-| **nb12** cross-section | 0.33 bps *(post-2015)* | ~500 positions daily | the signal |
+| **nb12** cross-section | −0.31 bps *(post-2015)* | ~500 positions daily | the signal |
 
 Notebook 12 has no discovery search, so no clause-(b) problem, and 500 positions a day. It should
-have escaped every constraint above. Instead its **break-even cost collapsed from 10.8 bps before
-2016 to 0.33 bps after** — four of ten configurations turn *negative* break-even, and zero of ten are
-net-positive in the later era, against seven of ten before. That is a widely-known short-horizon
+have escaped every constraint above. Instead its **break-even cost fell from 6.0 bps before
+2016 to −0.31 bps after** — six of ten configurations turn *negative* break-even, and zero of ten are
+net-positive in the later era, against four of ten before (the damped ones, by about two to one).
+Those are the corrected numbers: the notebook's earlier `neutralize` leaked an index-reversal bet
+through the first PCA factor that carried two thirds of its P&L per traded dollar, and all of it
+after 2015; the leak was found in notebook 17's review and notebook 12 was re-run on 2026-09-28. That is a widely-known short-horizon
 reversal signal being competed away on a datable timeline, and it is the best-evidenced decay result
 in the repository.
 
-### Notebook 15: the paper's own machinery doesn't change the verdict
+### Notebook 15: the paper's own machinery beats the corrected baseline
 
 Notebook 15 runs Avellaneda & Lee's actual configuration — sector-ETF residuals, the section 6
 trading-time volume correction, and the bang-bang rule — as six books, reproducing notebook 12's own
-baseline live (gross Sharpe 0.77/0.02, exact). None beats notebook 12 on a per-turnover basis when stock and ETF legs are pooled: the
-best paper variant by break-even (ETF, trading time, continuous) earns **4.423 bps** against notebook
-12's **5.703** — but notebook 12's book trades only stock legs, and counted on stock legs alone both
-trading-time books clear it (**6.857** and **5.837 bps**), since the pooled column charges the hedged
-books' ETF legs at the stock rate. Getting trading time right took fixing two independent bugs, not one; corrected, it
+baseline live (gross Sharpe 0.77/−0.04 by decade, break-even 2.933 bps, exact). Against that corrected
+baseline — it was 5.703 bps before the neutralize fix, with a leaked index-reversal bet inside — four of
+the five paper variants win per pooled traded dollar: the best (ETF, trading time, continuous) earns
+**4.423 bps**, and the trading-time books also clear it on stock legs alone (**6.857** and **5.837 bps**),
+so the stock-leg comparison that used to be the paper's only win is no longer needed to make the case. Getting trading time right took fixing two independent bugs, not one; corrected, it
 raises gross Sharpe +0.195 (bang-bang) to +0.157 (continuous) with turnover essentially unchanged,
 and net of *measured* costs the trading-time bang-bang book is the single best-performing run in the
-notebook — net Sharpe **0.366** against notebook 12's **0.180**. Post-2016 survival is mixed: five of
+notebook — net Sharpe **0.366** against notebook 12's **0.007**. Post-2016 survival is mixed: five of
 six runs decay on the usual split, only calendar/bang-bang does not (0.533 → 0.548) — but five-year
 blocks show that is a 2016-cutline artifact (that run has the most blocks below 0.15 Sharpe, 2 of 4),
 while trading-time/bang-bang is the steadiest run on the finer cut (zero blocks below 0.15) despite
@@ -350,7 +353,7 @@ Strictly, in descending order of confidence:
    million pairs to find twenty is not a detail of this implementation — it is what "find
    cointegrated pairs" *means*, and it is what clause (b) charges for.
 3. **Measure the assumption that sits inside your answer's range.** Notebook 12's verdict turned on
-   an assumed 5 bps against break-evens of 0.7–5.7. An hour of measurement changed six of ten
+   an assumed 5 bps against break-evens of 0.6–3.2. An hour of measurement changed two of ten
    configurations from negative to positive — and left the conclusion intact for a different reason.
 4. **The unit of independence is rarely the row.** Clustering the same trades on 30 formations
    instead of 723 trades moves t from 3.89 to 2.16, and turns an apparent 90% out-of-sample collapse

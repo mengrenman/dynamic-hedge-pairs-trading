@@ -116,9 +116,9 @@ set of weights rather than a set of correlations. The top 15 are kept and their 
 factor returns.
 
 **Residuals and weights.** Each day, every name's trailing 60 sessions are regressed on those factor
-returns. A signal is formed from the recent residual (or raw) returns, the weight vector is projected
-orthogonal to the loading matrix so the book carries no factor exposure, then centered to be
-dollar-neutral and scaled to \$1M gross.
+returns. A signal is formed from the recent residual (or raw) returns, and the weight vector is jointly
+projected orthogonal to the loading matrix and a constant column, so the book carries no factor exposure
+and is dollar-neutral in the same least-squares solve, then scaled to \$1M gross.
 """)
 code(r"""
 def universe_at(end, n=UNIV_N):
@@ -141,12 +141,32 @@ def eigenportfolios(R, k=N_FACTORS):
     return pd.DataFrame(Q, index=R.columns, columns=[f"f{i}" for i in range(len(idx))]), vals[idx] / vals.sum()
 
 def neutralize(w, B):
-    # project weights orthogonal to the factor loadings B (N x k), then dollar-neutralize and scale
-    BtB = B.T @ B + 1e-8 * np.eye(B.shape[1])
-    w = w - B @ np.linalg.solve(BtB, B.T @ w)
-    w = w - w.mean()
+    # project weights orthogonal to [loadings, 1] jointly, then scale to unit gross. The earlier
+    # two-step form -- project against B, then demean -- re-injected exposure -mean(w) * colsum(B)
+    # into every factor whose loadings do not sum to zero (a systematic tilt found in notebook 17's
+    # review, 2026-09-28); appending a constant column to B removes the dollar exposure and the
+    # factor exposures in one least-squares solve.
+    B1 = np.column_stack([B, np.ones(B.shape[0])])
+    BtB = B1.T @ B1 + 1e-8 * np.eye(B1.shape[1])
+    w = w - B1 @ np.linalg.solve(BtB, B1.T @ w)
     g = np.abs(w).sum()
     return w / g if g > 1e-12 else w
+""")
+
+md(r"""
+**Correction.** An earlier version of this notebook's `neutralize` function projected the weight vector
+orthogonal to the factor loadings and then demeaned it in a second step to force dollar-neutrality.
+Because the loading matrix's columns do not sum to zero, that second step re-injected exposure to the
+first PCA factor. The corrected version instead projects
+against the loadings and a constant column jointly, in one least-squares solve, so the factor exposure
+and the dollar exposure are removed together. Day by day the two books' weights correlate `0.94`, but
+per traded dollar the corrected book keeps `36%` of the earlier version's P&L at full rebalancing (gross
+Sharpe `0.515` to `0.388`) and `51%` damped to a quarter of the distance to target, where gross Sharpe is
+essentially unchanged; the earlier version's headline break-even cost was `5.703` bps. About two thirds
+of the earlier version's P&L per traded dollar, and all of it after 2015, came from that leaked exposure:
+it behaved like an unintended index-reversal bet, long the market after a five-day decline and short
+after a rise, not like the cross-sectional reversal signal, and
+the cross-sectional signal on its own was never positive after 2015 at any cost.
 """)
 
 md(r"""
@@ -500,16 +520,16 @@ tab = pd.DataFrame([summarize(v, f"{s} | blend {b}") for (s, b), v in runs.items
 display(tab.round(3))
 """)
 md(r"""
-Every variant makes money before costs, and all but one loses it after. Gross Sharpe runs from 0.15 to
-0.56; net of 5 bps a side the single survivor is plain five-day reversal damped to a quarter of the
-distance to target, at 0.046, and the other nine are negative.
+Every variant makes money before costs, and now every one of them loses it after. Gross Sharpe runs from
+0.24 to 0.49; net of 5 bps a side the least negative is resid reversal 21d damped to a quarter of the
+distance to target, at -0.23, and the other nine are more negative still.
 
 The reason is in the turnover column. For the five-day signals, rebalancing fully to target moves **64%
 of the book every day**, which on a \$1M book over twenty years costs \$1.6M — more than the book itself.
 Moving only 25% of the distance to target cuts turnover by 60% — not by 75%, because the target is
 persistent from day to day — and actually *raises* net Sharpe for every signal, because the signal decays
-slowly enough that most of that trading was noise. It is the clearest possible statement that this is a
-cost problem rather than a signal problem.
+slowly enough that most of that trading was noise. Whether the binding constraint is cost or signal is
+settled by era, in §5.5.
 """)
 
 md(r"""
@@ -537,16 +557,16 @@ for (s, b), base in runs.items():
     ax.plot(COSTS, y, marker="o", lw=1.3, alpha=0.85, label=f"{s} | {b}")
 ax.axhline(0, color="k", lw=0.8); ax.axvline(COST_BPS, color="r", ls="--", lw=1, label="base case 5 bps")
 ax.set_xlabel("cost per side (bps)"); ax.set_ylabel("Sharpe"); ax.legend(fontsize=7)
-ax.set_title("Break-even runs from 0.7 to 5.7 bps a side")
+ax.set_title(f"Break-even runs from {sweep['break-even bps'].min():.1f} to {sweep['break-even bps'].max():.1f} bps a side")
 plt.tight_layout(); plt.show()
 """)
 md(r"""
-The break-even costs are between 0.7 and 5.7 bps a side, and the best of them belongs to a damped
+The break-even costs are between 0.6 and 3.2 bps a side, and the best of them belongs to a damped
 configuration. At 2 bps — achievable for a \$1M book in the 500 most traded US names with patient
-execution — the *damped raw-reversal* variants deliver Sharpe ratios of 0.15 to 0.24. Rebalancing fully to
-target gives 0.09 to 0.19 on the same signals, and the residual-reversal configurations are at or below
-zero apart from one that also reaches 0.15. At the 5 bps used elsewhere in this
-repository only one configuration is positive at all.
+execution — the *damped raw-reversal* variants deliver Sharpe ratios of 0.05 to 0.12. Rebalancing fully to
+target gives -0.78 to -0.25 on the same signals, and the residual-reversal configurations are at or below
+zero apart from the two damped ones, which reach 0.185 and 0.067. At the 5 bps used elsewhere in this
+repository none of the ten configurations is positive.
 
 That is a narrow window, and it is the whole investment case: there is no configuration here whose edge
 is large enough that the cost assumption stops mattering. Which means the assumption cannot be left
@@ -558,7 +578,7 @@ md(r"""
 ### 5.5 What it actually costs
 
 Everything above charges a flat 5 bps a side, and §5 has just shown that the whole result lives
-between 0.7 and 5.7 bps. When the assumption sits inside the answer's range, the assumption *is* the
+between 0.6 and 3.2 bps. When the assumption sits inside the answer's range, the assumption *is* the
 answer, and it is worth an hour to stop assuming. The minute lake (Polygon.io, now Massive.com) can
 price every name this book trades.
 
@@ -650,15 +670,16 @@ print(f"charging unpriced names the year's 75th percentile instead of its median
 """)
 
 md(r"""
-**Six of the ten configurations cross from negative to positive**, where at 5 bps exactly one did. The
-best is no longer a knife-edge 0.046 but 0.18. That is a real change in the table: the conclusion §5
-reached — that all but one variant is under water — was an artifact of the assumed rate rather than a
-property of the strategy.
+**Two of the ten configurations cross from negative to positive**, where at 5 bps none did. The best is
+no longer a knife-edge positive number but a still-modest 0.05. That is a narrower change than at 5 bps:
+the conclusion §5 reached — that none of the ten variants clears its cost — holds for eight of them even
+once the cost is measured rather than assumed, and only two edge into positive territory.
 
-It is not, however, a strategy. A Sharpe of 0.18 over 19.6 years carries a standard error of 0.23, so
-$t=0.8$; and it is the best of ten configurations, which under Šidák would need $t=2.8$ to mean what
-$t=2.0$ means for one. The honest reading is that measuring the cost moved the point estimate from
-"slightly negative" to "slightly positive" and left it indistinguishable from zero either way.
+It is not, however, a strategy. A Sharpe of 0.05 over 19.6 years carries a standard error of 0.23, so
+$t=0.2$; and it is the best of ten configurations, which under Šidák would need $t=2.8$ to mean what
+$t=2.0$ means for one. The honest reading is that measuring the cost moved two point estimates from
+"slightly negative" to "slightly positive" and left every configuration indistinguishable from zero
+either way.
 
 The era split is where the measurement earns its keep.
 """)
@@ -681,19 +702,23 @@ print(f"net-positive configurations — 2006-2015: {int((eras['2006-2015 net'] >
 """)
 
 md(r"""
-**Before 2016 the gross edge cleared its cost by a factor of nearly four** — a break-even of 10.8 bps
-against a measured 2.9 for plain five-day reversal damped to a quarter, net Sharpe 0.56. **After 2015
-the break-even collapses to 0.33 bps.** Not "below the measured cost": *below almost any cost*. Four of
-the ten configurations have a negative break-even after 2015, meaning the gross edge itself is gone
-before a cent of cost is charged, and not one of the ten is net-positive.
+**Before 2016 the gross edge cleared its measured cost only when damped, and by about two to one at
+best.** Four of the ten configurations clear the 2.9 bps measured cost in that half; the best is plain
+five-day reversal damped to a quarter, break-even 6.0 bps against the measured 2.9, net Sharpe 0.40.
+**After 2015 the break-even turns negative, to -0.31 bps** for that same configuration. Not "below the
+measured cost": *below zero itself*. Six of the ten configurations have a negative break-even after
+2015, meaning the gross edge itself is gone before a cent of cost is charged, and not one of the ten is
+net-positive.
 
 So the cost measurement settles the question it was asked, and settles it against the convenient
-answer. The strategy did not die because 5 bps was too pessimistic an assumption. **At a measured 2.9
-bps it still dies, and at zero cost it would still die**, because what disappeared after 2015 was the
-gross edge and not the margin over frictions. Notebook 11's book turned out not to be cost-constrained
-either, for a different reason — there the edge per round trip was twelve times the cost, and breadth
-was the binding constraint. Two strategies, two cost measurements, and in neither case was execution
-what stood between the research and a return.
+answer — but the verdict that costs were never the constraint rests on the post-2015 half, where the
+gross edge itself is gone; before 2016, cost headroom was real but thin, and cleared only by the damped
+configurations. The strategy did not die because 5 bps was too pessimistic an assumption. **At a
+measured 2.9 bps it still dies, and at zero cost it would still die**, because what disappeared after
+2015 was the gross edge and not the margin over frictions. Notebook 11's book turned out not to be
+cost-constrained either, for a different reason — there the edge per round trip was twelve times the
+cost, and breadth was the binding constraint. Two strategies, two cost measurements, and in neither case
+was execution what stood between the research and a return.
 """)
 
 md(r"""
@@ -701,8 +726,8 @@ md(r"""
 
 Short-horizon reversal is the classic place to mistake microstructure for alpha. A stock that closed on
 the bid looks like a loser and "reverts" when it next closes on the ask, and that reversion is not
-tradeable. The break-even costs above sit close to the 3–4 bps effective spreads measured for these names
-in notebook 18, which is exactly what a bounce-driven signal would look like.
+tradeable. The break-even costs above sit at or below the 3–4 bps effective spreads measured for these
+names in notebook 18, which is at least consistent with what a bounce-driven signal would look like.
 
 The test is to skip the most recent session, forming the signal from returns over t−6 to t−2 instead of
 t−5 to t−1. The bounce lives in the last close; a genuine multi-day over-reaction does not.
@@ -725,14 +750,16 @@ print(f"gross Sharpe with the most recent session included {g_full:.3f}, exclude
       f"({g_skip / g_full - 1:+.0%})")
 """)
 md(r"""
-The signal survives. Dropping the most recent session costs only 4% of gross Sharpe, 0.515 against 0.496
-at full rebalancing, and the break-even cost barely moves. If the edge were bid-ask bounce it would
-collapse, because the bounce lives entirely in the last close.
+The signal survives — more than survives. Dropping the most recent session *raises* gross Sharpe by 18%,
+0.388 against 0.457 at full rebalancing, and the break-even cost moves only slightly, from 1.146 to 1.297
+bps. If the edge were bid-ask bounce, removing the session the bounce lives in should weaken the signal,
+not strengthen it.
 
 So this is a genuine multi-day over-reaction in the idiosyncratic component, not a microstructure
-artifact — which makes the coincidence between the break-even cost and the effective spread a coincidence
-rather than a diagnosis. The signal is real. It is simply small enough that the spread is the right order
-of magnitude to consume it.
+artifact — and it makes the earlier coincidence between the break-even cost and the effective spread look
+even more like a coincidence, since skipping the bounce day makes the result better rather than worse.
+The signal is real. It is simply small enough that the spread is the right order of magnitude to consume
+it.
 """)
 
 md(r"""
@@ -786,17 +813,17 @@ print(f"standard error of a Sharpe over each half: {np.sqrt(252 / (len(base) / 2
 md(r"""
 It is an episode, and a long one that ended.
 
-Fifteen of twenty years have positive gross P&L, and the concentration is milder than the pairs book's:
-the largest single year is 38% of the total against 52% for notebook 11. But the split is not random.
-**Gross Sharpe is 0.77 over 2006–2015 and 0.02 over 2016–2025**, and at 2 bps the same halves give +0.63
-and −0.10. Nine of the ten signal-and-damping variants show the same direction, with the mean gross
-Sharpe falling from 0.68 to 0.08.
+Twelve of twenty years have positive gross P&L, and the concentration is now heavier than the pairs
+book's, not milder: the largest single year is 69% of the total against 52% for notebook 11. But the
+split is not random. **Gross Sharpe is 0.77 over 2006–2015 and -0.04 over 2016–2025**, and at 2 bps the
+same halves give +0.52 and -0.28. All ten of the signal-and-damping variants show the same direction,
+with the mean gross Sharpe falling from 0.71 to 0.05.
 
 The standard error of a Sharpe over each half is 0.32, so the first-decade result is around two standard
-errors from zero and the second is indistinguishable from it. The best years — 2008, 2009, 2011, 2022 —
+errors from zero and the second is indistinguishable from it. The best years — 2008, 2009, 2010, 2016 —
 are volatile ones, which is what a reversal strategy should prefer: over-reaction is largest when the
-market is moving. But 2020, which contained the sample's most violent volatility spike, is the worst. Volatility is not
-sufficient.
+market is moving. But the worst year is 2007, also a volatile one, and 2018 is close behind — both years
+the market moved sharply and the book still lost money. Volatility is not sufficient.
 
 This is the crowding-out of short-term reversal that the literature has documented since the mid-2000s,
 reproduced here on point-in-time data with survivorship bias and dividend look-ahead removed.
@@ -808,15 +835,16 @@ md(r"""
 **The breadth argument was right, and it was not enough.** Removing the discovery step removed the
 multiple-testing bottleneck exactly as intended: this book holds about 500 positions every day against
 the pairs book's ten or fewer, needs no significance threshold, and deploys ten times the capital. Its
-gross edge is positive in 15 of 20 years and less concentrated than the pairs result. What it does not do
-is earn more after costs. Over the full span the best net Sharpe is **0.18** at the costs §5.5 measures
-(0.05 at the assumed 5 bps), against **0.49** for notebook 11's Benjamini–Hochberg pairs on the same
-measured basis — and neither is distinguishable from zero, at $t=0.8$ and $t=1.8$ respectively.
+gross edge is positive in 12 of 20 years and more concentrated in a single year than the pairs result,
+not less. What it does not do is earn more after costs. Over the full span the best net Sharpe is
+**0.05** at the costs §5.5 measures (best is *negative*, at -0.23, at the assumed 5 bps), against **0.49**
+for notebook 11's Benjamini–Hochberg pairs on the same measured basis — and neither is distinguishable
+from zero, at $t=0.2$ and $t=1.8$ respectively.
 
 **Breadth does not come free, because turnover scales with it.** A 500-name book rebalanced daily trades
 15–65% of itself per session. The information ratio gained from more bets is handed straight back at the
 spread. The binding constraint is not how many positions you hold but how much signal each unit of
-turnover carries, and on that measure this strategy is weak: break-even between 0.7 and 5.7 bps a side
+turnover carries, and on that measure this strategy is weak: break-even between 0.6 and 3.2 bps a side
 against the 2.9 bps §5.5 measures. Notebook 11's pairs book carries 33.9 bps of gross edge per unit of
 turnover against a measured 2.2 — fifteen times its own cost — and fails for the opposite reason,
 having only 38 independent bets a year to apply it to.
@@ -828,25 +856,27 @@ printed, over the same 922 and 750 probe days respectively. §3's null simulatio
 a per-name intercept estimated on the same trailing window the signal is built from manufactures a
 correlation out of nothing, and it accounts for roughly 80% of the originally reported IC. The remaining
 evidence that the signal is real does not depend on that contaminated IC at all — it is the realized book
-P&L, which never touches the intercept: a gross Sharpe of 0.77 in 2006–2015 against 0.02 in 2016–2025
-(the standard error of a Sharpe over each half is 0.32, §7), with nine of ten variants agreeing — though
+P&L, which never touches the intercept: a gross Sharpe of 0.77 in 2006–2015 against -0.04 in 2016–2025
+(the standard error of a Sharpe over each half is 0.32, §7), with all ten variants agreeing — though
 those are the same reversal signal at different damping levels, not independent confirmations — and the
-signal survives skipping the most recent session (§6), so
+signal survives, and even strengthens, when skipping the most recent session (§6), so
 it is not a microstructure artifact either. Anyone who found the original, inflated IC on a sample ending
 before about 2015 and extrapolated forward would have been badly wrong twice over — first on the target,
-then on the decay. §5.5 rules out the charitable reading of that decay: the break-even cost falls from
-10.8 bps before 2016 to **0.33** after, and four variants turn *negative* break-even, so what went is
-the gross edge itself. No execution improvement recovers it, because there is nothing left to keep.
+then on the decay. §5.5 rules out the charitable reading of that decay: before 2016 the best configuration
+cleared its cost by two to one (a break-even of 6.0 bps against a measured 2.9), and only four of the ten
+configurations cleared their cost at all; after 2016 the same best configuration's break-even falls to a
+**negative** -0.31, and six variants turn *negative* break-even, so what went after 2015 is the gross
+edge itself. No execution improvement recovers it, because there is nothing left to keep.
 
 **Where this leaves the Sharpe question.** Three approaches have now been measured in this
 repository: cointegrated pairs under FDR control on the point-in-time day lake (0.40 ± 0.26, but on
 fewer than ten positions on average), the same pairs intraday (indistinguishable from zero, notebooks 18–20 — a
 much shorter span on the minute lake's universe of *today's* index members, so that leg still carries
 the survivorship bias this one removes), and the whole cross-section on the day lake
-(0.18 net at measured costs, real but dead since 2016). None reaches 1. The common thread is *not* the
+(0.05 net at measured costs, real but dead since 2016). None reaches 1. The common thread is *not* the
 cost of harvesting, which is the reading this notebook previously invited and which §5.5 now rules out
 for both books. It is that the two failures are different and neither is an execution problem: here the
-signal per unit of turnover went to zero after 2015, and in notebook 11 the signal per bet is large but
+signal per unit of turnover went negative after 2015, and in notebook 11 the signal per bet is large but
 there are only 38 bets a year. Slower-decaying signals would help both. Cheaper execution helps
 neither.
 
