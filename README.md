@@ -522,20 +522,20 @@ Import directly from `pairs` (lazy-loaded, startup fast):
 ## Representative results (walk-forward-selected pair: BKNG / MA)
 
 The walk-forward selector (§3.5 of `pairs_trading_02_yahoo.ipynb`) chose **BKNG / MA** as the most
-stable candidate — **mean fold Sharpe 1.09, median 1.17 across 16 rolling folds**, 13 of them
+stable candidate — **mean fold Sharpe 1.03, median 1.22 across 16 rolling folds**, 12 of them
 positive. Single-window metrics for that pair:
 
 | Metric | In-sample (2020–2025) | OOS (H1 2026) |
 |--------|----------------------|----------------|
-| Sharpe ratio | 0.52 | 3.50 |
-| Ann. return | 2.9% | 18.2% |
-| Max drawdown | 8.4% | 1.3% |
-| Trades | 85 | 13 |
+| Sharpe ratio | 0.52 | 2.64 |
+| Ann. return | 2.9% | 14.8% |
+| Max drawdown | 8.4% | 2.3% |
+| Trades | 85 | 12 |
 
-> **Read the fold distribution, not either single window.** The OOS Sharpe rests on 13 trades in
+> **Read the fold distribution, not either single window.** The OOS Sharpe rests on 12 trades in
 > half a year, where the standard error of an annualized Sharpe is about 1.5; the in-sample
 > figure covers one filter fit over a window containing the COVID break. The honest headline is
-> the **walk-forward fold distribution (mean 1.09, median 1.17, 13/16 positive)**, which is what
+> the **walk-forward fold distribution (mean 1.03, median 1.22, 12/16 positive)**, which is what
 > actually drove selection.
 >
 > **Selection is causal.** The pair is chosen by walk-forward cross-fold stability on the training
@@ -558,7 +558,7 @@ positive. Single-window metrics for that pair:
 | Gap | Notes |
 |-----|-------|
 | **Selection bias** | Candidates screened from a large universe; even with walk-forward-based selection (§3.5), picking the best pair on validation folds inflates expectations. The H1 2026 test window is held out, but validation-set selection bias remains |
-| **Single-pair OOS** | only 13 OOS trades in H1 2026; need ≥50 for statistical power — the single-window OOS Sharpe is essentially noise |
+| **Single-pair OOS** | only 12 OOS trades in H1 2026; need ≥50 for statistical power — the single-window OOS Sharpe is essentially noise |
 | **Portfolio weights are heuristic** | Inverse-variance ignores off-diagonal covariance; a minimum-variance optimizer would be more precise |
 | **Circuit breaker is back-tested** | Thresholds calibrated in-sample may over-fit; validate OOS before deploying |
 | **Market impact is estimated** | Square-root model calibrated to median US equities; illiquid names need higher η |

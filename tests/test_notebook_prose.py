@@ -55,7 +55,7 @@ DOI = re.compile(r"10\.\d{4,}/\S+")
 HEDGE = re.compile(r"\b(?:roughly|about|around|approximately|nearly|some|order of)\s+(?:\w+\s+){0,2}$|~\s*$")
 # One comparison, inside one sentence. The gap excludes sentence enders so two numbers from
 # different claims are never paired up.
-JOIN = r"(?:against|vs\.?|versus|compared\s+(?:with|to)|rather\s+than|not|and)"
+JOIN = r"(?:against|vs\.?|versus|compared\s+(?:with|to)|(?:rather|higher|lower|larger|smaller|better|worse)[*_]*\s+than|not|and)"
 COMPARISON = re.compile(
     rf"(?<![\w.$/,-])({NUM})(?![\d/])[^.!?]{{0,40}}?\b{JOIN}\b[^.!?]{{0,40}}?(?<![\w.$/,-])({NUM})(?![\d/])"
 )
