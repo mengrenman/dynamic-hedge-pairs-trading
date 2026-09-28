@@ -36,24 +36,22 @@ NB = ROOT / "notebooks"
 BUILD = NB / "build"
 
 # old stem -> new stem. Order is irrelevant; the pass is atomic.
-# 2026-09-25: make the numbers follow the data source -- day lake 08-16, minute lake 17-19.
+# 2026-09-28: make room for the desk notebook at 17 (day lake 08-17, minute lake 18-20).
 MOVES: dict[str, str] = {
-    "pairs_trading_18_avellaneda_lee_day_lake":        "pairs_trading_15_avellaneda_lee_day_lake",
-    "pairs_trading_19_kalman_pnl_accounting_day_lake": "pairs_trading_16_kalman_pnl_accounting_day_lake",
-    "pairs_trading_15_minute_data":                    "pairs_trading_17_minute_data",
-    "pairs_trading_16_intraday_backtest":              "pairs_trading_18_intraday_backtest",
-    "pairs_trading_17_intraday_portfolio":             "pairs_trading_19_intraday_portfolio",
+    "pairs_trading_17_minute_data":        "pairs_trading_18_minute_data",
+    "pairs_trading_18_intraday_backtest":  "pairs_trading_19_intraday_backtest",
+    "pairs_trading_19_intraday_portfolio": "pairs_trading_20_intraday_portfolio",
 }
 
 # old number -> new number, for prose references (identity for the untouched ones).
-NUMS: dict[int, int] = {**{n: n for n in range(1, 15)}, 15: 17, 16: 18, 17: 19, 18: 15, 19: 16}
+NUMS: dict[int, int] = {**{n: n for n in range(1, 17)}, 17: 18, 18: 19, 19: 20}
 
 # Ranges written without a "notebook"/"nb" prefix cannot be matched safely by pattern -- a bare
 # "11-13" is indistinguishable from a date or a count -- so the few that exist are listed here.
 EXTRA: dict[str, str] = {
-    "Notebooks 08\u201314, 18 and 19 read a local": "Notebooks 08\u201316 read a local",
-    "**08\u201314**, **18** and **19** read": "**08\u201316** read",
-    "and **15\u201317** read the **minute": "and **17\u201319** read the **minute",
+    "Notebooks 08\u201316 read a local": "Notebooks 08\u201317 read a local",
+    "**08\u201316** read": "**08\u201317** read",
+    "and **17\u201319** read the **minute": "and **18\u201320** read the **minute",
 }
 
 _STEMS = sorted(MOVES, key=len, reverse=True)      # longest first so prefixes cannot shadow

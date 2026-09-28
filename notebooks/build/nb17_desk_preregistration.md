@@ -1,4 +1,4 @@
-# Pre-registration: notebook 20, a statistical-arbitrage desk in miniature
+# Pre-registration: notebook 17, a statistical-arbitrage desk in miniature
 
 Written 2026-09-28, before any of the code below exists or any number has been seen. Everything in
 this file is fixed. Anything the notebook does differently must be listed in a "Deviations" section
@@ -105,5 +105,5 @@ are reported as a sensitivity and nothing is selected on them.
 
 ## Numbering
 
-The notebook is a day-lake study and belongs with 08–16. When it lands, the minute-lake notebooks
-17–19 move to 18–20 with `renumber.py` in the same commit, and this notebook becomes 17.
+The notebook is a day-lake study and belongs with 08–16, so it is notebook 17; the minute-lake
+notebooks moved from 17–19 to 18–20 on 2026-09-28 (`renumber.py`), before it was built.

@@ -289,14 +289,14 @@ good year, does not have twenty years of evidence for itself.
 |---|---|---|
 | nb14 §9 clause (c), clustered | 19.3 bps, t = 2.06 | 13.1 bps, t = 0.60 — **14% power** |
 | nb11 §8, six rule × gate cells | all positive | **all six decline** |
-| nb18→17 intraday | pooled OOF 1.50 | −0.27 on 153 sessions, s.e. ≈ 1.3 |
+| nb19→20 intraday | pooled OOF 1.50 | −0.27 on 153 sessions, s.e. ≈ 1.3 |
 | nb04 tuning | OOF 1.338 vs default 0.508 | dead heat, 2.635 vs 2.642 |
 | nb05 tuning, 40 pairs | tuned wins on validation | static hedge first on hold-out |
 
 The direction is consistent and the individual tests are all underpowered. Notebook 11 §8 notes that
 six of six declining has probability 2⁻⁶ = 1.6% under independence — but the six cells are three
 rules crossed with gate on/off and share most of their trades, so treat that as illustrative rather
-than a test. Notebook 19 states its own version plainly: ten pairs and two and a half years "cannot
+than a test. Notebook 20 states its own version plainly: ten pairs and two and a half years "cannot
 separate 1 from zero."
 
 **The honest summary is not that the edge decayed. It is that every attempt to confirm it out of
@@ -350,7 +350,7 @@ ratios; and hyperparameter tuning on this pipeline is noise — split-half Spear
 
 ## 9. What this work does not tell you
 
-- **Capacity, except for one book.** Notebook 19 models square-root impact on the *intraday* book:
+- **Capacity, except for one book.** Notebook 20 models square-root impact on the *intraday* book:
   24 bps of capital at $10k a pair, 77 at $100k, **244 at $1M**, so the practical ceiling is nearer
   $100k a pair than the $135M that a participation-only measure suggests. The two measures disagree
   because participation asks whether the order fits in the bar and impact asks what it costs to
