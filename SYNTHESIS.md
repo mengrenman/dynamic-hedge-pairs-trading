@@ -132,6 +132,26 @@ blocks show that is a 2016-cutline artifact (that run has the most blocks below 
 while trading-time/bang-bang is the steadiest run on the finer cut (zero blocks below 0.15) despite
 an unremarkable two-decade drop (0.784 → 0.698).
 
+### Notebook 17: the desk in miniature
+
+Notebook 17 is the repository's first notebook built from a pre-registration: eleven weak daily
+alphas, fixed before any number was seen, cross-sectionally standardized, neutralized against a
+risk model and blended two ways on the day lake's 500-name universe, 2006–2025. In development only
+two of the eleven — `rev1` and `rev5` — pass Benjamini-Hochberg at h=5, and every alpha's IC stays
+below 0.015. The pre-registered decision instrument, a walk-forward ridge blend under phi=0.25
+partial adjustment, fails its own rule: test-period net Sharpe about −0.5, hold-out negative. But
+the ridge is not a fair proxy for the alphas — the unfitted equal-weight blend dominates it on every
+metric measured (net of measured cost: full span 0.60 against the ridge's 0.07, and on its own
+across periods 0.99 in development, 0.12 in test, 0.44 in hold-out), and the ridge's own
+coefficients disagree in sign with the pre-registered univariate signs for several alphas, mostly
+choosing the heaviest shrinkage on its grid. The realized blend IC is a few thousandths, and the
+fundamental law of active management reproduces the primary (ridge) book's gross Sharpe from that
+IC and its turnover-implied bet count — an internal consistency check, not new evidence. The
+permutation placebo cannot settle the net-Sharpe question: permuted signals trade about 1.7x the
+real book's turnover, so only the gross-Sharpe percentile is a clean read. Against notebook 11's
+0.49 net-of-cost bar, the primary (ridge) book sits about 1.2 combined standard errors below it,
+while the equal-weight book is statistically indistinguishable from it.
+
 ---
 
 ## 4. The signal was thin before any of this
@@ -341,6 +361,13 @@ Strictly, in descending order of confidence:
    than shifting it, and which estimator you report decides what you conclude.
 6. **Diagnostics can measure themselves.** A time-varying-coefficient filter produces a stationary
    residual from pure noise; any test applied to its output inherits that.
+7. **A neutralization or a forward target can look fine and still be silently wrong at an edge
+   case.** Projecting a book's weights against a factor matrix and then demeaning is not the same
+   as projecting against the factor matrix and a constant column jointly — the two-step form
+   re-injects exposure whenever a factor's own loadings do not sum to zero. And a forward target
+   built by summing across names (a factor return, say) lets one missing name poison every other
+   name's target for that day unless the sum is computed NaN-safely. Both surfaced in notebook 17's
+   review, not its first pass.
 
 Method findings that are real but narrower: a survivor-only universe can flip the *sign* of a
 Sharpe for a strategy that loses money either way (notebook 11 §9), so check dollar P&L alongside
@@ -375,6 +402,11 @@ The two halves exist separately and have never been combined: notebook 12's brea
 that has an economic anchor rather than a statistical one. That design would score differently on
 every clause — no discovery search (b), hundreds of bets a year (a, d), and a reason for the return
 that competition erodes slowly rather than quickly.
+
+Notebook 17's next pre-registration should fix three things before its next number is seen:
+exclude ETFs from the equity cross-section, give the permutation null a turnover that matches the
+real book's rather than destroying it, and set a placebo budget that lets the fitted (ridge) blend
+complete its draws.
 
 The measurement apparatus is the durable asset here: the cost measurement, the placebo nulls, the
 walk-forward harness, the clause table, and a test that checks the prose against the outputs.
