@@ -158,16 +158,29 @@ while the equal-weight book is statistically indistinguishable from it.
 ### Notebook 21: the desk at intraday frequency
 
 Notebook 21 repeats notebook 17's design on 30-minute bars: eight pre-registered alphas (six intraday, plus notebook 17's `rev5` and
-`mom12_1` as controls), a survivorship-free universe of about 447 names a month, 2010–2025, three books. **Rule one fails.** Book B
-(equal-weight, phi 0.25, primary costs) has a test-period net Sharpe of 0.144 (t = 0.29 against 2); its hold-out 0.675 has the right
-sign but belongs to the daily controls, whose own book made 0.691, and the blend's hold-out IC is 0.0019. **Rule two passes** — the
-eight-alpha IC beats the controls' by +0.0156 in development (twice its s.e. is 0.0090) and +0.0113 in test — then reverses in the
-hold-out (−0.0124), with `irev30` and `iopen` carrying the gain in different periods. Book B sits on the cost cliff: gross Sharpe 1.130,
-net 0.476 (Roll basis) and 0.548 (day-lake basis), with 0.263 of the gross traded a session. Books A and C have gross 3.298 and 8.608,
-net −4.951 and −25.411, and break-evens of 1.138 and 0.736 bps against a median cost of 2.48 to 2.82. Breadth is finally there; the
-per-bet edge is below the spread at the desk's frequency, and the law's arithmetic overstates gross Sharpe by about 1.7 to 2.2 times in
-five of six book-and-blend cases. Like for like on the day-lake basis, 0.548 is 0.14 combined standard errors from notebook 17's 0.596 and 0.16 from
-notebook 11's 0.49.
+`mom12_1` as controls), a survivorship-free universe of about 425 names a month, 2010–2025, three books. The universe keeps only common
+and ADR common stock, by instrument type from the Polygon security master (Amendment 1, written after the first run): the type rule flags
+about 72 names a month and removes about 22 that none of the five earlier rules caught, and about 22 kept names a month have no type and
+stay on the behavioral rules. The amendment moved the numbers only slightly and neither verdict changed. **Rule one fails.** Book B
+(equal-weight, phi 0.25, primary costs) has a test-period net Sharpe of 0.176 (t = 0.35 against 2); its hold-out 0.809 has the right
+sign but belongs to the daily controls, whose own book made 0.879, and the blend's hold-out IC is 0.0033 (s.e. 0.0088) against 0.0160 for
+`mom12_1` alone. **Rule two passes as pre-registered** — the eight-alpha IC beats the controls' by +0.0167 in development (twice its s.e.
+is 0.0092) and +0.0127 in test — but it is a 2010–2011 result: the difference passes barely from 2012 (ratio 2.10), fails from 2014 (1.71),
+and reverses in the hold-out (−0.0151, ratio −1.83), with `irev30` and `iopen` carrying the gain in different periods. The controls' own
+IC was 0.0015 in development, so "adds to the daily ones" means the intraday blend had an IC where the daily ones had none. Book B is
+above the cost cliff by a margin that is not established: gross Sharpe 1.162 (s.e. 0.253), net 0.516 (Roll basis) and 0.586 (day-lake
+basis), with 0.263 of the gross traded a session. Like for like on the day-lake basis, 0.586 is 0.03 combined standard errors from
+notebook 17's 0.596 and 0.26 from notebook 11's 0.49. The margin holds only at the signal's own print: two thirds of Book B's gross
+(0.685) is earned overnight and a fifth (0.210) in the half hour after the signal, and entered at the 16:00 close instead of the 15:30
+print the same weights earn a full-span net Sharpe of 0.276 and a test-period net Sharpe of −0.020. Unadjusted splits and class-share
+events bias the result against the book (removing the 18 cells §9.5 flags lifts the full-span net Sharpe from 0.516 to 0.569) and move
+neither verdict. Books A and C have gross 3.376 and 8.594, net −4.775 and −24.952, and break-evens of 1.186 and 0.749 bps against a
+median half-spread of 1.5 bps (half the 3.00 bps median Roll spread; the median measured cost with the 1 bp commission is 2.48 to 2.82).
+Breadth is finally there; the per-bet edge is below the spread at the desk's frequency, and the law's arithmetic overstates gross Sharpe
+by about 1.7 to 2.3 times in five of six book-and-blend cases. The turnover-matched placebo separates the signals from noise gross (4.57
+null standard deviations, through the test period) and says nothing net: it pays the same cost per traded dollar (2.73 against 2.85 bps),
+and its lower net Sharpe comes from half the P&L volatility. The hold-out was displayed three times (the first full run, the rebuild, the
+amended run), so the verdicts are a confirmatory read of an amended universe, not an untouched test; nineteen deviations are logged.
 
 ---
 
@@ -427,17 +440,26 @@ that has an economic anchor rather than a statistical one. That design would sco
 every clause — no discovery search (b), hundreds of bets a year (a, d), and a reason for the return
 that competition erodes slowly rather than quickly.
 
-Notebook 17's next pre-registration was to fix three things before its next number was seen, and
-notebook 21's did: ETFs are excluded from the equity cross-section, the permutation null is drawn once
-a month so its turnover matches the real book's (0.266 against 0.263), and the ridge placebo's budget
-let it complete (40 of 40 draws). What notebook 21 leaves open, by its own reading (§9.3): whether
-either cost basis measures what a resting or crossing order would really cost, which needs quotes or
-fills the minute lake does not carry and is a live question for Book B only, since A and C break even
-at 1.138 and 0.736 bps; why a permuted signal map paid about twice the real book's cost per unit of
-turnover, which it did not decompose; and an intraday-adds-to-daily verdict that rested on a different
-alpha in each period. A next pre-registration should also state its data-quality rules up front (the
-pair key, the return cap, the dividend rule, the corrupt-series exclusion) rather than add them after
-the first run, as notebook 21 had to (Deviations 1 and 13).
+Notebook 17's next pre-registration was to fix three things before its next number was seen, and notebook 21's did: ETFs are excluded
+from the equity cross-section (by instrument type from the security master, after Amendment 1 found that the behavioral rules and a
+frozen list had left about 22 non-equity names a month in), the permutation null is drawn once a month so its turnover matches the real
+book's (0.265 against 0.263), and the ridge placebo's budget let it complete (40 of 40 draws). Exclusion by type is therefore done. What
+notebook 21 leaves open, by its own reading (§9.6), for the next pre-registration:
+
+- **Execution timing.** Book B's margin above the cost cliff exists only at the signal's own 15:30 print. A fifth of its gross is earned in
+  the half hour after the signal, and entering at the 16:00 close cuts the full-span net Sharpe from 0.516 to 0.276 and the test-period
+  one from 0.176 to −0.020. Measure the signal-to-fill delay, or form the signal at the close.
+- **Quotes for fills.** Whether either cost basis measures what a resting or crossing order would really cost needs quotes or fills the
+  minute lake does not carry. It is a live question for Book B only, since A and C break even at 1.186 and 0.749 bps; and for reversal
+  alphas a resting order fills while the price is still falling, so the fill-conditional edge is smaller than the unconditional one.
+- **A risk-matched placebo.** §8.1 decomposed the placebo's lower net Sharpe (the same cost per traded dollar, half the P&L volatility), so
+  the net comparison cannot be read; a volatility-scaled placebo was not built.
+- **An intraday-adds-to-daily verdict that is weaker than rule two's wording.** It rested on a different alpha in each period and is a
+  2010–2011 result, and 2023–2025 has been displayed in all three runs, so it cannot serve as an untouched hold-out again.
+
+A next pre-registration should also state its data-quality rules up front (the pair key, the return cap, the dividend rule, the
+corrupt-series exclusion, the instrument-type rule, and a split and class-share check ahead of the cap, which §9.5 could apply only to
+the P&L side) rather than add them after the first run, as notebook 21 had to (Deviations 1, 2, 5, 14 and 18).
 
 The measurement apparatus is the durable asset here: the cost measurement, the placebo nulls, the
 walk-forward harness, the clause table, and a test that checks the prose against the outputs.

@@ -23,57 +23,97 @@ md(r"""
 
 Notebook 17 combined eleven daily alphas into one neutralized book and found that a fitted blend did
 not clear the equal-weight one. Notebooks 18 to 20 measured what an intraday round trip costs. This
-notebook puts the two together: **500 names, thirty-minute bars, horizons from one bar to a day, and
-eight pre-registered alphas** built from intraday price and volume — the overnight gap, the opening
+notebook puts the two together: **up to 500 names a month (425 on average once the exclusions apply),
+thirty-minute bars, horizons from one bar to a day, and eight pre-registered alphas**, six built from
+intraday price and volume — the overnight gap, the opening
 move, the last half hour, abnormal volume and range, and the time-of-day seasonality of Heston,
-Korajczyk and Sadka — with notebook 17's two daily alphas kept as controls. The question is whether any
+Korajczyk and Sadka — and notebook 17's two daily alphas as controls. The question is whether any
 of it clears the measured half-spread, how much holding overnight and damping turnover buy, and whether
 the intraday alphas add anything once both sets are judged on the same book.
 
 Everything below was fixed before any cell in this notebook ran, in
-`notebooks/build/nb21_intraday_desk_preregistration.md`, reproduced verbatim in §0.1. No alpha, sign,
-book, formation time, window, period, cost rule, universe rule, blend or decision rule was changed after
-the first development-period run; every place this build could not do something exactly as written, and
-every implementation choice the pre-registration left open, is logged in §10, Deviations.
+`notebooks/build/nb21_intraday_desk_preregistration.md`, reproduced verbatim in §0.1, which ends with Amendment 1.
+No alpha, sign, book, formation time, window, period, cost rule, blend or decision rule was changed after the first
+development-period run. The universe rule was: a fifth exclusion, for corrupted day-lake series, was added after the
+first full run (Deviation 2), and Amendment 1 (Deviation 1) added a sixth, by instrument type, after the results of the
+run of commit `e012840` had been seen and before this run. Every place this build could not do something exactly as
+written, and every implementation choice the pre-registration left open, is logged in §10, Deviations.
 
-**What it found.** Both pre-registered rules were applied as written, in §9, and the hold-out was looked at once.
+**What it found.** Both pre-registered rules were applied as written, in §9. The hold-out was **not** looked at once: it was
+displayed in the two earlier runs (the first full run, and the rebuild after Deviation 14, which is the run of commit
+`e012840`) and this is its third display. Amendment 1, the fifth exclusion and the data-sanity rules (the ±100% rule and
+the dividend drop) were all written after a hold-out had been displayed, so §9 is a confirmatory read of an amended
+universe, not an untouched one (Deviation 17). This is the run under Amendment 1. The figures of the run before it (commit `e012840`, called the pre-amendment run below)
+appear in code spans, and no verdict changed direction.
 
+* **Amendment 1 removed about 22 names a month that the behavioral rules had kept.** Rule (vi) keeps only common stock
+  and ADR common stock, by the security master's type for each (ticker, id) pair. It flagged 71.65 names a month (201
+  distinct tickers) and removed 21.89 a month that none of rules (i) to (v) had caught, where each of rules (ii) to (v)
+  alone removed between 0.35 and 0.66. With it, any rule flags 73.99 names a month (235 distinct tickers, against
+  `52.10` and `174` before), and the final monthly universe fell from a mean of `447` names (`424` to `473`) to 425
+  (391 to 457). A mean of 21.8 kept names a month (at most 55) have no type in the master and rest on the behavioral
+  rules alone.
 * **Rule one: the intraday desk does not work.** Book B, equal-weight, phi = 0.25, net of the primary (Roll-spread)
-  costs, had a test-period Sharpe of 0.144 (t = 0.29 on 1008 sessions, against the threshold of 2) and a hold-out
-  Sharpe of 0.675 on 655 sessions, the same sign as the test period. It failed on the t-statistic. The sign condition
-  was met, but the sign does not credit the intraday alphas: the eight-alpha blend's hold-out IC was 0.0019 (s.e.
-  0.0089), while `mom12_1` alone had 0.0150 (t = 2.1558), and the book of the two daily controls alone earned a
-  hold-out net Sharpe of 0.691 against the eight-alpha book's 0.675. "Failed on the t-statistic, not on the sign"
+  costs, had a test-period Sharpe of 0.176 (t = 0.35 on 1008 sessions, against the threshold of 2) and a hold-out
+  Sharpe of 0.809 on 655 sessions, the same sign as the test period. It failed on the t-statistic. The sign condition
+  was met, but the sign does not credit the intraday alphas: the eight-alpha blend's hold-out IC was 0.0033 (s.e.
+  0.0088), while `mom12_1` alone had 0.0160 (t = 2.3273), and the book of the two daily controls alone earned a
+  hold-out net Sharpe of 0.879 against the eight-alpha book's 0.809. "Failed on the t-statistic, not on the sign"
   would overstate what the sign shows.
 * **Rule two: intraday alphas add to the daily ones, in the two periods the rule reads, and the addition did not
-  persist.** The eight-alpha equal-weight blend's IC exceeded that of the two daily controls alone by +0.0156 in
-  development (s.e. 0.0045; twice that is 0.0090) and by +0.0113 in the test period (s.e. 0.0073), the same sign but a
-  ratio of only +1.56. In the hold-out the difference was −0.0124 (s.e. 0.0087, ratio −1.42): the intraday alphas
-  subtracted from the daily controls there. A leave-one-out shows a different alpha carrying the addition each period:
-  `irev30` in development (+0.0084, t = 3.4567, and −0.0001 in the test period) and `iopen` in the test period
-  (+0.0096, t = 2.1907, against +0.0031 in development); in the hold-out no intraday alpha added and `perio`
-  subtracted (−0.0059, t = −2.0214).
+  persist.** The eight-alpha equal-weight blend's IC exceeded that of the two daily controls alone by +0.0167 in
+  development (s.e. 0.0046; twice that is 0.0092) and by +0.0127 in the test period (s.e. 0.0072), the same sign but a
+  ratio of only +1.77. In the hold-out the difference was −0.0151 (s.e. 0.0082, ratio −1.83): the intraday alphas
+  subtracted from the daily controls there, by a little under two standard errors. A leave-one-out shows a different
+  alpha carrying the addition each period: `irev30` in development (+0.0087, t = 3.5880, and +0.0001 in the test
+  period), with `irange` behind it (+0.0032, t = 3.1765), and `iopen` in the test period (+0.0094, t = 2.1364, against
+  +0.0035 in development); in the hold-out `irev30` was the only intraday alpha with a positive gain (+0.0027,
+  t = 0.5689) and `perio` subtracted (−0.0063, t = −2.0379). Read by year, the development addition is a result of 2010 and 2011
+  (ratios 2.73 and 2.77, where no later development year is above 1.55): without those two years the difference is
+  +0.0110 at a ratio of 2.10, which just passes the rule, and without the first four it is +0.0104 at 1.71, which does
+  not. The controls' own blend had an IC of 0.0015 in development and 0.0005 in the test period, so "adds to the daily
+  ones" means "has an IC where the daily ones have none on this window" (§9.3).
 * **Book B is above the cost cliff on the primary basis, by a margin that is not established.** Its gross Sharpe was
-  1.130 over the full span (s.e. 0.253) with 0.263 of the gross traded each session, about a quarter of the book. Net of
-  the primary costs (one basis point of commission plus half the Roll spread) it was 0.476; net of the secondary costs
-  (notebook 14's day-lake measured costs) it was 0.548, and the two differ by less than a third of a standard error. The
-  medians of the two bases are close as well (2.64 and 2.08 bps per name per side in 2018). The profit per bet was 5.48
-  bps gross against 3.21 bps of cost on the primary basis (1.71x, hold-out included), and clause (a) of the scorecard
-  came out at t = 1.71 on 786 non-overlapping blocks, positive and not significant.
-* **Indistinguishable from notebooks 17 and 11.** On the secondary basis Book B's 0.548 compares with 0.596 for notebook
-  17's equal-weight book (difference −0.048, 0.14 combined standard errors) and with 0.490 for notebook 11 (+0.058, 0.16
+  1.162 over the full span (s.e. 0.253) with 0.263 of the gross traded each session, about a quarter of the book. Net of
+  the primary costs (one basis point of commission plus half the Roll spread) it was 0.516; net of the secondary costs
+  (notebook 14's day-lake measured costs) it was 0.586, and the two differ by less than a third of a standard error. The
+  medians of the two bases are close as well (2.64 and 2.08 bps per name per side in 2018). The profit per bet was 5.74
+  bps gross against 3.23 bps of cost on the primary basis (1.78x, hold-out included), and clause (a) of the scorecard
+  came out at t = 1.87 on 786 non-overlapping blocks, positive and just short of two. **That margin exists only if the
+  desk trades at the signal's own print.** Book B earns 0.685 of its gross overnight, 0.210 in the half hour after the
+  signal and 0.122 from the next open to 15:30; entered half an hour later, at the 16:00 close, the same weights earn a
+  full-span net Sharpe of 0.276 instead of 0.516 (about one standard error) and a test-period net Sharpe of −0.020
+  instead of 0.176 (§9.4).
+* **Indistinguishable from notebooks 17 and 11.** On the secondary basis Book B's 0.586 compares with 0.596 for notebook
+  17's equal-weight book (difference −0.010, 0.03 combined standard errors) and with 0.490 for notebook 11 (+0.096, 0.26
   combined standard errors).
-* **Books A and C show the cliff at the desk's own frequency.** Their gross Sharpe ratios over the full span were 3.298
-  and 8.608, their net Sharpe ratios on the primary basis −4.951 and −25.411, and their break-even costs 1.138 and 0.736
+* **Books A and C show the cliff at the desk's own frequency.** Their gross Sharpe ratios over the full span were 3.376
+  and 8.594, their net Sharpe ratios on the primary basis −4.775 and −24.952, and their break-even costs 1.186 and 0.749
   bps per side, the second below the one basis point of commission alone.
 * **Turnover control was the lever that moved the net Sharpe.** Through the test period Book B's net Sharpe rose from
-  −0.310 at phi = 1.00 to 0.433 at 0.25 and 0.518 at 0.10 while its gross Sharpe fell from 2.506 to 1.095 and 0.812.
+  −0.276 at phi = 1.00 to 0.453 at 0.25 and 0.508 at 0.10 while its gross Sharpe fell from 2.498 to 1.105 and 0.797.
+* **What the amendment moved, and what it did not.** Both verdicts, the two Benjamini–Hochberg survivors (`irev30` and
+  `irange`), their fade in the test period, the reversal of rule two in the hold-out, the placebo and the cost cliff all
+  kept their direction. The headline figures moved a little the same way: Book B's full-span net Sharpe on the primary
+  basis went from `0.476` to 0.516, its test-period Sharpe from `0.144` to 0.176 (t from `0.29` to 0.35), and the
+  hold-out paired IC difference from `−0.0124` (ratio `−1.42`) to −0.0151 (ratio −1.83), nearer to two standard errors
+  and still short of them. Quantities that were close to zero changed sign: the test-period IC of `ovn` (now +0.0002, so
+  six of the eight test ICs were positive, not `five`), the net Sharpe of the two daily controls' book through the test
+  period (now −0.009, from `0.018`) and the equal-weight book's 2018 net Sharpe (now 0.157, from `−0.193`), none of them
+  distinguishable from zero. One sentence of the pre-amendment prose did lose its footing: the net Sharpe through the
+  test period no longer rose at every step as phi fell (0.455 at 0.50, 0.453 at 0.25).
+* **Unadjusted splits and one corrupt price level reach Book B's target, and bias the result against the book.** Splits
+  and class-share distributions enter a 24-hour window return as −50% or −67%, and PARA's price level (near 5,295 dollars
+  one session, 105 the next) is corrupt inside the ±100% rule. Removing the 18 cells the flags in §9.5 find raises the
+  full-span net Sharpe from 0.516 to 0.569 and the test-period t from 0.352 to 0.371, and removing every cell below −40%
+  (69 cells, genuine collapses included) to 0.595 and 0.407. Neither verdict moves. The check is a sensitivity on the P&L
+  side, not a change to the pipeline (Deviation 18).
 * **A grouping defect changed the primary-basis numbers.** The first full run grouped the minute rows by `id` after
   filtering them by ticker-and-id pair, which interleaved the minutes of two names that share an id (JCI and TYC, ACE
   and CB, LBTYA and LBTYK) and put thousands of basis points of Roll spread on those six names, where the largest
-  correct cell is 30.2 bps. Every primary-basis figure above and below is from the rebuilt caches (§1.3, Deviation 13).
+  correct cell is 30.2 bps. Every primary-basis figure above and below is from the rebuilt caches (§1.3, Deviation 14).
   The test-period and hold-out verdicts were unchanged by the rebuild, but the development, full-span, scorecard and
-  cost-basis conclusions of the first run were not, and the conclusions above replace them.
+  cost-basis conclusions of the first full run were not, and the conclusions above replace them.
 
 **Data findings that changed the run.** The minute lake's `id` is not unique to a ticker inside a session file (191 of
 6,988 ids in the first file read labeled more than one ticker), and an id filter spliced two price series into one and
@@ -81,14 +121,15 @@ manufactured a spurious next-day reversal; rows are kept by the ticker-and-id pa
 also had BGZ, a triple-inverse fund whose day-lake closes sit near `1e13`, in the universe, where its junk dividend
 applied to a real minute-lake price produced window returns of the order of `1e9` and a fictitious equal-weight P&L.
 That added a fifth universe exclusion for corrupted day-lake series (1.73 names flagged per month, 16 distinct
-tickers, 0.81 per month removed by that rule alone), a rule that treats window returns beyond ±100% as missing, and a
-rule that drops day-lake dividends above half the prior close (340 cells). None of them changed an alpha, a sign, a
-book or a decision rule; all are logged in §10, Deviations 1, 4 and 13.
+tickers, 0.66 per month removed by that rule alone now that rule (vi) also applies, `0.81` before it), a rule that
+treats window returns beyond ±100% as missing, and a rule that drops day-lake dividends above half the prior close (340
+cells). None of them changed an alpha, a sign, a book or a decision rule; all are logged in §10, Deviations 2, 5 and 14.
 
 **How the periods are used.** Every fit, selection and look happens in the development period. The test
 period is shown alongside it from §4 on, because it is walk-forward output that no choice depends on.
-The hold-out is computed with everything else but is **displayed only in §9**, once, at the end: the
-tables in §4 to §8 stop at the end of the test period.
+The hold-out is computed with everything else but is **displayed only in §9**, at the end of this run: the
+tables in §4 to §8 stop at the end of the test period. It is not a first look; the count of its earlier displays is in
+§0 above and in Deviation 17.
 
 **Caching.** Everything this notebook writes goes under `notebooks/cache/` (gitignored) with the prefix
 `intra_` (`intra_smoke_` in the reduced smoke mode the build uses to debug): the 30-minute panel of the
@@ -254,18 +295,30 @@ md(r"""
 Notebook 09's liquidity rules capped at the 500 most traded eligible names — exactly notebook 12's
 `universe_at` — rebuilt **monthly**: the list for a calendar month is the screen on the 400 or so calendar
 days ending at the last session of the month before, so nothing in it uses the month's own data. The four
-pre-registered exclusions are then applied to that list, in this order, each with its count:
+pre-registered exclusions, a fifth for corrupted day-lake series (added after the first full run, Deviation 2) and the
+sixth of Amendment 1, by instrument type (Deviation 1), are then applied to that list, in this order, each with its
+count:
 
 1. the ten factor ETFs (SPY and the nine SPDRs), which serve as factors and are never selected;
 2. names `detect_scaled_instruments` flags in the 252-session formation window (leveraged and inverse funds),
    judged against every other candidate and the factor ETFs;
 3. names whose formation-window daily-return R² against SPY or any one sector SPDR is at least 0.90 (index
    trackers);
-4. the 79 tickers frozen in `nb21_etf_exclusions.txt`.
+4. the 79 tickers frozen in `nb21_etf_exclusions.txt`;
+5. names whose day-lake series is corrupted in the formation window (a close above `1e5` or a recovered dividend above
+   half the prior close);
+6. names whose instrument type is not common stock or ADR common stock: the Polygon security master (read-only) types
+   each (ticker, id) pair, a name is kept only as `CS` or `ADRC`, and a pair with no type in the master keeps only
+   rules (ii) to (v). The lookup is by the pair the day lake resolved and never by ticker, because a reused ticker
+   carries a different type in a different era.
 
 The survivors with a complete formation-window return history feed notebook 12's `eigenportfolios` (15
 factors). A name dropped only for lacking a complete window is counted separately. The cap is applied
-first and the exclusions second, as pre-registered, so the survivors number fewer than 500.
+first and the exclusions second, as pre-registered, so the survivors number fewer than 500. Each rule is judged on
+the full capped list, so the flag counts overlap, and the table prints for each rule both the names it flags and the
+names that only it removes. Rule (vi) is the large one: it flags 71.65 names a month and removes 21.89 that no other
+rule catches, and the final monthly universe averages 425 names. The kept names that have no type in the master (21.8
+a month on average, at most 55) are counted under the table.
 """)
 code(r"""
 def universe_raw_at(end, n=UNIV_N):
@@ -310,6 +363,14 @@ def robust_z(x):
 FROZEN_ETFS = [ln.strip() for ln in (BUILD_DIR / "nb21_etf_exclusions.txt").read_text().splitlines()
                if ln.strip() and not ln.startswith("#")]
 print(f"{len(FROZEN_ETFS)} frozen ETF-like tickers read from nb21_etf_exclusions.txt")
+# Amendment 1 (2026-09-29): instrument type from the Polygon security master, keyed by the (ticker, id) pair
+# the day lake resolved -- never by ticker alone, because a reused ticker carries another type in another era
+SM_PATH = Path(os.environ.get("DAY_LAKE", Path.home() / "local/parquet_lake/day_adj")).parent / "refdata" / "all" / "security_master.parquet"
+_sm = pd.read_parquet(SM_PATH, columns=["ticker", "holder_id", "type"]).dropna(subset=["type"])
+TYPE_OF = {(str(t), str(h)): str(ty) for t, h, ty in zip(_sm["ticker"], _sm["holder_id"], _sm["type"])}
+EQUITY_TYPES = {"CS", "ADRC"}
+print(f"security master: {len(_sm):,} typed (ticker, id) rows; equity types kept: {sorted(EQUITY_TYPES)}")
+del _sm
 """)
 
 code(r"""
@@ -348,11 +409,15 @@ def build_universe():
         bd_w = _big_div.iloc[i_first - FORM_DAYS:i_first]
         is_corrupt = pd.Series([(t in px_w.columns) and (float(px_w[t].max()) > 1e5 or bool(bd_w[t].any()))
                                 for t in raw], index=raw)
+        # (vi) Amendment 1: instrument type by the (ticker, id) pair; a pair with no type keeps only rules (ii)-(v)
+        _ty = [TYPE_OF.get((t, str(ID_OF.get(t)))) for t in raw]
+        is_nonequity = pd.Series([ty is not None and ty not in EQUITY_TYPES for ty in _ty], index=raw)
+        type_unknown = pd.Series([ty is None for ty in _ty], index=raw)
         f = pd.DataFrame({"month": str(m), "ticker": raw, "factor_etf": is_factor.to_numpy(),
                           "frozen_etf": is_frozen.to_numpy(), "scaled": is_scaled.to_numpy(),
                           "tracker": is_tracker.reindex(raw).fillna(False).astype(bool).to_numpy(), "r2_max": r2max.reindex(raw).to_numpy(),
-                          "corrupt": is_corrupt.to_numpy()})
-        f["excluded"] = f[["factor_etf", "frozen_etf", "scaled", "tracker", "corrupt"]].any(axis=1)
+                          "corrupt": is_corrupt.to_numpy(), "nonequity": is_nonequity.to_numpy(), "type_unknown": type_unknown.to_numpy()})
+        f["excluded"] = f[["factor_etf", "frozen_etf", "scaled", "tracker", "corrupt", "nonequity"]].any(axis=1)
         keep = f.loc[~f["excluded"], "ticker"].tolist()
         hist = hist_all.reindex(columns=keep).dropna(axis=1)
         f["no_window"] = (~f["excluded"]) & (~f["ticker"].isin(hist.columns))
@@ -385,9 +450,10 @@ rules = [("(i) factor ETFs (SPY and the nine SPDRs)", "factor_etf"),
          ("(ii) leveraged and inverse funds (detect_scaled_instruments)", "scaled"),
          ("(iii) index trackers (R-squared >= 0.90 against SPY or a SPDR)", "tracker"),
          ("(iv) frozen ETF list (79 tickers)", "frozen_etf"),
-         ("(v) corrupted day-lake series (data quality; added after the first full run, logged)", "corrupt")]
+         ("(v) corrupted day-lake series (data quality; added after the first full run, logged)", "corrupt"),
+         ("(vi) instrument type (Amendment 1: security master, keep CS and ADRC; unknown types fall back to ii-v)", "nonequity")]
 rows = []
-alone = fl[["factor_etf", "frozen_etf", "scaled", "tracker", "corrupt"]]
+alone = fl[["factor_etf", "frozen_etf", "scaled", "tracker", "corrupt", "nonequity"]]
 for label, c in rules:
     others = [o for _, o in rules if o != c]
     rows.append({"rule": label, "flagged, mean per month": fl.groupby("month")[c].sum().mean(),
@@ -398,6 +464,16 @@ rows.append({"rule": "any rule", "flagged, mean per month": fl.groupby("month")[
              "distinct tickers ever flagged": fl.loc[fl["excluded"], "ticker"].nunique()})
 excl_table = pd.DataFrame(rows).set_index("rule")
 display(excl_table.round(2))
+_kept = fl[~fl["excluded"]]
+print(f"kept names per month whose (ticker, id) pair has no type in the security master (behavioral rules only): "
+      f"mean {_kept.groupby('month')['type_unknown'].sum().mean():.1f}, max {int(_kept.groupby('month')['type_unknown'].sum().max())}")
+DEVIATIONS.append(f"Amendment 1 (2026-09-29, pre-registration file, written before this run): exclusion (vi) by instrument type "
+                  f"from the Polygon security master, keyed by the (ticker, id) pair; it flags "
+                  f"{fl.groupby('month')['nonequity'].sum().mean():.1f} names a month and removes "
+                  f"{(alone['nonequity'] & ~alone[[c for c in alone.columns if c != 'nonequity']].any(axis=1)).sum() / n_m:.1f} that no other rule "
+                  f"caught. The first run's figures (commit e012840) were: Book B equal-weight phi=0.25 net Sharpe 0.634 / 0.144 / 0.675 "
+                  f"(development / test / hold-out, primary basis), full span gross 1.130 and net 0.476 (0.548 day-lake); rule two "
+                  f"+0.0156 / +0.0113 / -0.0124.")
 sizes = pd.Series({str(m): len(UNIV[m]) for m in MONTHS})
 print(f"raw top-500 lists: {fl.groupby('month').size().mean():.0f} names per month before exclusions; "
       f"dropped only for lacking a complete formation window: {fl.groupby('month')['no_window'].sum().mean():.1f} per month")
@@ -415,7 +491,7 @@ to Eastern, cut to the regular session (09:30 to 16:00, or to 13:00 on the NYSE 
 traded minute's open, high and low the extremes, close the last traded minute's close, volume the sum. A bar
 with no trade repeats the previous close with zero volume, forward-filled **within the session only**;
 minutes before a name's first trade of the session stay missing. Prices are the lake's split-adjusted
-columns. **The lake's `id` cannot be trusted on its own:** inside a session file a few percent of ids label two tickers (the cell below counts them in the first session file read; in the 2015-01-02 file the id of `BBT` also labels `BHLB`, that of `BBBY` also labels `OSTK`), so an id filter silently splices two price series into one and manufactures a spurious next-day reversal (an information coefficient of the order of a fifth on a first trial, gone once fixed). Rows are therefore kept only where the ticker and the id are the pair the day lake resolved, **and every grouping of those rows (the 30-minute bars, the Roll statistics) is by the same pair**: the filter alone is not enough, because two kept tickers can share one id inside a session (JCI and TYC, ACE and CB, LBTYA and LBTYK), and grouping the filtered rows by `id` would interleave their minutes into one series. The first full run of this notebook did exactly that, and the six names' Roll spreads came out at thousands of basis points; the results below are from the rebuilt caches (Deviation 13). The pairs kept for a session are those of the point-in-time universes of its month and of the two
+columns. **The lake's `id` cannot be trusted on its own:** inside a session file a few percent of ids label two tickers (the cell below counts them in the first session file read; in the 2015-01-02 file the id of `BBT` also labels `BHLB`, that of `BBBY` also labels `OSTK`), so an id filter silently splices two price series into one and manufactures a spurious next-day reversal (an information coefficient of the order of a fifth on a first trial, gone once fixed). Rows are therefore kept only where the ticker and the id are the pair the day lake resolved, **and every grouping of those rows (the 30-minute bars, the Roll statistics) is by the same pair**: the filter alone is not enough, because two kept tickers can share one id inside a session (JCI and TYC, ACE and CB, LBTYA and LBTYK), and grouping the filtered rows by `id` would interleave their minutes into one series. The first full run of this notebook did exactly that, and the six names' Roll spreads came out at thousands of basis points; the results below are from the rebuilt caches (Deviation 14). The pairs kept for a session are those of the point-in-time universes of its month and of the two
 following months (so a name's history is on hand the month it enters) plus the ten factor ETFs. The same
 pass records, per name and session, the sufficient statistics of the Roll estimator from the traded
 one-minute closes (the sums of the lagged and lead price changes and of their product, within the session
@@ -1191,18 +1267,19 @@ plt.tight_layout(); plt.show()
 # ═══════════════════════════════ 5. Blends ═══════════════════════════════
 md(r"""
 **What the tables say.** On Book B's window six of the eight development ICs had the pre-registered sign (`perio` and
-`ivol_abn` did not) and two survived Benjamini–Hochberg at q = 0.10: `irev30` (IC 0.0246, s.e. 0.0063, t = 3.9328) and
-`irange` (0.0090, s.e. 0.0028, t = 3.1846). Neither carried into the test period (0.0036, t = 0.3719, and 0.0024,
-t = 0.5470). The only alpha above two standard errors there was `iopen` (0.0248, t = 2.1967), which had not passed in
-development (0.0121, t = 1.7861). Five of the eight test ICs were positive; `perio`, `ovn` and `mom12_1` were not. The
-two daily controls were small in both periods (`rev5` 0.0021 and 0.0074, `mom12_1` 0.0025 and −0.0029).
+`ivol_abn` did not) and two survived Benjamini–Hochberg at q = 0.10: `irev30` (IC 0.0255, s.e. 0.0063, t = 4.0172) and
+`irange` (0.0102, s.e. 0.0028, t = 3.6134). Neither carried into the test period (0.0034, t = 0.3536, and 0.0000,
+t = 0.0062). The only alpha above two standard errors there was `iopen` (0.0246, t = 2.1718), which had not passed in
+development (0.0131, t = 1.9343, just under two). Six of the eight test ICs were positive (`ovn` at 0.0002 and `irange`
+at 0.0000 only barely); `perio` and `mom12_1` were not. The two daily controls were small in both periods (`rev5`
+0.0013 and 0.0051, `mom12_1` 0.0013 and −0.0047).
 
-On Book A's window (10:30 to the close) `iopen` (0.0141, t = 2.0521), `ivol_abn` (0.0084, t = 2.9300) and `rev5` (0.0098,
-t = 2.6901) were the development ICs above two standard errors, and `irev30` (0.0245, t = 2.6167) and `iopen` (0.0266,
-t = 2.5707) the ones in the test period; no rule was applied to Book A's table. On Book C's window, the next 30-minute
-bar, `irev30` had an IC of 0.0401 (s.e. 0.0020, t = 20.4198) in development and 0.0264 (t = 8.8502) in the test period,
-and `iopen` 0.0173 (t = 8.5190) and 0.0147 (t = 4.8225); the other alphas were near zero in the test period, `ivol_abn`
-(0.0007) and `perio` (−0.0005) among them. Book C's standard errors treat every bar of a probe session as independent,
+On Book A's window (10:30 to the close) `iopen` (0.0150, t = 2.1705), `ivol_abn` (0.0095, t = 3.2491) and `rev5` (0.0097,
+t = 2.6360) were the development ICs above two standard errors, and `irev30` (0.0239, t = 2.5209) and `iopen` (0.0253,
+t = 2.4178) the ones in the test period; no rule was applied to Book A's table. On Book C's window, the next 30-minute
+bar, `irev30` had an IC of 0.0409 (s.e. 0.0020, t = 20.8104) in development and 0.0266 (t = 8.8733) in the test period,
+and `iopen` 0.0178 (t = 8.7967) and 0.0148 (t = 4.8458); the other alphas were near zero in the test period, `ivol_abn`
+(−0.0002) and `perio` (−0.0004) among them. Book C's standard errors treat every bar of a probe session as independent,
 which the bars of one session are not, so its t-statistics are the least reliable in the tables. What the alphas carry
 is a short-horizon reversal (`irev30`, `iopen`), largest on the next 30-minute bar. The hold-out counterparts of these
 tables are in §9.0.
@@ -1363,8 +1440,9 @@ md(r"""
 The blend IC is the correlation of the blend score with the book's hedged target, on the same probe
 formations as §4. For the secondary question, the eight-alpha equal-weight IC is compared with that of the
 two daily controls alone **formation by formation**, so the standard error of the difference uses the paired
-differences (the two blends share the controls and are highly correlated, so this s.e. is far smaller than
-either blend's own).
+differences. Pairing helps only as far as the two blends' formation-level ICs move together, and they share
+just two of the eight alphas, so the cell below prints that correlation next to the three standard errors instead
+of assuming it is high.
 """)
 code(r"""
 BLEND_IC = {}
@@ -1393,26 +1471,39 @@ for p in ("dev", "test"):
     print(f"  {p}: difference {ADD[p]['diff']:+.4f}, s.e. {ADD[p]['se']:.4f}, ratio {ADD[p]['t']:+.2f}, {ADD[p]['n']} formations")
 print(f"development difference exceeds twice its s.e.: {ADD['dev']['diff'] > 2 * ADD['dev']['se']}; "
       f"same sign in the test period: {np.sign(ADD['test']['diff']) == np.sign(ADD['dev']['diff'])}")
+
+def pairing_row(p):
+    ic8, ic2 = BLEND_IC[("B", "ew")][0], BLEND_IC[("B", "ew78")][0]
+    m = PAN["B"]["probe"] & (PAN["B"]["period"] == p) & np.isfinite(ic8) & np.isfinite(ic2)
+    a8, a2 = ic8[m], ic2[m]
+    return {"period": p, "formations": int(m.sum()), "s.e. eight-alpha blend": a8.std(ddof=1) / np.sqrt(m.sum()),
+            "s.e. controls blend": a2.std(ddof=1) / np.sqrt(m.sum()),
+            "s.e. paired difference": (a8 - a2).std(ddof=1) / np.sqrt(m.sum()),
+            "correlation of formation ICs": float(np.corrcoef(a8, a2)[0, 1])}
+pairing_tab = pd.DataFrame([pairing_row(p) for p in ("dev", "test")]).set_index("period")
+display(pairing_tab.round(4))
 """)
 
 # ═══════════════════════════════ 6. Books ═══════════════════════════════
 md(r"""
-**What the tables say.** On Book B the equal-weight blend's IC was 0.0184 (s.e. 0.0047) in development and 0.0147
-(s.e. 0.0076) in the test period. The ridge blend's was higher in development, 0.0221 (s.e. 0.0065), and lower in the
-test period, 0.0079 (s.e. 0.0083). The blend of the two daily controls alone had 0.0028 (s.e. 0.0034) and 0.0034
-(s.e. 0.0057). The paired difference between the eight-alpha blend and the controls was +0.0156 (s.e. 0.0045, ratio
-+3.46, 453 formations) in development and +0.0113 (s.e. 0.0073, ratio +1.56, 202 formations) in the test period:
+**What the tables say.** On Book B the equal-weight blend's IC was 0.0182 (s.e. 0.0047) in development and 0.0131
+(s.e. 0.0075) in the test period. The ridge blend's was higher in development, 0.0236 (s.e. 0.0066), and lower in the
+test period, 0.0084 (s.e. 0.0086). The blend of the two daily controls alone had 0.0015 (s.e. 0.0036) and 0.0005
+(s.e. 0.0058). The paired difference between the eight-alpha blend and the controls was +0.0167 (s.e. 0.0046, ratio
++3.64, 453 formations) in development and +0.0127 (s.e. 0.0072, ratio +1.77, 202 formations) in the test period:
 significant in the first, and of the same sign but not significant on its own in the second, which is what rule two
-asks for. §9.0 adds the hold-out, where the sign reverses. On Book A the ridge blend's development IC was lower than
-the equal-weight one (0.0120 against 0.0174), on Book C higher (0.0381 against 0.0254), and on C the ridge leaned on
-`irev30` (median coefficient 0.857 bps per z-score).
+asks for. The paired s.e. is about the eight-alpha blend's own (0.0046 against 0.0047 in development, 0.0072 against 0.0075 in
+the test period) and larger than the controls blend's (0.0036 and 0.0058): the two blends' formation ICs correlate at
+only 0.413 and 0.447, so pairing gains little. §9.0 adds the hold-out, where the sign reverses. On Book A the ridge blend's development IC was lower than
+the equal-weight one (0.0135 against 0.0186), on Book C higher (0.0390 against 0.0261), and on C the ridge leaned on
+`irev30` (median coefficient 0.886 bps per z-score).
 
 **Where the ridge disagreed with the pre-registered signs.** On Book B the median `perio` coefficient was negative
-(−0.214 bps per z-score, negative in 0.923 of the refits); its development IC was slightly negative too (−0.0014,
-t = −0.3465), not distinguishable from zero, so the disagreement is a weak one. `ovn` and `mom12_1` were negative in
-0.441 and 0.413 of the refits with medians near zero (0.060 and 0.049), so the fitted blend gave them no stable weight,
-while `irev30` and `iopen` were positive in nearly every refit (medians 1.151 and 0.833). On Books A and C no median
-disagreed; `mom12_1` was negative in 0.424 and 0.451 of the refits with medians of 0.018 and 0.004.
+(−0.171 bps per z-score, negative in 0.818 of the refits); its development IC was slightly negative too (−0.0022,
+t = −0.5401), not distinguishable from zero, so the disagreement is a weak one. `ovn` and `mom12_1` were negative in
+0.483 and 0.434 of the refits with medians near zero (0.037 and 0.043), so the fitted blend gave them no stable weight,
+while `irev30` and `iopen` were positive in nearly every refit (medians 1.217 and 0.958). On Books A and C no median
+disagreed; `mom12_1` was negative in 0.465 and 0.486 of the refits with medians of 0.015 and 0.001.
 """)
 
 md(r"""
@@ -1617,17 +1708,18 @@ print(f"sessions shown: {int(SUMMARY['sessions'].iloc[0]):,} of the book's, up t
 
 md(r"""
 **What the table says.** Through the end of the test period Book B's equal-weight, phi = 0.25 book had a gross Sharpe of
-1.095 and a net Sharpe of 0.433 on the primary basis and 0.515 on the day-lake basis (s.e. 0.278 on 3271 sessions),
-with 0.263 of the gross traded each session and a break-even cost of 5.308 bps per side. On the primary basis the net
-Sharpe rose monotonically as phi fell: −0.310 at 1.00, 0.429 at 0.50, 0.433 at 0.25 and 0.518 at 0.10, while the gross
-fell from 2.506 to 0.812, so damping gave up less gross than it saved in cost (the four are reported, not chosen from).
-On the day-lake basis phi = 0.50, 0.25 and 0.10 were indistinguishable (0.608, 0.515, 0.548) and only phi = 1.00
-(0.077) was clearly worse. The ridge blend was lower than equal-weight at every phi on both bases through the test
-period (0.333 against 0.433 at phi = 0.25 on the primary basis). The book of the two daily controls alone had a gross
-Sharpe of 0.589 and a net of 0.018, so the intraday alphas lifted the gross to 1.095 and the net to 0.433: consistent
-with rule two through the test period (§9.0 shows the hold-out). Books A and C turned a gross Sharpe of 3.684 and 9.259
-into a net of −4.782 and −24.703, with break-even costs of 1.237 and 0.792 bps per side, below the median primary cost
-of 2.64 bps (2018), at 2.000 and 11.197 of the gross traded per session.
+1.105 and a net Sharpe of 0.453 on the primary basis and 0.533 on the day-lake basis (s.e. 0.278 on 3271 sessions),
+with 0.263 of the gross traded each session and a break-even cost of 5.467 bps per side. On the primary basis the net
+Sharpe was −0.276 at phi = 1.00, 0.455 at 0.50, 0.453 at 0.25 and 0.508 at 0.10, while the gross fell from 2.498 to
+0.797. Damping from 1.00 to 0.50 saved far more in cost than it gave up in gross; below 0.50 the net was flat within a
+fraction of a standard error, and not monotone (the four are reported, not chosen from). On the day-lake basis phi =
+0.50, 0.25 and 0.10 were indistinguishable (0.629, 0.533, 0.538) and phi = 1.00 (0.100) was the lowest, by between one
+and a half and two standard errors of the other three. The ridge blend was lower than equal-weight at every phi on both
+bases through the test period (0.385 against 0.453 at phi = 0.25 on the primary basis). The book of the two daily
+controls alone had a gross Sharpe of 0.550 and a net of −0.009, so the intraday alphas lifted the gross to 1.105 and
+the net to 0.453: consistent with rule two through the test period (§9.0 shows the hold-out). Books A and C turned a
+gross Sharpe of 3.743 and 9.214 into a net of −4.609 and −24.214, with break-even costs of 1.280 and 0.805 bps per
+side, below the median primary cost of 2.64 bps (2018), at 2.000 and 11.170 of the gross traded per session.
 """)
 
 md(r"""
@@ -1675,13 +1767,14 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-**What the tables say.** Book B's equal-weight net Sharpe by year ran from 2.416 in 2010 to −1.337 in 2016, and its
-gross from 3.324 to −0.702 in 2016. The year 2012, which the first run's interleaved Roll series had turned into the
-one year that decided the sign of the period, lost 12.625 thousand dollars net on a gross Sharpe of 0.297, and no single year
-decides the sign of the period. By five-year block the equal-weight net Sharpe was 1.103, −0.004 and 0.282 (s.e. 0.448,
-0.448 and 0.577); only the first was more than two standard errors from zero, and the gross fell from 1.884 to 0.720
-and then 0.806, the decay of an edge that was strong early in the sample. The ridge blend's blocks were 0.922, 0.019
-and 0.220, the first also just over two standard errors.
+**What the tables say.** Book B's equal-weight net Sharpe by year ran from 2.326 in 2010 to −1.229 in 2016, and its
+gross from 3.215 to −0.599 in 2016. The year 2012, which the first full run's interleaved Roll series had turned into
+the one year that decided the sign of the period, lost 13.580 thousand dollars net on a gross Sharpe of 0.261, and no
+single year decides the sign of the period; four years lost net (2012, 2016, 2019 and 2022). By five-year block the
+equal-weight net Sharpe was 1.100, 0.018 and 0.331 (s.e. 0.448, 0.448 and 0.577); only the first was more than two
+standard errors from zero, and the gross fell from 1.874 to 0.730 and then rose to 0.847, the decay of an edge that was
+strong early in the sample and did not come back to its early level. The ridge blend's blocks were 0.988, 0.054 and
+0.304, the first also just over two standard errors.
 """)
 
 md(r"""
@@ -1753,19 +1846,19 @@ print("largest absolute t-statistic on any factor exposure, by book: " + ", ".jo
 
 md(r"""
 **What the tables say.** The joint regression's coefficients on SPY and the nine SPDRs are not separately interpretable:
-the window returns of SPY and of the nine SPDRs together correlate at 0.971, so the equal-weight Book B's −0.202 on SPY
-(t = −5.327) is offset by positive coefficients on the sector ETFs (largest 0.068 on XLK and 0.066 on XLY), and reading
+the window returns of SPY and of the nine SPDRs together correlate at 0.971, so the equal-weight Book B's −0.213 on SPY
+(t = −5.502) is offset by positive coefficients on the sector ETFs (largest 0.071 on XLK and 0.069 on XLY), and reading
 it as a net short of a fifth of the gross would be wrong. The market exposure is what the two summary lines under the
-tables give: a SPY-only beta of +0.030 (t = +9.07) and a sum of the ten joint betas of +0.032, a small net long, and the
-same reading holds for the other books (SPY-only +0.020, +0.013 and +0.007 for the ridge Book B, A and C). The
-equal-weight Book B's exposure to the 12-1 momentum mimicking return was large and positive (0.150, t = 24.654). That
-is the unneutralized `mom12_1` alpha, one eighth of the blend score, showing up as an exposure by construction (its IC
-was 0.0025 in development and −0.0029 in the test period), not as an edge. The intercept was −0.000 (t = −0.008). The
-ridge Book B had a small SPY coefficient (0.035, t = 0.959), a size exposure of −0.061 (t = −3.066) and a momentum
-exposure of −0.040 (t = −6.802), the opposite sign to the equal-weight book's. Books A and C had joint SPY coefficients
-of −0.048 (t = −1.230) and −0.031 (t = −3.159) and a momentum exposure of 0.061 (t = 9.759) and 0.055 (t = 27.435);
-their intercepts, −0.000 with t-statistics of −17.410 and −103.408, are their net loss, which is the cost, since no
-factor exposure explains it.
+tables give: a SPY-only beta of +0.028 (t = +8.15) and a sum of the ten joint betas of +0.030, a small net long. The
+other books' SPY-only betas were similar small positives (+0.025, +0.012 and +0.005 for the ridge Book B, A and C),
+with sums of the ten joint betas of +0.006, +0.007 and −0.000. The equal-weight Book B's exposure to the 12-1 momentum
+mimicking return was large and positive (0.153, t = 24.852). That is the unneutralized `mom12_1` alpha, one eighth of
+the blend score, showing up as an exposure by construction (its IC was 0.0013 in development and −0.0047 in the test
+period), not as an edge. The intercept was 0.000 (t = 0.140). The ridge Book B had a small SPY coefficient (0.011,
+t = 0.296), a size exposure of −0.081 (t = −4.155) and a momentum exposure of −0.040 (t = −6.661), the opposite sign to
+the equal-weight book's. Books A and C had joint SPY coefficients of −0.049 (t = −1.237) and −0.035 (t = −3.430) and a
+momentum exposure of 0.062 (t = 9.744) and 0.056 (t = 27.616); their intercepts, −0.000 with t-statistics of −16.783 and
+−101.379, are their net loss, which is the cost, since no factor exposure explains it.
 """)
 
 md(r"""
@@ -1808,12 +1901,12 @@ for k in prim_keys:
 """)
 
 md(r"""
-**What the table says.** For the equal-weight book (through the test period) the profit per bet was 5.25 bps gross
-against 3.21 bps of cost (1.63x), so clause (0) passed: the book earned more per traded dollar than it paid. Clause (a)
-came out at t = 1.49 over 655 non-overlapping blocks, positive and short of two. Clause (b) asked t = 2.73 of one of
-eight alphas and the book's was 1.49. Clause (c) was a test-period net Sharpe of 0.144 (t = 0.29). Clause (d) was a net
-profit of 180,406 dollars over 13.0 years on a one-million-dollar book. The ridge book scored lower on every clause that
-varies: 4.43 gross against 3.20 cost (1.39x), t = 1.11, a test-period net Sharpe of 0.076 and a profit of 122,120
+**What the table says.** For the equal-weight book (through the test period) the profit per bet was 5.40 bps gross
+against 3.23 bps of cost (1.68x), so clause (0) passed: the book earned more per traded dollar than it paid. Clause (a)
+came out at t = 1.58 over 655 non-overlapping blocks, positive and short of two. Clause (b) asked t = 2.73 of one of
+eight alphas and the book's was 1.58. Clause (c) was a test-period net Sharpe of 0.176 (t = 0.35). Clause (d) was a net
+profit of 192,522 dollars over 13.0 years on a one-million-dollar book. The ridge book scored lower on every clause that
+varies: 4.68 gross against 3.21 cost (1.46x), t = 1.29, a test-period net Sharpe of 0.162 and a profit of 145,379
 dollars.
 """)
 
@@ -1888,15 +1981,16 @@ plt.tight_layout(); plt.show()
 # ═══════════════════════════════ 8. Placebo ═══════════════════════════════
 md(r"""
 **What the table says.** Charged a flat cost per side, Book B's net Sharpe fell by about a tenth of a unit for every half
-basis point (1.02 at zero, 0.91 at 0.5, 0.81 at 1, 0.60 at 2, 0.40 at 3) and crossed zero at about 5 bps (−0.01),
-against break-evens of 5.31 bps for B, 1.24 for A and 0.79 for C. Book A fell by about 1.5 Sharpe units per half basis
-point at first (3.68, 2.19, 0.71 at 1 bp) and Book C by about 5.8 (9.26, 3.43, −2.45 at 1 bp): the slope of the cliff is
-the turnover, 0.263 for B, 2.000 for A and 11.197 for C per session. The median measured cost per name per side was 2.48
-bps in 2010 and 2.82 bps in 2025, so B's break-even sat well above the median cost and A's and C's below it. The charge
-the primary basis actually levied on B was 3.21 bps per traded dollar in clause (0) of §7.3, borrow included (well under
-a basis point of it at 50 bp a year and this turnover), a little above the median name's 2.48 to 2.82: the traded dollars
-sit in somewhat costlier names than the median name, not in a heavy tail. The book's net Sharpe at that charge, 0.433,
-is close to the flat-cost row at 3 bps (0.40).
+basis point (1.03 at zero, 0.93 at 0.5, 0.83 at 1, 0.62 at 2, 0.42 at 3) and reached zero at about 5 bps (0.02, then −0.59
+at 8), against break-evens of 5.47 bps for B, 1.28 for A and 0.81 for C. Book A fell by about 1.5 Sharpe units per half
+basis point at first (3.74, 2.28, 0.82 at 1 bp) and Book C by about 5.7 (9.21, 3.51, −2.25 at 1 bp): the slope of the
+cliff is the turnover, 0.263 for B, 2.000 for A and 11.170 for C per session. The median measured cost per name per side
+was 2.48 bps in 2010 and 2.82 bps in 2025, so B's break-even sat well above the median cost and A's and C's below it.
+The charge the primary basis actually levied on B was 3.23 bps per traded dollar in clause (0) of §7.3, borrow included
+(well under a basis point of it at 50 bp a year and this turnover), a little above the median name's 2.48 to 2.82: the
+traded dollars sit in somewhat costlier names than the median name, not in a heavy tail. The book's net Sharpe at that
+charge, 0.453, is close to the flat-cost row at 3 bps (0.42). Every row here trades at the signal's own 15:30 print;
+§9.4 re-runs the book half an hour later.
 """)
 
 md(r"""
@@ -2009,27 +2103,71 @@ ax.set_title("Equal-weight Book B against its turnover-matched placebo")
 plt.tight_layout(); plt.show()
 """)
 
+md(r"""
+### 8.1 Why the placebo's net Sharpe is lower: cost per dollar, or risk?
+
+The net comparison above is not one the null supports, but its gap invites an explanation, and the tempting one (the
+placebo pays more per unit of turnover) is a claim about costs that can be read off the books directly. The cell below
+regenerates the equal-weight placebo draws (a fresh generator with the same seed reproduces the draws above, since nothing
+else consumed the notebook's generator before them; the cell checks that the gross Sharpe ratios agree) and puts the
+real book's cost per traded dollar, dollars of cost per session, turnover and P&L volatility beside the placebo's.
+""")
+code(r"""
+def cost_profile(d):
+    d = vis(d)
+    sd = d["pnl_gross"].std(ddof=0)
+    return {"cost per traded dollar (bps)": float(d["cost_p"].sum() / d["traded"].sum() * 1e4),
+            "cost per session ($)": float(d["cost_p"].mean()),
+            "turnover / session": float((d["traded"] / d["gross"].replace(0, np.nan)).mean()),
+            "gross Sharpe": sharpe(d["pnl_gross"] / CAP),
+            "net Sharpe": sharpe((d["pnl_gross"] - d["cost_p"] - d["borrow"]) / CAP),
+            "daily gross P&L s.d. ($)": float(sd),
+            "annual cost over annual P&L s.d.": float(d["cost_p"].mean() * ANN / (sd * np.sqrt(ANN)))}
+
+rg_chk = np.random.default_rng(0)
+prof_rows, gross_chk = [], []
+for draw in range(N_EW_DRAWS):
+    dfp = run_B(neutral_targets("B", blend_ew({"Z": permute_B(rg_chk)})), PHI_PRIMARY)
+    prof_rows.append(cost_profile(dfp)); gross_chk.append(prof_rows[-1]["gross Sharpe"])
+prof_null = pd.DataFrame(prof_rows)
+prof_real = cost_profile(BOOKS[("B", "ew", PHI_PRIMARY)])
+prof_tab = pd.DataFrame({"real book": pd.Series(prof_real), "placebo mean": prof_null.mean(),
+                         "placebo min": prof_null.min(), "placebo max": prof_null.max()})
+display(prof_tab.round(3))
+print(f"the regenerated draws reproduce the placebo above: {np.allclose(gross_chk, ew_null['gross'].to_numpy())}")
+print(f"cost per traded dollar: real {prof_real['cost per traded dollar (bps)']:.2f} bps against the placebo's mean "
+      f"{prof_null['cost per traded dollar (bps)'].mean():.2f}; cost per session ${prof_real['cost per session ($)']:.0f} against "
+      f"${prof_null['cost per session ($)'].mean():.0f}; daily gross P&L s.d. ${prof_real['daily gross P&L s.d. ($)']:,.0f} against "
+      f"${prof_null['daily gross P&L s.d. ($)'].mean():,.0f}; annual cost over annual P&L s.d. "
+      f"{prof_real['annual cost over annual P&L s.d.']:.3f} against {prof_null['annual cost over annual P&L s.d.'].mean():.3f}")
+""")
+
 # ═══════════════════════════════ 9. Decision ═══════════════════════════════
 md(r"""
-**What the tables say.** Both real books sat above their nulls before costs: the equal-weight gross Sharpe of 1.095 was
-above every one of 40 draws (null mean 0.020, s.d. 0.298, z = 3.610) and the ridge book's 1.131 was 4.561 null standard
-deviations above its own (mean −0.063, s.d. 0.262). With 40 draws a 100.0th percentile means only that the real book
+**What the tables say.** Both real books sat above their nulls before costs: the equal-weight gross Sharpe of 1.105 was
+above every one of 40 draws (null mean −0.001, s.d. 0.242, z = 4.572) and the ridge book's 1.168 was 4.425 null standard
+deviations above its own (mean −0.029, s.d. 0.270). With 40 draws a 100.0th percentile means only that the real book
 beat all of them, so the z is the better summary (it assumes a roughly normal null, which 40 draws cannot test). The
 null gross means sit near zero, so the placebo pipeline (neutralization, partial adjustment, the blend) did not
-manufacture a Sharpe on its own. Turnover was matched for the equal-weight book (0.263 against 0.266) but not exactly
-for the ridge (0.305 against 0.262). The net comparison is not one the null supports and is reported for completeness:
-the placebo's net Sharpe averaged −1.335 on a gross of 0.020, the real book's 0.433 on 1.095, so at matched turnover the
-placebo paid about twice as much in cost per unit of turnover as the real book did, and every placebo draw's net
-Sharpe sat below the real book's. That is the 100.0th net percentile, and it says nothing about the alphas: a permuted
-signal map trades a different set of names from the real one, and the cost of the names traded is what separates the
-nets. The notebook did not decompose the difference, and the gross comparison is the one the null supports.
+manufacture a Sharpe on its own. Turnover was matched for the equal-weight book (0.263 against 0.265) but not exactly
+for the ridge (0.308 against 0.266). The net comparison is not one the null supports and is reported for completeness:
+the placebo's net Sharpe averaged −1.306 on a gross of −0.001, the real book's 0.453 on 1.105, and every placebo draw's net
+Sharpe sat below the real book's. That is the 100.0th net percentile, and it says nothing about the alphas. §8.1 shows
+where the gap does not come from: the placebo paid the same cost per traded dollar (2.73 against 2.85 bps, slightly less
+than the real book) and the same dollars per session ($72 against $75). Its net Sharpe is lower because a permuted signal
+spreads weight over names with half the real book's P&L volatility (a daily gross P&L standard deviation of $1,001 against
+$2,062), so the same cost is twice the drag on the Sharpe ratio (an annual cost of 1.148 annual P&L standard deviations
+against 0.576). The placebo is matched on turnover, not on risk, and the real signals concentrate weight in the more
+volatile names. The gross comparison is the one the null supports; reading it as a z-score with the risk matched would
+take a volatility-scaled placebo, which this notebook did not build.
 """)
 
 md(r"""
 ## 9. Decision, and the hold-out
 
-Both pre-registered rules, applied verbatim, and then the hold-out for the first time. Nothing above depended
-on it: the ridge refits and every table stopped at the end of the test period.
+Both pre-registered rules, applied verbatim, and then the hold-out, displayed in this run for the third time (the
+two earlier runs showed it too, and Amendment 1 and the data-sanity rules were written after that display; Deviation 17).
+Nothing above in this run read it: the ridge refits and every table stopped at the end of the test period.
 
 **Rule one.** The intraday desk **works** if Book B's equal-weight, phi = 0.25, net-of-primary-cost Sharpe on
 the test period is positive with t > 2 and the hold-out has the same sign. **Rule two.** Intraday alphas
@@ -2067,7 +2205,7 @@ md(r"""
 ### 9.0 Hold-out information coefficients
 
 Sections 4 and 5 stopped at the test period. The same formation-level ICs, on the same probe formations, for the
-hold-out, computed here for the first time: every alpha on every book, the blends, and rule two's paired
+hold-out, displayed here (this run's first display of it, after two earlier displays): every alpha on every book, the blends, and rule two's paired
 difference, so that the decision rules can be read against the period they did not use.
 """)
 code(r"""
@@ -2087,6 +2225,10 @@ ADD["hold"] = dict(diff=a_h.mean(), se=a_h.std(ddof=1) / np.sqrt(len(a_h)), n=le
 ADD["hold"]["t"] = ADD["hold"]["diff"] / ADD["hold"]["se"]
 print(f"Book B, eight-alpha equal-weight IC minus the IC of alphas 7 and 8 alone, hold-out: difference {ADD['hold']['diff']:+.4f}, "
       f"s.e. {ADD['hold']['se']:.4f}, ratio {ADD['hold']['t']:+.2f}, {ADD['hold']['n']} formations")
+pairing_hold = pairing_row("hold")
+print(f"hold-out pairing: s.e. of the eight-alpha blend {pairing_hold['s.e. eight-alpha blend']:.4f}, of the controls blend "
+      f"{pairing_hold['s.e. controls blend']:.4f}, of the paired difference {pairing_hold['s.e. paired difference']:.4f}; "
+      f"correlation of the two blends' formation ICs {pairing_hold['correlation of formation ICs']:.3f}")
 # leave-one-out: which alpha carries the intraday addition in each period (eight-alpha equal-weight blend without alpha j)
 loo = {}
 for j, a in enumerate(ALPHAS[:6]):
@@ -2106,26 +2248,29 @@ display(pd.DataFrame(loo).T.round(4))
 
 md(r"""
 **What the tables say.** The hold-out ICs do not support the intraday alphas. On Book B's window the eight-alpha
-equal-weight blend's IC was 0.0019 (s.e. 0.0089, t = 0.2111) on 131 probe formations, against 0.0142 (s.e. 0.0077,
-t = 1.8585) for the blend of the two daily controls alone, so rule two's paired difference was −0.0124 (s.e. 0.0087,
-ratio −1.42): the sign that held in development (+0.0156) and in the test period (+0.0113) reversed, though the
-hold-out difference is within about one and a half standard errors of zero. Among the single alphas on Book B the
-hold-out ICs were `perio` −0.0159 (t = −2.1160), `mom12_1` +0.0150 (t = 2.1558), `irev30` 0.0068, `rev5` 0.0060 and
-near zero for the rest (`ovn` −0.0013, `iopen` −0.0013, `ivol_abn` −0.0064, `irange` −0.0002), so the two alphas above
-two standard errors are one intraday alpha pointing the wrong way and one daily control. The leave-one-out table shows
-that the addition rule two credits was carried by a different alpha in each period: `irev30` in development (its
-removal cost the blend 0.0084 of IC, t = 3.4567) and `iopen` in the test period (0.0096, t = 2.1907), each contributing
-almost nothing in the other, and in the hold-out no intraday alpha added and removing `perio` helped by 0.0059 (t =
-−2.0214). On Book A the eight-alpha blend's hold-out IC was 0.0091 (t = 0.9382) and on Book C 0.0069 (t = 2.5120, on
-1,572 bar formations whose standard errors are the least reliable); Book C's `irev30` kept a positive hold-out IC
-(0.0092, t = 2.4649).
+equal-weight blend's IC was 0.0033 (s.e. 0.0088, t = 0.3811) on 131 probe formations, against 0.0184 (s.e. 0.0073,
+t = 2.5232) for the blend of the two daily controls alone, so rule two's paired difference was −0.0151 (s.e. 0.0082,
+ratio −1.83; the paired s.e. was again about the eight-alpha blend's own, 0.0088, and above the controls blend's, 0.0073, the
+two blends' formation ICs correlating at 0.488): the sign that held in development (+0.0167) and in the test period (+0.0127) reversed, and the hold-out
+difference sits just short of two standard errors from zero (the pre-amendment run's was `−1.42`). Among the single
+alphas on Book B the hold-out ICs were `perio` −0.0169 (t = −2.0806), `mom12_1` +0.0160 (t = 2.3273), `rev5` 0.0105
+(t = 1.4314) and, within one standard error of zero, `irev30` 0.0067, `ovn` −0.0006, `iopen` −0.0046, `ivol_abn` −0.0044
+and `irange` −0.0002, so the two alphas above two standard errors are one intraday alpha pointing the wrong way and one
+daily control. The leave-one-out table shows that the addition rule two credits was carried by a different alpha in
+each period: `irev30` in development (its removal cost the blend 0.0087 of IC, t = 3.5880, with `irange` at 0.0032,
+t = 3.1765) and `iopen` in the test period (0.0094, t = 2.1364), while `irev30` added 0.0001 in the test period and
+`iopen` 0.0035 in development (t = 1.3281, under two). In the hold-out `irev30` was the only intraday alpha with a
+positive gain (0.0027, t = 0.5689) and removing `perio` helped by 0.0063 (t = −2.0379). On Book A the eight-alpha
+blend's hold-out IC was 0.0123 (t = 1.2577) and on Book C 0.0074 (t = 2.6740, on 1,572 bar formations whose standard
+errors are the least reliable); Book C's `irev30` kept a positive hold-out IC (0.0090, t = 2.3915).
 """)
 
 md(r"""
 ### 9.1 The hold-out, all books
 
 The full-span versions of the §7 tables, with the hold-out column. The hold-out is 2023 to the end of the data,
-the window of notebooks 11 and 17, and was computed once, here.
+the window of notebooks 11 and 17, and is displayed here, in this run's only display of it (the third across the
+study; Deviation 17).
 """)
 code(r"""
 full_summary = pd.DataFrame([summarize(k, df=BOOKS[k], with_hold=True) for k in sum_keys]).set_index(["book", "blend", "phi"])
@@ -2157,18 +2302,19 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-**What the tables say.** Over the full span Book B's equal-weight, phi = 0.25 book had a gross Sharpe of 1.130 and a net
-of 0.476 on the primary basis (0.548 on the day-lake basis, s.e. 0.253). Its hold-out net Sharpe was 0.675 (net P&L
-+60.732 thousand dollars), higher than the test figure (0.144) and above the development one (0.634), and by year 0.762
-in 2023, 0.829 in 2024 and 0.330 in 2025. That is the sign rule one asked for, and it is not evidence of an edge in the
-intraday alphas: the hold-out is 655 sessions long, clause (a) with the hold-out included was t = 1.71 over 786 blocks,
-the profit per bet was 5.48 bps gross against 3.21 bps of cost (1.71x, against 1.63x through the test period), and the
-book of the two daily controls alone earned 0.691 in the hold-out, with the eight-alpha blend's own hold-out IC at
-0.0019 (§9.0). The ridge book's hold-out (1.197) was higher still but rested on 2023 (1.678) and 2025 (2.266), with 2024
-at −0.103. The lowest-turnover books did best in the hold-out (phi = 0.10: 1.189 equal-weight, 1.614 ridge) and the
-fastest worst (phi = 1.00: −1.337 and −1.735), the order of the cost cliff. Books A and C lost in every period
-(hold-out −5.746 and −29.852), in every calendar year (the best years were 2011 for A at −0.386 and 2020 for C at
-−11.927) and in every five-year block (A −5.340, −5.689, −4.270; C −28.736, −32.336, −20.749).
+**What the tables say.** Over the full span Book B's equal-weight, phi = 0.25 book had a gross Sharpe of 1.162 and a net
+of 0.516 on the primary basis (0.586 on the day-lake basis, s.e. 0.253). Its hold-out net Sharpe was 0.809 (net P&L
++73.989 thousand dollars), higher than the test figure (0.176) and above the development one (0.651), and by year 0.746
+in 2023, 1.109 in 2024 and 0.497 in 2025. That is the sign rule one asked for, and it is not evidence of an edge in the
+intraday alphas: the hold-out is 655 sessions long, clause (a) with the hold-out included was t = 1.87 over 786 blocks,
+the profit per bet was 5.74 bps gross against 3.23 bps of cost (1.78x, against 1.68x through the test period), and the
+book of the two daily controls alone earned 0.879 in the hold-out, above the eight-alpha book's 0.809, with the
+eight-alpha blend's own hold-out IC at 0.0033 (§9.0). The ridge book's hold-out (1.357) was higher still but rested on
+2023 (1.891) and 2025 (1.770), with 2024 lower at 0.479. The lowest-turnover books did best in the hold-out (phi = 0.10:
+1.273 equal-weight, 1.719 ridge) and the fastest worst (phi = 1.00: −1.307 and −1.981), the order of the cost cliff.
+Books A and C lost in every period (hold-out −5.551 and −29.588), in every calendar year (the best years were 2011 for
+A at −0.492 and 2020 for C at −11.606) and in every five-year block (A −5.275, −5.526, −4.044; C −28.377, −31.928,
+−20.269).
 """)
 
 md(r"""
@@ -2193,62 +2339,356 @@ print(f"for reference, the same book on the primary (Roll) basis: Sharpe {sharpe
 """)
 
 md(r"""
-**What the table says.** On the secondary basis Book B's full-span Sharpe of 0.548 (s.e. 0.253) sat 0.048 below notebook
-17's 0.596 and 0.058 above notebook 11's 0.490, that is 0.14 and 0.16 combined standard errors (combined s.e. 0.342 and
+**What the table says.** On the secondary basis Book B's full-span Sharpe of 0.586 (s.e. 0.253) sat 0.010 below notebook
+17's 0.596 and 0.096 above notebook 11's 0.490, that is 0.03 and 0.26 combined standard errors (combined s.e. 0.342 and
 0.363). The three are not distinguishable, and the comparison could not have distinguished a difference of several
 tenths: two combined standard errors span about 0.7. It is also not a like-for-like in construction: notebook 17's book
 blended eleven daily alphas, Book B blends eight (six intraday), and the spans differ. Inside this notebook, on the
-same span and basis, the eight-alpha book's 0.548 compares with 0.199 for the two daily controls alone (§9.1); the two
+same span and basis, the eight-alpha book's 0.586 compares with 0.207 for the two daily controls alone (§9.1); the two
 share their controls, so that difference is tested only by rule two's paired IC, not here. The same book on the primary
-basis had 0.476, within a third of a standard error of the secondary figure, so here the two bases tell the same story.
+basis had 0.516, within a third of a standard error of the secondary figure, so here the two bases tell the same story.
 """)
 
 md(r"""
-### 9.3 What the pieces say
+### 9.3 Rule two by year and by block
 
-**The rules.** Rule one failed: Book B's test-period net Sharpe was 0.144 (t = 0.29 on 1008 sessions, threshold 2), with
-a hold-out Sharpe of 0.675 of the same sign. The sign condition was met, but by the daily controls and not by the intraday
-alphas: the book of `rev5` and `mom12_1` alone earned 0.691 in the hold-out, the eight-alpha blend's hold-out IC was
-0.0019, and `mom12_1` alone had +0.0150 (t = 2.1558). Rule two held as pre-registered: the eight-alpha blend's development
-IC exceeded that of the daily controls alone by +0.0156 against twice its standard error of 0.0090, and the test-period
-difference, +0.0113, had the same sign (ratio +1.56, not significant by itself). The addition did not persist into the
-hold-out (−0.0124, ratio −1.42) and was carried by `irev30` in development and by `iopen` in the test period (§9.0), so
-"the intraday alphas add to the daily ones" is a statement about two periods, each resting on a different alpha, and
-not about a stable source of information. The desk as pre-registered does not work at the measured costs, and the
-evidence that the intraday alphas carry information the daily ones lack is weaker than rule two's verdict alone
-suggests. The gross placebo (below) is the stronger evidence that the signals carry something, on the periods it covers.
+Rule two's development difference is an average over nine years, and a decision rule read on one pooled number cannot
+say whether it is a steady addition or a few years' worth. The cell below splits the same paired IC differences (Book B,
+probe formations, eight-alpha equal-weight blend minus the blend of alphas 7 and 8) by calendar year and by block, re-reads
+the development ratio with the first two development years dropped, and prints the ICs of the six-intraday blend and of the
+controls blend on their own, since the difference is one minus the other. This is a post-hoc reading of a verdict that was
+fixed as pre-registered (Deviation 19); it does not replace the verdict.
+""")
+code(r"""
+PB = PAN["B"]
+yr_B = np.asarray(PB["date"].year)
+pr_ok = PB["probe"] & np.isfinite(diff)
+
+def paired_stats(mask):
+    a = diff[mask & pr_ok]
+    if len(a) < 2:
+        return {"formations": len(a), "difference": np.nan, "s.e.": np.nan, "ratio": np.nan}
+    se = a.std(ddof=1) / np.sqrt(len(a))
+    return {"formations": len(a), "difference": a.mean(), "s.e.": se, "ratio": a.mean() / se}
+
+yrows = []
+for y in sorted(np.unique(yr_B[pr_ok])):
+    r = paired_stats(yr_B == y)
+    r.update(year=int(y), period=str(PB["period"][yr_B == y][0]))
+    yrows.append(r)
+by_year_diff = pd.DataFrame(yrows).set_index("year")
+display(by_year_diff.round(4))
+print(f"largest year-by-year ratios: {by_year_diff['ratio'].round(2).sort_values().head(2).to_dict()} (lowest), "
+      f"{by_year_diff['ratio'].round(2).sort_values().tail(2).to_dict()} (highest)")
+
+BLOCKS_R2 = [(2010, 2012), (2013, 2015), (2016, 2018), (2019, 2022), (2023, 2025)]
+brows = []
+for lo, hi in BLOCKS_R2:
+    r = paired_stats((yr_B >= lo) & (yr_B <= hi))
+    r["block"] = f"{lo}-{hi}"
+    brows.append(r)
+block_diff = pd.DataFrame(brows).set_index("block")
+display(block_diff.round(4))
+
+dev_m = PB["period"] == "dev"
+rows = []
+for label, mask in (("development, as pre-registered (2010-2018)", dev_m),
+                    ("development from 2012", dev_m & (yr_B >= 2012)),
+                    ("development from 2014", dev_m & (yr_B >= 2014))):
+    r = paired_stats(mask)
+    r["reading"] = label
+    r["exceeds twice its s.e."] = bool(r["difference"] > 2 * r["s.e."])
+    rows.append(r)
+dev_readings = pd.DataFrame(rows).set_index("reading")
+display(dev_readings.round(4))
+
+BL_SIX = blend_ew(PB, cols=list(range(6)))
+IC_SIX = row_corr(BL_SIX, PB["Y"])
+rows = []
+for name, (ica, cnta) in (("six intraday alphas, equal-weight", IC_SIX), ("two daily controls, equal-weight", BLEND_IC[("B", "ew78")]),
+                          ("all eight, equal-weight", BLEND_IC[("B", "ew")])):
+    for per in ("dev", "test", "hold"):
+        g = ic_stats("B", 0, per, ic_arr=ica, cnt_arr=cnta)
+        rows.append({"blend": name, "period": per, "IC": g["ic"], "s.e.": g["se"], "t": g["t"]})
+own_ic = pd.DataFrame(rows).set_index(["blend", "period"])
+display(own_ic.round(4))
+""")
+
+md(r"""
+**What the tables say.** Rule two's development difference is a 2010 and 2011 result. The paired difference was +0.0334 in
+2010 (ratio 2.73) and +0.0398 in 2011 (2.77); in each of the seven years from 2012 to 2018 the ratio was at most 1.55
+(2015), and the lowest was −0.58 (2017), and the differences ran from −0.0076 to +0.0237. By block the difference was +0.0291
+(ratio 3.64) in 2010-2012, +0.0159 (2.01) in 2013-2015, +0.0050 (0.64) in 2016-2018, +0.0127 (1.77) in 2019-2022 and −0.0151
+(−1.83) in 2023-2025, of which 2024 alone was −0.0374 (−2.84); 2020 was the test period's one strong year (+0.0294, ratio
+1.97). On the other plausible readings of "development" the rule is close: from 2012 the difference is +0.0110 (s.e. 0.0052,
+ratio 2.10), which just passes, and from 2014 it is +0.0104 (s.e. 0.0061, ratio 1.71), which does not. The pre-registered
+verdict stands as written, because the rule named the whole development period. What it means is narrower than "the
+intraday alphas add to the daily ones": the controls blend had no IC on this window in development (0.0015, t = 0.4175) or
+in the test period (0.0005, t = 0.0782), so the difference is essentially the six-intraday blend's own IC (0.0200, t =
+4.0070 in development; 0.0141, t = 1.7811 in the test period; −0.0079, t = −0.8961 in the hold-out), and the addition is a
+statement that the intraday blend has an IC where the daily ones have none, in the years it had one. In the hold-out the
+controls were the ones with an IC (0.0184, t = 2.5232).
+""")
+
+md(r"""
+### 9.4 When Book B earns its P&L, and what a half-hour delay does
+
+Book B forms at 15:30 and is held to the next session's 15:30, but those 24 hours are not one bet. The cell below rebuilds
+the book's weights exactly as before and splits its gross P&L into three legs on the same weights: the last half hour
+(15:30 to the 16:00 close, with the signal's own print as the entry), the overnight leg (16:00 to the next session's 09:30
+open, with the ex-dividend credit) and the next day (open to 15:30). The legs are additive up to the cross terms of
+compounding, and the residual row shows what is left. It then re-runs the book entering at the 16:00 close instead of the
+15:30 print and leaving at the next 16:00 (same weights, same costs), the delay a desk faces if it cannot trade at the
+signal's own print, and prints the unhedged information coefficient of every alpha against each leg on the development
+probe formations. Like §9.3 this is a post-hoc reading (Deviation 19).
+""")
+code(r"""
+PB = PAN["B"]
+F_B = len(PB["sess"])
+LEGS = {k: np.full((F_B, NMAX), np.nan) for k in ("last", "ovn", "next", "delay")}
+with np.errstate(all="ignore"):
+    for f in range(F_B):
+        s, n = int(PB["sess"][f]), int(PB["n"][f]); codes = LOAD[s]["codes"]; s1 = s + 1
+        ns, ns1 = int(NSLOT[s]), int(NSLOT[s1])
+        c15, c16 = Cc[s, ns - 2][codes].astype(np.float64), Cc[s, ns - 1][codes].astype(np.float64)
+        o1, c15n, c16n = (Oo[s1, 0][codes].astype(np.float64), Cc[s1, ns1 - 2][codes].astype(np.float64),
+                          Cc[s1, ns1 - 1][codes].astype(np.float64))
+        d1 = DIVc[s1][codes].astype(np.float64)
+        d_a = np.where(d1 > 0.5 * c15, 0.0, d1)               # the dividend rule of session_rows, against the 15:30 price
+        d_b = np.where(d1 > 0.5 * c16, 0.0, d1)
+        tot_ok = np.isfinite(PB["R"][f, :n])
+        LEGS["last"][f, :n] = np.where(tot_ok, cap(c16 / c15 - 1.0), np.nan)
+        LEGS["ovn"][f, :n] = np.where(tot_ok, cap((o1 + d_a) / c16 - 1.0), np.nan)
+        LEGS["next"][f, :n] = np.where(tot_ok, cap(c15n / o1 - 1.0), np.nan)
+        LEGS["delay"][f, :n] = cap((c16n + d_b) / c16 - 1.0)
+
+def run_B_R(W, phi, Rmat):
+    # run_B on a different window-return matrix; the panel's own target is restored whatever happens
+    keep = PB["R"]
+    PB["R"] = Rmat.astype(np.float32)
+    try:
+        return run_B(W, phi)
+    finally:
+        PB["R"] = keep
+
+seg_p = lambda x, lo, hi: x[(x.index >= lo) & (x.index <= hi)]
+FAR = pd.Timestamp("2100-01-01")
+def leg_row(label, pnl, total):
+    return {"leg": label, "gross P&L, full span ($k)": pnl.sum() / 1e3, "share of the book's gross": pnl.sum() / total.sum(),
+            "Sharpe, full span": sharpe(pnl / CAP), "Sharpe, development": sharpe(seg_p(pnl, pd.Timestamp("2000-01-01"), DEV_END) / CAP),
+            "Sharpe, test": sharpe(seg_p(pnl, TEST_START, TEST_END) / CAP), "Sharpe, hold-out": sharpe(seg_p(pnl, HOLD_START, FAR) / CAP)}
+
+LEG_TABS = {}
+for book, W, key in (("eight-alpha blend", TARGETS[("B", "ew")], ("B", "ew", PHI_PRIMARY)),
+                     ("two daily controls", TARGETS[("B", "ew78")], ("B", "ew78", PHI_PRIMARY))):
+    total = BOOKS[key]["pnl_gross"]
+    parts = {lab: run_B_R(W, PHI_PRIMARY, LEGS[k])["pnl_gross"] for k, lab in
+             (("last", "last half hour, 15:30 to 16:00"), ("ovn", "overnight, 16:00 to the next open"),
+              ("next", "next day, open to 15:30"))}
+    rows = [leg_row(lab, v, total) for lab, v in parts.items()]
+    rows.append(leg_row("sum of the three legs", sum(parts.values()), total))
+    rows.append(leg_row("residual (compounding cross terms, unpriced legs)", total - sum(parts.values()), total))
+    rows.append(leg_row("the book as built (15:30 to 15:30)", total, total))
+    LEG_TABS[book] = pd.DataFrame(rows).set_index("leg")
+    print(f"Book B, phi = {PHI_PRIMARY}, {book}: gross P&L by leg on the same weights")
+    display(LEG_TABS[book].round(3))
+
+def perf_row(label, df):
+    net = df["pnl_gross"] - df["cost_p"] - df["borrow"]
+    nt = seg_p(net, pd.Timestamp("2000-01-01"), TEST_END)
+    ns_ = seg_p(net, TEST_START, TEST_END)
+    return {"execution": label, "gross Sharpe, full span": sharpe(df["pnl_gross"] / CAP), "net Sharpe, full span": sharpe(net / CAP),
+            "net Sharpe through test": sharpe(nt / CAP), "net Sharpe, test period": sharpe(ns_ / CAP),
+            "t, test period": sharpe(ns_ / CAP) * np.sqrt(len(ns_) / ANN), "net P&L test period ($k)": ns_.sum() / 1e3}
+drows = []
+for phi in (PHI_PRIMARY, 1.0):
+    drows.append({**perf_row("at the signal's own 15:30 print", BOOKS[("B", "ew", phi)]), "phi": phi})
+    drows.append({**perf_row("half an hour later, at the 16:00 close (exit at the next 16:00)",
+                             run_B_R(TARGETS[("B", "ew")], phi, LEGS["delay"])), "phi": phi})
+delay_tab = pd.DataFrame(drows).set_index(["phi", "execution"])
+display(delay_tab.round(3))
+
+ic_rows = {}
+m_dev = PB["probe"] & (PB["period"] == "dev")
+for j, a in enumerate(ALPHAS):
+    r = {}
+    for k, lab in (("last", "last half hour"), ("ovn", "overnight"), ("next", "next day")):
+        c = row_corr(PB["Z"][:, j, :], LEGS[k])[0]
+        x = c[m_dev & np.isfinite(c)]
+        r[f"{lab} IC"], r[f"{lab} t"] = x.mean(), x.mean() / (x.std(ddof=1) / np.sqrt(len(x)))
+    ic_rows[a] = r
+leg_ic = pd.DataFrame(ic_rows).T
+print("development IC of each signed alpha against the unhedged return of each leg (probe formations):")
+display(leg_ic.round(4))
+""")
+
+md(r"""
+**What the tables say.** Book B is an overnight book plus the last half hour. Of its full-span gross P&L of 600.248
+thousand dollars (the residual of −10.248 is the compounding cross terms), the overnight leg earned 411.388 (0.685 of the
+book's gross, Sharpe 1.573), the last half hour after the signal 126.038 (0.210, Sharpe 1.646) and the next day, from the
+open to 15:30, 73.070 (0.122, Sharpe 0.173). In the test period the next-day leg lost (Sharpe −0.593) against 2.017 overnight
+and 1.223 in the last half hour. The book of the two daily controls earns entirely overnight, 440.634 thousand on a total
+of 332.474 (Sharpe 1.824 overnight, −0.041 in the last half hour, −0.247 the next day), so what the intraday alphas add is the last
+half hour and a part of the overnight leg. The ICs say the same: `irev30` has a development IC of 0.0410 (t = 11.6402)
+against the last half hour and 0.0142 (t = 4.4566) overnight, and 0.0014 (t = 0.4671) from the next open; `iopen`
+0.0331 (t = 9.1354), 0.0141 (t = 4.3579) and −0.0116 (t = −3.3484), a continuation that the book pays for on the third leg.
+
+The delay is the point of the second table. Entering at the 16:00 close instead of the 15:30 print, and leaving at the next
+16:00, on the same weights and the same costs, cuts Book B's full-span gross Sharpe from 1.162 to 0.931 and its net Sharpe
+from 0.516 to 0.276, about one standard error (0.253) above zero; through the test period the net Sharpe falls from 0.453
+to 0.183, and the test period alone from 0.176 to −0.020 (t = −0.041), a net P&L of −3.292 thousand dollars against
++29.247. At phi = 1.00 the delay takes the net Sharpe from −0.456 to −1.503. The margin above the cost cliff is therefore
+a margin for a desk that trades at the signal's own print. The signal's reversal is largely paid out in the half hour after
+it, and a half-hour lag gives that leg away. A leg-by-leg Sharpe ratio is not additive and the residual row shows how much
+the compounding cross terms and the unpriced legs move it, so the shares above are read as orders of magnitude.
+""")
+
+md(r"""
+### 9.5 Split and class-share artifacts in the Book B target
+
+Notebook 12's rule treats a window return beyond ±100% as a data error, and §3 applies it. It does not catch an unadjusted
+split or a class-share distribution, which enters a window return as −50% or −67%, or a price level that is itself corrupt
+but whose jump falls inside ±100%. This section measures how much of that reaches Book B. **It does not change the
+pipeline:** a split check placed before the cap would change every target, signal and figure above and below, so the cell
+below leaves them as they are and reports the effect of removing the flagged cells from the *P&L side* of Book B (the
+window return the weights earn, with the weights unchanged) as a sensitivity, on the full span including the hold-out
+(Deviation 18). Two flags: a **split-like** cell has a 24-hour window return within two points of −50% or −67% (two-for-one and three-for-one
+splits and the class-share distributions the audit found; a three-for-two split, at −33%, is left out because it is
+indistinguishable from an ordinary one-day fall of a third) and
+a next-session share volume between 1.4 and 4 times its mean of the prior 20 sessions (a split roughly doubles or triples
+the share count, where a genuine collapse usually brings far more volume, so the upper bound trades misses for fewer
+false flags); a **level jump** has a 15:30 price that
+changes by a factor of ten or more between adjacent sessions. A third row zeroes every cell below −40%, a superset of the
+artifacts that also takes genuine collapses out.
+""")
+code(r"""
+vol_day = np.nansum(Vv, axis=1)                                                 # (sessions, ids), shares
+PBK_R0 = PB["R"]
+flag_split = np.zeros(PBK_R0.shape, bool); flag_level = np.zeros(PBK_R0.shape, bool)
+det_rows = []
+SPLIT_Q = (1 / 2, 1 / 3)
+with np.errstate(all="ignore"):
+    for f in range(F_B):
+        s, n = int(PB["sess"][f]), int(PB["n"][f]); codes = LOAD[s]["codes"]; s1 = s + 1
+        ns, ns1 = int(NSLOT[s]), int(NSLOT[s1])
+        r = PBK_R0[f, :n].astype(np.float64)
+        ratio = 1.0 + r
+        near = np.zeros(n, bool)
+        for q in SPLIT_Q:
+            near |= np.abs(ratio - q) < 0.02
+        vr = vol_day[s1][codes] / np.maximum(vol_day[max(0, s - 19):s + 1][:, codes].mean(0), 1.0)
+        fs = near & (vr >= 1.4) & (vr <= 4.0) & np.isfinite(r)
+        lv = Cc[s1, ns1 - 2][codes].astype(np.float64) / Cc[s, ns - 2][codes].astype(np.float64)
+        fl = ((lv >= 10) | (lv <= 0.1)) & np.isfinite(r)
+        flag_split[f, :n], flag_level[f, :n] = fs, fl
+        for i in np.flatnonzero(fs | fl):
+            det_rows.append({"formation date": S_W[s].date(), "ticker": TICK_OF_CODE.get(int(codes[i]), "?"), "window return": r[i],
+                             "volume ratio": vr[i], "flag": "level jump" if fl[i] else "split-like"})
+det = pd.DataFrame(det_rows)
+print(f"{int(flag_split.sum())} split-like cells and {int(flag_level.sum())} level-jump cells among {int(np.isfinite(PBK_R0).sum()):,} "
+      f"Book B name-windows with a return, on {len(det['ticker'].unique()) if len(det) else 0} tickers")
+if len(det):
+    display(det.sort_values("formation date").round(3).reset_index(drop=True))
+
+variants = {"as built": None,
+            "split-like cells removed": flag_split,
+            "level-jump cells removed": flag_level,
+            "split-like and level-jump cells removed": flag_split | flag_level,
+            "every cell below -40% removed": np.isfinite(PBK_R0) & (PBK_R0 < -0.40)}
+srows, base_gross = [], None
+for lab, msk in variants.items():
+    df_v = BOOKS[("B", "ew", PHI_PRIMARY)] if msk is None else run_B_R(TARGETS[("B", "ew")], PHI_PRIMARY, np.where(msk, np.nan, PBK_R0))
+    net_v = df_v["pnl_gross"] - df_v["cost_p"] - df_v["borrow"]
+    ns_v = seg_p(net_v, TEST_START, TEST_END)
+    base_gross = df_v["pnl_gross"].sum() if msk is None else base_gross
+    srows.append({"variant": lab, "cells": 0 if msk is None else int(msk.sum()), "gross Sharpe": sharpe(df_v["pnl_gross"] / CAP),
+                  "net Sharpe": sharpe(net_v / CAP), "test-period net Sharpe": sharpe(ns_v / CAP),
+                  "t, test period": sharpe(ns_v / CAP) * np.sqrt(len(ns_v) / ANN),
+                  "gross P&L change ($k)": (df_v["pnl_gross"].sum() - base_gross) / 1e3})
+split_tab = pd.DataFrame(srows).set_index("variant")
+display(split_tab.round(3))
+SPLIT_SUMMARY = dict(n_split=int(flag_split.sum()), n_level=int(flag_level.sum()),
+                     d_gross=float(split_tab.iloc[3]["gross P&L change ($k)"]), d_gross_all=float(split_tab.iloc[4]["gross P&L change ($k)"]),
+                     n_all=int(split_tab.iloc[4]["cells"]))
+print(f"removing the flagged cells changes Book B's full-span gross P&L by {SPLIT_SUMMARY['d_gross']:+.1f} thousand dollars "
+      f"and removing every cell below -40% ({SPLIT_SUMMARY['n_all']} cells) by {SPLIT_SUMMARY['d_gross_all']:+.1f}")
+""")
+
+md(r"""
+**What the table says.** The flags find 15 split-like cells (two-for-one splits and class-share events, among them GOOG on
+2014-04-02 and UNP on 2014-06-06) and 3 level jumps: GTAT (−0.912) and XIV (−0.930), which are genuine collapses, and PARA
+(−0.980), the corrupt series. The flag is a heuristic and misses some artifacts the audit found (CTRP's −50% on 2015-12-01
+is not in the list), so the row that removes every one of the 69 cells below −40%, which is a superset of the artifacts and
+also removes genuine collapses, is the upper bracket. Removing the 15 split-like cells raises the full-span gross Sharpe from
+1.162 to 1.199 and the net from 0.516 to 0.552 (+18.135 thousand dollars of gross P&L); the 3 level jumps alone raise them to
+1.180 and 0.533 (+8.220); together they give 1.217 and 0.569 (+26.355); every cell below −40% gives 1.249 and 0.595
+(+37.167). The test-period net Sharpe moves from 0.176 to 0.186 (t from 0.352 to 0.371) and, at the upper bracket, to 0.203
+(t = 0.407). The artifacts cost the book money, so they bias the result against it; neither verdict moves (rule one's test-period t
+stays below 0.41 against a threshold of 2). The same artifacts also sit in the signals' inputs and in the hedged target the
+information coefficients use, which this sensitivity does not touch, so it does not say how much of rule two's paired
+difference they move.
+""")
+
+md(r"""
+### 9.6 What the pieces say
+
+**The rules.** Rule one failed: Book B's test-period net Sharpe was 0.176 (t = 0.35 on 1008 sessions, threshold 2), with
+a hold-out Sharpe of 0.809 of the same sign. The sign condition was met, but by the daily controls and not by the intraday
+alphas: the book of `rev5` and `mom12_1` alone earned 0.879 in the hold-out, the eight-alpha blend's hold-out IC was
+0.0033, and `mom12_1` alone had +0.0160 (t = 2.3273). Rule two held as pre-registered: the eight-alpha blend's development
+IC exceeded that of the daily controls alone by +0.0167 against twice its standard error of 0.0092, and the test-period
+difference, +0.0127, had the same sign (ratio +1.77, not significant by itself). The addition did not persist into the
+hold-out (−0.0151, ratio −1.83, closer to two standard errors than the pre-amendment run's `−1.42` and still short of
+them, so the reversal is one of sign and not an established one) and was carried by `irev30` (with `irange` behind it) in
+development and by `iopen` in the test period (§9.0), so "the intraday alphas add to the daily ones" is a statement
+about two periods, each resting on different alphas, and not about a stable source of information. The desk as
+pre-registered does not work at the measured costs, and the evidence that the intraday alphas carry information the
+daily ones lack is weaker than rule two's verdict alone suggests. The gross placebo (below) is the stronger evidence that
+the signals carry something, on the periods it covers. Both verdicts, and their direction, are those of the
+pre-amendment run (test-period Sharpe `0.144`, hold-out `0.675`; rule two `+0.0156`, `+0.0113` and `−0.0124`):
+Amendment 1 moved the figures and no conclusion. That agreement is not three independent confirmations: the hold-out was
+displayed in each of the three runs, and the fifth and sixth exclusions and the data-sanity rules were written with it in
+view (Deviation 17), so §9 is a confirmatory read of an amended universe. Read by block (§9.3), rule two's verdict is
+also narrower than its wording: the development difference is a 2010-2011 result, it passes at a ratio of 2.10 from 2012 and
+fails at 1.71 from 2014, and "adds to the daily ones" means that the intraday blend had an IC (0.0200 in development) where the
+daily controls had none (0.0015).
 
 **Which alphas kept their sign.** On Book B's window six of the eight development ICs had the pre-registered sign (`perio`
-at −0.0014 and `ivol_abn` at −0.0026 did not, neither distinguishable from zero) and two survived the
-Benjamini–Hochberg step, `irev30` (t = 3.9328) and `irange` (t = 3.1846). In the test period five of the eight were
-positive, both survivors fell under one standard error (t = 0.3719 and 0.5470), and the one alpha above two, `iopen`
-(t = 2.1967), had missed the development cut (t = 1.7861); that t is below the 2.73 clause (b) of §7.3 asks of one of
-eight alphas, so it is not evidence either. Selecting on development would have kept the two alphas that faded, and
-the equal-weight blend, which selects nothing, held an IC of 0.0147 in the test period. The ridge disagreed with the
+at −0.0022 and `ivol_abn` at −0.0035 did not, neither distinguishable from zero) and two survived the
+Benjamini–Hochberg step, `irev30` (t = 4.0172) and `irange` (t = 3.6134), the same two as in the pre-amendment run. In
+the test period six of the eight were positive (`ovn` at 0.0002 and `irange` at 0.0000 only barely; the pre-amendment
+run had `five`), both survivors fell under one standard error (t = 0.3536 and 0.0062), and the one alpha above two,
+`iopen` (t = 2.1718), had missed the development cut (t = 1.9343); that t is below the 2.73 clause (b) of §7.3 asks of
+one of eight alphas, so it is not evidence either. Selecting on development would have kept the two alphas that faded,
+and the equal-weight blend, which selects nothing, held an IC of 0.0131 in the test period. The ridge disagreed with the
 pre-registered sign only on `perio` (Book B), and was lower than equal-weight at every phi on both cost bases through
-the test period (§7). Equal-weight is the decision blend, and the fitted one added nothing to it in that period.
+the test period (§7). Equal-weight is the decision blend, and the fitted one added nothing to it in that period. Over
+the full span the ridge book's net Sharpe on the primary basis (0.568) was above the equal-weight one's (0.516), on the
+strength of a hold-out of 1.357 (§9.1); that comparison is not one of the pre-registered decisions and the difference is
+well inside the standard error of 0.253.
 
-**The fundamental law, book by book.** IC x sqrt(bets) was 2.252 for Book B's equal-weight blend against a realized gross
-Sharpe of 1.095 (IC 0.0173, s.e. 0.0040, 16,991 bets a year) and 2.523 against 1.131 for its ridge blend (IC 0.0173,
-s.e. 0.0052, 21,258 bets); 6.344 against 3.684 and 5.776 against 3.164 for Book A (112,603 and 112,978 bets); 18.024
-against 9.259 and 33.474 against 9.904 for Book C (630,434 and 937,443 bets). The arithmetic overstated the realized
-gross Sharpe by a factor of between about 1.7 and 2.2 in five of the six cases and by about 3.4 for Book C's ridge, the
-book with the highest IC (0.0346) and the highest one-way turnover (8.298 per session). The sign of the overstatement is
+**The fundamental law, book by book.** IC x sqrt(bets) was 2.107 for Book B's equal-weight blend against a realized gross
+Sharpe of 1.105 (IC 0.0166, s.e. 0.0040, 16,099 bets a year) and 2.642 against 1.168 for its ridge blend (IC 0.0185,
+s.e. 0.0053, 20,379 bets); 6.445 against 3.743 and 5.863 against 3.151 for Book A (107,400 and 107,719 bets); 17.943
+against 9.214 and 33.409 against 9.911 for Book C (599,846 and 897,242 bets). The arithmetic overstated the realized
+gross Sharpe by a factor of between about 1.7 and 2.3 in five of the six cases and by about 3.4 for Book C's ridge, the
+book with the highest IC (0.0353) and the highest one-way turnover (8.329 per session). The sign of the overstatement is
 the expected one: the law counts every unit of one-way turnover as an independent bet, while positions that persist for
 roughly four sessions at phi = 0.25, alphas that share a reversal horizon, and the formations inside one session (Books
 A and C) share information, and the IC is measured on the blend score before neutralization and scaling. The law still
 explains the cliff. The Sharpe ratio grows with the square root of the bets and the cost bill grows with their number:
-Book C's gross Sharpe of 9.259 was about eight and a half times Book B's 1.095 on more than forty times the traded
-notional (11.197 against 0.263 of the gross per session), and only Book B's profit per traded dollar beat its cost.
+Book C's gross Sharpe of 9.214 was about eight and a third times Book B's 1.105 on more than forty times the traded
+notional (11.170 against 0.263 of the gross per session), and only Book B's profit per traded dollar beat its cost.
 
-**The placebo.** Read gross, the alphas carry information: 1.095 against a null of mean 0.020 and s.d. 0.298 (z = 3.610)
-for the equal-weight book, and 1.131 against −0.063 and 0.262 (z = 4.561) for the ridge book, from 40 draws each at
-matched turnover for equal-weight (0.263 against 0.266). Read net, the placebo says nothing about the alphas: its net
-Sharpe averaged −1.335 against the real book's 0.433, and permuting the signals does not preserve which names are
-traded, which is what the cost per traded dollar depends on; the placebo paid about twice as much in cost per unit of
-turnover as the real book, and the notebook did not decompose that. That is why the pre-registration named the gross
-comparison as the one the null supports. The placebo separates "the signal has information" (yes, at between three and
-five null standard deviations, on the development and test periods it covers) from "the information pays for its own
+**The placebo.** Read gross, the alphas carry information: 1.105 against a null of mean −0.001 and s.d. 0.242 (z = 4.572)
+for the equal-weight book, and 1.168 against −0.029 and 0.270 (z = 4.425) for the ridge book, from 40 draws each at
+matched turnover for equal-weight (0.263 against 0.265). Read net, the placebo says nothing about the alphas: its net
+Sharpe averaged −1.306 against the real book's 0.453, and permuting the signals does not preserve which names are
+traded; but that is not where the gap comes from. §8.1 decomposed it: the placebo paid the same cost per traded dollar
+(2.73 against 2.85 bps) and the same dollars per session, and its net Sharpe is lower because a permuted signal spreads weight
+over names with half the real book's P&L volatility, so the placebo is matched on turnover, not on risk. That is why the
+pre-registration named the gross comparison as the one the null supports. The placebo separates "the signal has information" (yes, at about four and a
+half null standard deviations, on the development and test periods it covers) from "the information pays for its own
 trading" (yes on the primary basis over the full span, not established by any test the notebook ran), and only the
 second was the question rule one asked.
 
@@ -2256,38 +2696,44 @@ second was the question rule one asked.
 any number existed: rule one is written on the net-of-primary-cost Sharpe, and the secondary basis was reserved for the
 comparison with notebooks 17 and 11, so that the choice between them could not be made after seeing which one flattered
 the book. It is also the basis measured on this notebook's own one-minute closes for the names and years the book
-traded, and the only one computed for all three books (Deviation 12). It happens not to matter for Book B here. The
-secondary basis, notebook 14's day-lake measured cost per name and year, gave Book B a net Sharpe of 0.548 (s.e. 0.253)
-over the full span against 0.476 on the primary, a difference of less than a third of a standard error, and the
-first run's apparent gap (a primary net Sharpe below zero) came from six names whose interleaved minutes had given them
-Roll spreads in the thousands of basis points, not from the cost model (Deviation 13). On the secondary basis Book B was
-positive at phi = 0.50, 0.25 and 0.10 (0.502, 0.548, 0.667) and negative at phi = 1.00 (−0.142); the best of the eight
-Book B cells there, 0.667, sat more than two and a half standard errors from zero and is one of eight reported, not
-chosen from. On the primary basis the same cells were 0.343, 0.476 and 0.640 and −0.488. The two bases have similar
-medians (2.64 against 2.08 bps per name per side in 2018) and, on the corrected data, similar charges on what the book
-traded. The remaining uncertainty is not which basis to use but whether either measures what a resting or crossing
-order would really cost, which needs quotes or fills this notebook does not have: Book B's gross Sharpe of 1.130 is well
-outside the placebo null and its net Sharpe is positive on both bases, with a full-span standard error of 0.253.
+traded, and the only one computed for all three books (Deviation 13). It happens not to matter for Book B here. The
+secondary basis, notebook 14's day-lake measured cost per name and year, gave Book B a net Sharpe of 0.586 (s.e. 0.253)
+over the full span against 0.516 on the primary, a difference of less than a third of a standard error, and the
+first full run's apparent gap (a primary net Sharpe below zero) came from six names whose interleaved minutes had given
+them Roll spreads in the thousands of basis points, not from the cost model (Deviation 14). On the secondary basis
+Book B was positive at phi = 0.50, 0.25 and 0.10 (0.533, 0.586, 0.673) and negative at phi = 1.00 (−0.122); the best of
+the eight Book B cells there, 0.673, sat more than two and a half standard errors from zero and is one of eight
+reported, not chosen from. On the primary basis the same cells were 0.380, 0.516 and 0.647 and −0.456. The two bases
+have similar medians (2.64 against 2.08 bps per name per side in 2018) and, on the corrected data, similar charges on
+what the book traded. The remaining uncertainty is not which basis to use but whether either measures what a resting or
+crossing order would really cost, which needs quotes or fills this notebook does not have: Book B's gross Sharpe
+(1.105 through the test period, the span the placebo covers) is well outside the placebo null, and its full-span net
+Sharpe, on a gross of 1.162, is positive on both bases, with a standard error of 0.253, for a desk that trades at the
+signal's own print (§9.4: entered half an hour later, the primary net Sharpe is 0.276 over the full span).
 
-**Distance to the measured cost.** Break-even cost per side over the full span was 5.547 bps for Book B, 1.138 for Book A
-and 0.736 for Book C, against a median measured cost of 2.48 to 2.82 bps per name per side (primary basis, 2010 and
-2025) and a charge of 3.21 bps per bet on Book B (clause (0), §9.1, against 5.48 bps of gross profit per bet: 1.71x).
-Book B's gross profit per bet was about one and seven-tenths times its cost. Books A and C were below half the median
+**Distance to the measured cost.** Break-even cost per side over the full span was 5.813 bps for Book B, 1.186 for Book A
+and 0.749 for Book C, against a median measured cost of 2.48 to 2.82 bps per name per side (primary basis, 2010 and
+2025) and a charge of 3.23 bps per bet on Book B (clause (0), §9.1, against 5.74 bps of gross profit per bet: 1.78x).
+Book B's gross profit per bet was about one and eight-tenths times its cost. Books A and C were below half the median
 cost, and Book C's break-even was below the one basis point of commission alone.
 
 **What a desk with passive execution would face.** The primary basis charges every traded dollar the full half spread
 plus a basis point of commission, the cost of crossing. A passive desk would pay less on the orders that filled, and
-Book B's flat-cost row bounds the gain: 0.60 at 2 bps a side and 0.40 at 3 bps through the test period, against 0.433 at
+Book B's flat-cost row bounds the gain: 0.62 at 2 bps a side and 0.42 at 3 bps through the test period, against 0.453 at
 the measured charge, if every order filled and none was adversely selected. Neither assumption is safe for these alphas,
 which are mostly reversals: a resting bid fills when the price is still falling, before the reversal the signal
 predicted, so the fill-conditional edge is smaller than the unconditional one this notebook measured, and the orders
 that do not fill are the ones that would have profited. The minute lake carries prices and volume only, with no quotes or queue
 information, so this notebook cannot measure either effect.
-For Books A and C passive execution cannot close the gap on these numbers: break-evens of 1.138 bps (A) and 0.736 bps (C)
+For Books A and C passive execution cannot close the gap on these numbers: break-evens of 1.186 bps (A) and 0.749 bps (C)
 leave little or nothing after one basis point of commission, so they would need commission and spread near zero or a
 rebate, and the fill-selection problem is strongest at C's 30-minute reversal (`irev30`, the largest IC in the tables).
 Book B is the only book on which passive execution is a live question, and it is a question about fills, not about the
-alphas.
+alphas. It is also a question about timing: two thirds of Book B's gross is earned overnight, but a fifth is earned in the half
+hour after the signal, and a desk that could not trade at the signal's own print, or that waited for a resting order to
+fill half an hour later, would see the full-span net Sharpe fall to 0.276 (about one standard error) and the test period to
+−0.020 (§9.4). The margin above the cost cliff is a margin for aggressive execution at the signal print, not a margin passive
+execution would widen.
 """)
 
 # ═══════════════════════════════ 10. Deviations ═══════════════════════════════
@@ -2310,7 +2756,7 @@ DEVIATIONS += [
     "Minute-lake keys. The build notes say to key the market layout by `id`; the lake's `id` is not unique to a ticker inside a "
     "session file (see section 1.3), so rows are kept by the ticker-and-id pair the day lake resolved, which is what "
     "the ticker-reuse resolution was meant to achieve. The pair key fixed the day-lake merge and the row filter, but the first "
-    "full run still grouped the filtered rows by `id` alone (see Deviation 13), which the pair key did not cover.",
+    "full run still grouped the filtered rows by `id` alone (see Deviation 14), which the pair key did not cover.",
     "Minute-lake history. The 25 sessions before the first formation session are read as history only (the 20-session "
     "same-clock alphas need them); no book forms on them. The ids kept per session are those of the month's universe and "
     "the two following months, so that a name entering the universe already has its history on hand.",
@@ -2337,7 +2783,7 @@ DEVIATIONS += [
     "Bets per year in the fundamental law use the one-way turnover per session (half the two-sided figure of section 7); "
     "the pre-registration says only 'from breadth and turnover'. The secondary cost basis is computed for Book B only.",
     "Session grouping by ticker-and-id pair (a defect found after the first full run and corrected before the results were "
-    "written up). Deviation 3 kept rows by the ticker-and-id pair, but the first full run then grouped the kept rows by `id` "
+    "written up). Deviation 5 kept rows by the ticker-and-id pair, but the first full run then grouped the kept rows by `id` "
     "alone, so two kept tickers sharing one day-lake id inside a session were interleaved into one minute series. Fourteen day-lake ids "
     "carry two union tickers; eleven are renames that never trade in the same session and were harmless, and three pairs "
     "(JCI/TYC, ACE/CB, LBTYA/LBTYK) trade together. The interleaved series corrupted the Roll spread of those names "
@@ -2357,6 +2803,28 @@ DEVIATIONS += [
     "Market exposure reading. The joint regression of section 7.2 has SPY and the nine SPDRs together, whose window "
     "returns are almost collinear, so the notebook now also prints the SPY-only beta and the sum of the ten betas; the "
     "joint coefficients on individual ETFs are not separately interpretable.",
+    "Hold-out exposure (Deviation 17). The pre-registration says the hold-out is computed once and that no universe rule changes "
+    "after the first development run. Neither held. The hold-out was displayed in the first full run, again in the rebuild "
+    "after Deviation 14 (the run of commit e012840, whose hold-out figures Deviation 1 quotes), and in this run, three times in "
+    "all. The fifth exclusion (Deviation 2), Amendment 1's sixth (Deviation 1), the plus-or-minus 100% rule and the dividend drop "
+    "were written after a hold-out had been displayed, so section 9 is a confirmatory read of an amended universe with the "
+    "hold-out already in view, not an untouched test. The two rule verdicts did not change direction across the runs, but "
+    "that is a reading of three exposures and not a protection against them.",
+    f"Split and class-share artifacts (Deviation 18). Unadjusted splits and class-share distributions enter Book B's 24-hour "
+    f"window returns as -50% and -67% (UNP, GOOG and CTRP among them), and a corrupt price level (PARA, near 5,295 dollars "
+    f"one session and 105 the next) falls inside the plus-or-minus 100% rule, so neither is caught by it. The audit asked for a "
+    f"split check before the cap. It was not built into the pipeline, because it would change every target, signal and figure in "
+    f"the notebook; section 9.5 instead flags {SPLIT_SUMMARY['n_split']} split-like and {SPLIT_SUMMARY['n_level']} level-jump "
+    f"cells and re-runs Book B with them removed from the P&L side only (weights unchanged): the full-span gross P&L moves by "
+    f"{SPLIT_SUMMARY['d_gross']:+.1f} thousand dollars, and by {SPLIT_SUMMARY['d_gross_all']:+.1f} if every one of the "
+    f"{SPLIT_SUMMARY['n_all']} cells below -40% is removed. The artifacts still sit in the signals' inputs (perio, rev5, mom12_1, "
+    f"the PCA loadings) and in the hedged target the ICs use, which this sensitivity does not touch. The direction is against "
+    f"the book, so they bias the results toward zero, not away from it.",
+    "Post-hoc analyses added after the results were seen (Deviation 19). Section 8.1 (the placebo's cost per traded dollar "
+    "and P&L volatility), the pairing table of section 5.1, section 9.3 (rule two by year and block), section 9.4 (Book B's "
+    "P&L by leg and a half-hour execution delay) and section 9.5 (split artifacts) were written after an audit of the run "
+    "under Amendment 1. None was pre-registered, none changes either rule verdict, and all read the same panels and books as the "
+    "rest of the notebook (the placebo cell regenerates the section 8 draws with the same seed and checks that they agree).",
 ]
 print(f"{len(DEVIATIONS)} deviation(s) and clarification(s) logged:")
 for k, dtext in enumerate(DEVIATIONS, 1):
