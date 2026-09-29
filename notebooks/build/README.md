@@ -42,6 +42,17 @@ Every builder writes its target notebook in place; pass `--out PATH` to write el
 diff against the committed version). `execute.py` runs with `notebooks/` as the working directory,
 stores the outputs, and exits non-zero if a cell raised.
 
+After re-executing a notebook that feeds the README gallery, refresh the figures and check nothing is stale:
+
+```bash
+python notebooks/build/readme_figures.py            # writes figures/<name>.png from tagged notebook cells
+python notebooks/build/readme_figures.py --check    # non-zero exit if a figure on disk differs from its notebook
+```
+
+`readme_figures.py` finds each cell by a marker string in its source, not by index, and copies that
+cell's image output; the README embeds the files it writes. Nothing else tests a picture, so this is
+the step that keeps the gallery as current as the numbers.
+
 Notes
 
 - Executing needs the package installed with the `notebooks` extra and network access for OpenBB; prices

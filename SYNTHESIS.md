@@ -1,6 +1,6 @@
 # What twenty years of this data established
 
-Seventeen notebooks, two parquet lakes, 2006–2025 US equities. `README.md` lists what the
+Twenty-one notebooks, two parquet lakes, 2006–2025 US equities. `README.md` lists what the
 repository contains; `HANDOFF.md` says how to run it and what will bite you. This document is the
 argument: organized by claim, not by notebook.
 
@@ -154,6 +154,20 @@ permutation placebo cannot settle the net-Sharpe question: permuted signals trad
 real book's turnover, so only the gross-Sharpe percentile is a clean read. Against notebook 11's
 0.49 net-of-cost bar, the primary (ridge) book sits about 1.2 combined standard errors below it,
 while the equal-weight book is statistically indistinguishable from it.
+
+### Notebook 21: the desk at intraday frequency
+
+Notebook 21 repeats notebook 17's design on 30-minute bars: eight pre-registered alphas (six intraday, plus notebook 17's `rev5` and
+`mom12_1` as controls), a survivorship-free universe of about 447 names a month, 2010–2025, three books. **Rule one fails.** Book B
+(equal-weight, phi 0.25, primary costs) has a test-period net Sharpe of 0.144 (t = 0.29 against 2); its hold-out 0.675 has the right
+sign but belongs to the daily controls, whose own book made 0.691, and the blend's hold-out IC is 0.0019. **Rule two passes** — the
+eight-alpha IC beats the controls' by +0.0156 in development (twice its s.e. is 0.0090) and +0.0113 in test — then reverses in the
+hold-out (−0.0124), with `irev30` and `iopen` carrying the gain in different periods. Book B sits on the cost cliff: gross Sharpe 1.130,
+net 0.476 (Roll basis) and 0.548 (day-lake basis), with 0.263 of the gross traded a session. Books A and C have gross 3.298 and 8.608,
+net −4.951 and −25.411, and break-evens of 1.138 and 0.736 bps against a median cost of 2.48 to 2.82. Breadth is finally there; the
+per-bet edge is below the spread at the desk's frequency, and the law's arithmetic overstates gross Sharpe by about 1.7 to 2.2 times in
+five of six book-and-blend cases. Like for like on the day-lake basis, 0.548 is 0.14 combined standard errors from notebook 17's 0.596 and 0.16 from
+notebook 11's 0.49.
 
 ---
 
@@ -371,6 +385,13 @@ Strictly, in descending order of confidence:
    built by summing across names (a factor return, say) lets one missing name poison every other
    name's target for that day unless the sum is computed NaN-safely. Both surfaced in notebook 17's
    review, not its first pass.
+8. **An id column is a claim, not a key, and an exclusion rule is only as good as the data it judges.** Notebook 21's two lakes
+   broke this differently. The minute lake's `id` labels more than one ticker inside a session file (191 of 6,988 ids in the first
+   file read), and an id filter spliced two price series into a spurious next-day reversal with an IC of the order of a fifth. The
+   day lake carries junk-priced series (16 distinct tickers flagged, one fund's closes near 1e13) whose price and dividend, applied
+   to a real minute-lake price, gave a fictitious P&L. Key by the (ticker, id) pair everywhere, cap returns and dividends against a
+   sanity bound, and check the data an exclusion rule will judge: the leveraged-fund detector and the R² tracker test both judged
+   that fund on garbage and passed it. All of it surfaced on the first full run, not in the design.
 
 Method findings that are real but narrower: a survivor-only universe can flip the *sign* of a
 Sharpe for a strategy that loses money either way (notebook 11 §9), so check dollar P&L alongside
@@ -406,16 +427,23 @@ that has an economic anchor rather than a statistical one. That design would sco
 every clause — no discovery search (b), hundreds of bets a year (a, d), and a reason for the return
 that competition erodes slowly rather than quickly.
 
-Notebook 17's next pre-registration should fix three things before its next number is seen:
-exclude ETFs from the equity cross-section, give the permutation null a turnover that matches the
-real book's rather than destroying it, and set a placebo budget that lets the fitted (ridge) blend
-complete its draws.
+Notebook 17's next pre-registration was to fix three things before its next number was seen, and
+notebook 21's did: ETFs are excluded from the equity cross-section, the permutation null is drawn once
+a month so its turnover matches the real book's (0.266 against 0.263), and the ridge placebo's budget
+let it complete (40 of 40 draws). What notebook 21 leaves open, by its own reading (§9.3): whether
+either cost basis measures what a resting or crossing order would really cost, which needs quotes or
+fills the minute lake does not carry and is a live question for Book B only, since A and C break even
+at 1.138 and 0.736 bps; why a permuted signal map paid about twice the real book's cost per unit of
+turnover, which it did not decompose; and an intraday-adds-to-daily verdict that rested on a different
+alpha in each period. A next pre-registration should also state its data-quality rules up front (the
+pair key, the return cap, the dividend rule, the corrupt-series exclusion) rather than add them after
+the first run, as notebook 21 had to (Deviations 1 and 13).
 
 The measurement apparatus is the durable asset here: the cost measurement, the placebo nulls, the
 walk-forward harness, the clause table, and a test that checks the prose against the outputs.
 Pointing it at a new domain is cheaper than refining this one.
 
-A closing observation the record supports. Seventeen notebooks of careful work produced zero clear
+A closing observation the record supports. Twenty-one notebooks of careful work produced zero clear
 edges, and nearly all the value realized came from **measuring things the design had assumed** —
 costs, survivorship, the spuriousness of the Kalman residual, what a hold-out can and cannot see.
 That ratio is not a sign something went wrong. It is what the work is.
