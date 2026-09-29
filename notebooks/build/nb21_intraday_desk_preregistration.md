@@ -140,3 +140,21 @@ in its budget, the shortfall is a logged deviation, never a change to anything e
 
 The notebook is a minute-lake study and follows 18–20, so it is notebook 21:
 `pairs_trading_21_intraday_desk_alphas.ipynb`, built by `build_intraday_desk_notebook.py`.
+
+## Amendment 1 (2026-09-29, written before the amended run)
+
+The first full run (commit `e012840`) left about seventeen ETF-like names a month in the universe
+because rules (ii)–(v) judge instruments by behavior. This amendment adds a sixth exclusion, by
+**instrument type**, and changes nothing else:
+
+- (vi) The Polygon security master (`~/local/parquet_lake/refdata/all/security_master.parquet`,
+  read-only) gives each (ticker, holder id) a `type`. A name is kept only if its type is `CS`
+  (common stock) or `ADRC` (ADR common); every other known type (`ETF`, `ETN`, `ETV`, `ETS`,
+  `FUND`, `INDEX`, `PFD`, `WARRANT`, `UNIT`, `SP`, `RIGHT`, `ADRP`) is excluded. The lookup is by
+  the (ticker, id) pair the day lake resolved, never by ticker alone, because reused tickers carry a
+  different type in a different era (`FB`, `CA`, `EMC`, `GENZ`). A name whose pair has no type in
+  the master keeps only the behavioral rules (ii)–(v); the count of such names is printed.
+- Rules (i)–(v) remain in force. The exclusion table prints rule (vi) beside them.
+- The alphas, books, periods, target, risk model, blends, costs, placebo and both decision rules are
+  unchanged. Both rules are re-evaluated on the amended universe and printed; the first run's
+  headline figures are quoted in code spans for comparison and remain in the repository's history.
