@@ -571,6 +571,19 @@ positive. Single-window metrics for that pair:
 > score favored pairs whose *smoothed* residual looked stationary — and the replacement scores
 > better out of fold. See the note on `mode` in **Notes & gotchas**.
 
+<p align="center">
+    <img src="figures/signals.png" alt="BKNG/MA traded out of sample in 2026: trades on each leg and the spread z-score with its entry, exit and stop bands" width="94%">
+</p>
+<p align="center">
+    <img src="figures/backtest.png" alt="Out-of-sample evaluation: Sharpe 2.64, net P&L $664, 14.8% annualized return, 2.3% max drawdown, 75% hit rate, 12 trades" width="94%">
+</p>
+<p align="center"><em>The same pair, out of sample: trades on each leg, the spread z-score with its entry, exit and stop
+bands, and the evaluation. The pair, the hedge, the thresholds and the z-score window were all fixed on 2020–2025
+before 2026 was touched — see <a href="notebooks/pairs_trading_01_yahoo.ipynb">notebook 01</a>. Twelve trades in
+six months: the standard error of that Sharpe is 1.45, which is why the gallery at the top carries the twenty-year
+results instead. Regenerate with <code>python figures/make_readme_figures.py</code>, which refuses to write a figure
+whose numbers disagree with the notebook.</em></p>
+
 ---
 
 ## Limitations
