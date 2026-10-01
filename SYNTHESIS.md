@@ -194,7 +194,7 @@ first, and did: 40 of 40 gate lines, to the dollar.
 
 **No challenger is adopted, and the default was not beaten at this sample size.** By the registered rule, sizing by z-score (pooled
 Sharpe difference D −0.014, 99% interval [−0.093, +0.078]) and freezing the entry shares (D −0.023, [−0.078, +0.027]) are *no material
-difference*. Inverse volatility, equal risk contribution, the shared-leg split, the package's `suggest_position_weights`, volatility
+difference*. Inverse volatility, equal risk contribution, the shared-leg split, the package's `suggest_position_weights` (as shipped on 2026-09-30), volatility
 targeting, the rolling re-estimate (against inverse volatility) and capital reuse are *undetermined*, and none is *worse*. Every pooled D
 has a negative point estimate, from −0.408 for the package helper to −0.010, but no 99% interval excludes zero and Holm rejects nothing
 (smallest p 0.0714, adjusted 0.6427), and for the four split rules and volatility targeting the negative sign carries little information: 76.5% of 1,000 arbitrary splits of this
@@ -240,13 +240,14 @@ pool on the 17 formations both pools share: there the baseline's Sharpe is 0.608
 is −0.239, −0.263 and −0.488 for inverse volatility, equal risk contribution and the helper against −0.031, +0.014 and −0.107 on the ex-tracker pool.
 
 **The shipped helper.** `suggest_position_weights` (A4) has a pooled net Sharpe of 0.106 against 0.514, D −0.408, 99% interval [−1.114,
-+0.101], so it is *undetermined*, and it was left unchanged. Its effective number of pairs is 2.826 against 9.375 under equal weights,
-and 1.00 in one formation of 20 pairs, so its 0.40 cap is not a cap. It weights by price-unit variance and clips once at 0.40. The registered
-gap to weights ∝ 1/σ² on risk per dollar with no clip, D −0.009 (95% [−0.301, +0.327]), is not the cost of the price units, because the helper's clip binds
++0.101], so it is *undetermined*; the helper was fixed afterwards (2026-10-01), and A4 is the helper as shipped on 2026-09-30. Its effective number of pairs is 2.826 against 9.375 under equal weights,
+and 1.00 in one formation of 20 pairs, so its 0.40 cap was not a cap. It weighted by price-unit variance and clipped once at 0.40. The registered
+gap to weights ∝ 1/σ² on risk per dollar with no clip, D −0.009 (95% [−0.301, +0.327]), is not the cost of the price units, because the shipped helper's clip bound
 in 15 of the 18 evaluation formations with two or more pairs and the diagnostic has none: price units alone cost −0.105 without a clip, the
 one-pass clip adds +0.096, and a real 0.40 cap would have given a pooled net Sharpe of 0.353 against the helper's 0.106. Every 99% interval
-includes zero, so neither cost is established, but the two books are not close (a median weight distance of 0.409). A fix is a separate
-change.
+includes zero, so neither cost is established, but the two books are not close (a median weight distance of 0.409). The fix (per-dollar risk, a true cap by
+water-filling) was made as its own change after the run, with the old behavior behind `risk="price_units"` and `cap="one_pass"`, which A4 calls; the fixed
+helper's own book, post hoc and not tested, has a pooled net Sharpe of 0.305 against 0.514, D −0.209, 99% [−0.653, +0.106] (§14.4).
 
 **Capital reuse's negative D is not the capital it moves between formations.** Giving the baseline reuse's formation-level scale changes the pooled
 Sharpe by −0.0003. The deficit is inside formations, where reuse's Sharpe is below the baseline's in 8 of the 11 formations that inform its
@@ -267,8 +268,8 @@ cost is worth 0.053 to the baseline but about 0.10 to the volatility-weighted bo
 
 2023–2025 was an exposed window here (notebooks 11, 14, 17 and 21 had already displayed it), used as a sign check with a Sharpe
 standard error of 0.62; it reverses the evaluation sign of four of the nine, about what a sign that agrees half the time under no effect
-would do. Thirty-one deviations and clarifications are logged, and the six post hoc analyses (two added after the first run, four after a
-second review of the notebook) enter no rule.
+would do. Thirty-two deviations and clarifications are logged (the last records the helper fix), and the six post hoc analyses (two added after the first run, four after a
+second review of the notebook; §14.4 also carries one post hoc line for the fixed helper) enter no rule.
 
 ---
 
@@ -577,8 +578,10 @@ Notebook 22 was registered in a different shape: the same book, only the capital
   the helper's (which keeps −0.121, the largest of the four split rules), with intervals that still include zero and reach beyond ±0.10. The pool definition also has to say what a pair is: 18 of the 20 pairs of 2021-12-31 are one position in one stock.
 - **A formation-level forecast that passes before a deployment rule is tested.** Volatility targeting rests on the forecast volatility of
   the whole book, which correlated −0.064 with what the baseline realized over 17 formations (pair-level: 0.886).
-- **A fix to `suggest_position_weights` as its own change,** with its two known properties (price-unit variance, a cap that is not a cap)
-  tested against equal dollars on a pool that has the previous item settled.
+- **Done 2026-10-01: a fix to `suggest_position_weights` as its own change,** for its two known properties (price-unit variance, a cap that is not a cap). It now weights by the
+  spread's return per dollar and holds a true cap by water-filling, and the old behavior stays behind `risk="price_units"` and `cap="one_pass"` (notebook 22's A4 calls it that way,
+  so no registered number changed). The fixed helper's post hoc book has a pooled net Sharpe of 0.305 against 0.514, D −0.209, 99% [−0.653, +0.106] (notebook 22 §14.4; one sample, not a test).
+  **Still open:** testing the fixed helper against equal dollars on a pool that has the previous item settled.
 - **A combination needs its own registration, and so does any rule that needs an expected return per pair.** Adoption was one change at
   a time, and 287 pair-folds cannot estimate a return per pair (mean-variance, Kelly), so those were out of scope. 2023–2025 has now been
   exposed in notebooks 11, 14, 17, 21 and 22 and cannot serve as an untouched hold-out.

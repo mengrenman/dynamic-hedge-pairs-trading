@@ -5,7 +5,9 @@ Portfolio-level analytics for multi-pair trading strategies.
 Exports:
 - pair_return_correlations(kf_results, ...) : N×N cross-pair spread-return correlation matrix
 - portfolio_diversification_score(corr_matrix) : scalar diversification ratio
-- suggest_position_weights(kf_results, corr_matrix, ...) : capital allocation weights per pair
+- suggest_position_weights(kf_results, prices=..., ...) : capital allocation weights per pair,
+  weighted by the spread's risk per dollar of gross notional and held to a cap that holds
+  (fixed 2026-10-01; ``risk="price_units"`` and ``cap="one_pass"`` keep the earlier behavior)
 - spread_returns(P1, P2, beta) : the spread's return per dollar of gross notional
 - allocation_weights(method, ...) : equal / inverse-volatility / equal-risk-contribution /
   shared-leg splits computed from numbers (sigma, a covariance matrix, a list of pairs)
@@ -123,33 +125,187 @@ def portfolio_diversification_score(
     return 1.0 / mean_abs_corr
 
 
+_WEIGHT_COLUMNS = ["pair", "resid_var", "var_per_dollar", "inv_var_weight", "weight", "suggested_capital_pct"]
+_CAP_TOL = 1e-12          # a weight within this of the cap counts as at the cap
+
+
+def _per_dollar_returns(px: pd.DataFrame) -> pd.Series:
+    """
+    Per-dollar spread returns from complete rows of ``P1``, ``P2`` and ``beta``.
+
+    ``r_t = (dP1_t - beta_{t-1} dP2_t) / (P1_{t-1} + |beta_{t-1}| P2_{t-1})``: the hedge ratio that
+    prices day ``t`` is the one held at the previous close, so a hedge re-estimated on day ``t``
+    does not enter day ``t``'s return. ``px`` must already be free of missing values and have
+    positive prices; the first row is dropped. This is the one place the formula is written, shared
+    by :func:`spread_returns` (a constant ``beta`` column) and :func:`suggest_position_weights`
+    (the frame's own time-varying ``beta`` column).
+    """
+    d = px[["P1", "P2"]].diff().iloc[1:]
+    prev = px.shift(1).iloc[1:]
+    b = prev["beta"]
+    r = (d["P1"] - b * d["P2"]) / (prev["P1"] + b.abs() * prev["P2"])
+    r.name = "spread_return"
+    return r
+
+
+def _variance_per_dollar(df: pd.DataFrame, p1: pd.Series, p2: pd.Series, label: str) -> float:
+    """Variance (ddof=1) of a pair's per-dollar spread return on the rows where its frame and both
+    prices are present; NaN when fewer than two returns exist.
+
+    Raises ValueError when ``prices`` cannot be lined up with the frame at all: the frame has rows
+    but ``prices`` shares fewer than ``min(3, len(df))`` of its dates (a timezone-aware index against
+    a naive one, a shifted calendar and a RangeIndex all give zero). That is a caller bug, and
+    answering it with a NaN variance and a zero weight would look like a pair with no usable risk.
+    Missing closes on dates the two indexes do share are not an error: they leave fewer returns, and
+    a pair with fewer than two gets NaN.
+    """
+    if "beta" not in df.columns:
+        raise ValueError(
+            f"frame for {label} has no 'beta' column, which risk='per_dollar' needs; "
+            "pass the Kalman state frame or use risk='price_units'")
+    shared = int(df.index.isin(p1.index).sum())
+    if shared < min(3, len(df)):
+        raise ValueError(
+            f"prices shares {shared} of the {len(df)} dates of the frame for {label}; "
+            "it must be indexed like the frames (the same dates, with the same timezone or none)")
+    px = pd.DataFrame({"P1": p1.reindex(df.index), "P2": p2.reindex(df.index), "beta": df["beta"]})
+    px = px.astype(float).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(px) < 3:
+        return float("nan")
+    if not (px[["P1", "P2"]] > 0).all().all():
+        raise ValueError(f"prices for {label} must be positive")
+    r = _per_dollar_returns(px)
+    return float(r.var(ddof=1))
+
+
+def _capped_weights(w: np.ndarray, max_weight: float) -> np.ndarray:
+    """
+    Cap weights by water-filling: clip what exceeds the cap, scale the weights still under it to
+    share the remaining mass, and repeat until none exceeds the cap (tolerance ``_CAP_TOL``).
+
+    ``w`` is non-negative and sums to one (or is all zeros). The effective cap is
+    ``max(max_weight, 1/n)`` with ``n`` the number of positive weights, so a cap that cannot hold
+    (``n * max_weight < 1``) gives equal weights over those pairs. Zero weights stay zero, and the
+    weights that were never clipped keep their ratios to one another.
+    """
+    base = np.asarray(w, dtype=float)
+    pos = base > 0.0
+    n = int(pos.sum())
+    if n == 0:
+        return base.copy()
+    cap = max(float(max_weight), 1.0 / n)
+    out = base.copy()
+    capped = np.zeros(len(base), dtype=bool)
+    for _ in range(n + 1):
+        over = pos & ~capped & (out > cap + _CAP_TOL)
+        if not over.any():
+            break
+        capped |= over
+        free = pos & ~capped
+        out[capped] = cap
+        # `free` is never empty here: n weights summing to 1 cannot all exceed a cap of at least 1/n
+        out[free] = base[free] * (1.0 - cap * capped.sum()) / base[free].sum()
+    return out
+
+
 def suggest_position_weights(
     kf_results: Dict[Tuple[str, str], pd.DataFrame],
-    corr_matrix: pd.DataFrame,
+    corr_matrix: Optional[pd.DataFrame] = None,
     *,
     method: str = "inv_var",
     max_weight: float = 0.40,
+    prices: Optional[pd.DataFrame] = None,
+    risk: str = "per_dollar",
+    cap: str = "iterative",
 ) -> pd.DataFrame:
     """
     Suggest capital allocation weights across pairs.
 
+    By default a pair's weight is proportional to the inverse variance of its spread's return
+    *per dollar of gross notional* and no weight exceeds ``max_weight``.
+
+    Changed 2026-10-01. Notebook 22 scored this helper as challenger A4 and documented two
+    defects, both fixed here: (1) it weighted by the variance of the first difference of the
+    residual in *price units*, which is not a risk per dollar, so a $500 stock pair was
+    down-weighted against a $20 one whatever its percentage volatility; (2) it clipped at
+    ``max_weight`` and renormalized once, so the cap was not a cap (an average effective 2.8 pairs
+    on notebook 11's book, and 1.00 in one formation of 20 pairs). ``risk="price_units"`` and
+    ``cap="one_pass"`` reproduce the earlier weights exactly, pair by pair (every ``resid_var``,
+    ``inv_var_weight`` and ``weight`` is the same number for the same label); notebook 22's A4
+    calls them and reads the weights by label. The one difference is the row order among tied
+    weights: they are now listed in input order, where the earlier unstable sort scrambled them
+    once there were more than 16 pairs.
+
     Parameters
     ----------
-    kf_results : dict mapping (ticker1, ticker2) → DataFrame with 'resid' column
-    corr_matrix : output of pair_return_correlations (used to keep labels consistent)
-    method : 'inv_var' (default) — weight ∝ 1/Var(Δresid), or 'equal'
-    max_weight : maximum weight for any single pair (default 0.40); renormalized after clipping
+    kf_results : dict mapping (ticker1, ticker2) → state DataFrame. ``risk="per_dollar"`` needs
+        the ``beta`` column (the Kalman frame's own, time-varying hedge ratio); ``risk="price_units"``
+        needs ``resid``. A pair with no usable variance gets weight 0.
+    corr_matrix : accepted only for backward compatibility. It was never used and still is not.
+    method : 'inv_var' (default) — weight ∝ 1/variance of the spread return;
+        'inv_vol' — weight ∝ 1/standard deviation; or 'equal' — equal weights over the pairs that
+        have a usable variance. Under 'equal', ``prices`` is still needed with
+        ``risk="per_dollar"``, because that is what decides which pairs are usable.
+    max_weight : largest weight for any one pair (default 0.40), in (0, 1].
+    prices : wide DataFrame of closes, indexed like the frames, one column per ticker (the shape
+        the notebooks hold). Needed when ``risk="per_dollar"``; a frame state has no prices.
+    risk : 'per_dollar' (default) — the variance of
+        ``r_t = (dP1_t − β_{t−1} dP2_t) / (P1_{t−1} + |β_{t−1}| P2_{t−1})``, with the frame's own
+        ``beta`` lagged one row, over the rows where the frame and both prices are present and
+        differenced across them as :func:`spread_returns` does, sample variance (ddof=1);
+        or 'price_units' — the variance of the first difference of ``resid``, as shipped before
+        2026-10-01.
+    cap : 'iterative' (default) — a true cap by water-filling: clip at the cap, share the
+        remaining mass among the weights still under it in proportion, repeat until none exceeds
+        it (tolerance 1e-12). The effective cap is ``max(max_weight, 1/n)`` with ``n`` the number
+        of weighted pairs, so a cap that cannot hold (n=2 and 0.40) gives equal weights;
+        or 'one_pass' — clip at ``max_weight`` then renormalize once, as shipped before
+        2026-10-01 (renormalizing can lift weights above the cap again).
 
     Returns
     -------
-    DataFrame with columns:
-      ["pair", "resid_var", "inv_var_weight", "weight", "suggested_capital_pct"]
-    Sorted by weight descending.
+    DataFrame with columns
+      ["pair", "resid_var", "var_per_dollar", "inv_var_weight", "weight", "suggested_capital_pct"]
+    sorted by weight descending (ties keep the order of ``kf_results``). ``resid_var`` is the
+    price-unit variance and is always reported; ``var_per_dollar`` is NaN under
+    ``risk="price_units"``; ``inv_var_weight`` is the weight by the chosen risk before the cap
+    (it holds ∝ 1/standard deviation under 'inv_vol', and equal weights under 'equal'); ``weight``
+    is after the cap.
+
+    Raises
+    ------
+    ValueError : for an unknown ``method``, ``risk`` or ``cap``, a ``max_weight`` outside (0, 1],
+        and, under ``risk="per_dollar"``, when ``prices`` is None, lacks a ticker of ``kf_results``,
+        holds a non-positive close, shares fewer than ``min(3, rows)`` dates with a frame's index
+        (a timezone-aware index against a naive one, a shifted calendar or a RangeIndex: a caller
+        bug, not a pair with no usable risk), or a frame has no ``beta`` column. An empty
+        ``kf_results`` returns an empty frame.
     """
-    if method not in ("inv_var", "equal"):
-        raise ValueError(f"method must be 'inv_var' or 'equal'; got {method!r}")
+    if method not in ("inv_var", "inv_vol", "equal"):
+        raise ValueError(f"method must be 'inv_var', 'inv_vol' or 'equal'; got {method!r}")
+    if risk not in ("per_dollar", "price_units"):
+        raise ValueError(f"risk must be 'per_dollar' or 'price_units'; got {risk!r}")
+    if cap not in ("iterative", "one_pass"):
+        raise ValueError(f"cap must be 'iterative' or 'one_pass'; got {cap!r}")
     if not (0.0 < max_weight <= 1.0):
         raise ValueError(f"max_weight must be in (0, 1]; got {max_weight}")
+
+    if not kf_results:
+        return pd.DataFrame(columns=_WEIGHT_COLUMNS)
+
+    if risk == "per_dollar":
+        if prices is None:
+            raise ValueError(
+                "risk='per_dollar' needs prices: pass prices= (a wide DataFrame of closes, one "
+                "column per ticker, indexed like the frames) or risk='price_units' for the "
+                "price-unit variance")
+        if not isinstance(prices, pd.DataFrame):
+            raise ValueError(f"prices must be a wide DataFrame with one column per ticker; got {type(prices).__name__}")
+        missing = sorted({t for k in kf_results for t in k if t not in prices.columns})
+        if missing:
+            raise ValueError(
+                f"prices has no column for {missing}; pass prices= with every ticker of kf_results "
+                "or risk='price_units'")
 
     rows = []
     for (k1, k2), df in kf_results.items():
@@ -159,34 +315,41 @@ def suggest_position_weights(
         else:
             ret = df["resid"].diff().dropna()
             var = float(ret.var(ddof=1)) if len(ret) >= 2 else float("nan")
-        rows.append({"pair": label, "resid_var": var})
-
-    if not rows:
-        return pd.DataFrame(columns=["pair", "resid_var", "inv_var_weight", "weight", "suggested_capital_pct"])
+        var_pd = float("nan")
+        if risk == "per_dollar":
+            var_pd = _variance_per_dollar(df, prices[k1], prices[k2], label)
+        rows.append({"pair": label, "resid_var": var, "var_per_dollar": var_pd})
 
     result = pd.DataFrame(rows)
 
-    # Compute raw weights
-    valid = result["resid_var"].notna() & (result["resid_var"] > 0)
+    # Raw weights by the chosen risk; a pair with no positive variance gets none
+    risk_var = result["var_per_dollar" if risk == "per_dollar" else "resid_var"].to_numpy(dtype=float)
+    valid = np.isfinite(risk_var) & (risk_var > 0)
 
+    raw = np.zeros(len(result))
     if method == "inv_var":
-        raw = np.where(valid, 1.0 / result["resid_var"].values, 0.0)
+        raw[valid] = 1.0 / risk_var[valid]
+    elif method == "inv_vol":
+        raw[valid] = 1.0 / np.sqrt(risk_var[valid])
     else:  # equal
-        raw = np.where(valid, 1.0, 0.0)
+        raw[valid] = 1.0
 
     total_raw = raw.sum()
     inv_var_weight = raw / total_raw if total_raw > 0 else raw
 
-    # Clip to max_weight and renormalize iteratively (one-pass: clip then renorm)
-    clipped = np.clip(inv_var_weight, 0.0, max_weight)
-    clipped_sum = clipped.sum()
-    weight = clipped / clipped_sum if clipped_sum > 0 else clipped
+    if cap == "iterative":
+        weight = _capped_weights(inv_var_weight, max_weight)
+    else:  # one_pass: clip, then renormalize once
+        clipped = np.clip(inv_var_weight, 0.0, max_weight)
+        clipped_sum = clipped.sum()
+        weight = clipped / clipped_sum if clipped_sum > 0 else clipped
 
     result["inv_var_weight"] = inv_var_weight
     result["weight"] = weight
     result["suggested_capital_pct"] = weight * 100.0
 
-    return result.sort_values("weight", ascending=False).reset_index(drop=True)
+    return (result[_WEIGHT_COLUMNS]
+            .sort_values("weight", ascending=False, kind="stable").reset_index(drop=True))
 
 
 # ---- capital splits across pairs ---------------------------------------------------------------
@@ -244,11 +407,8 @@ def spread_returns(P1: pd.Series, P2: pd.Series, beta: float) -> pd.Series:
         raise ValueError(f"need at least two sessions with both closes; got {len(px)}")
     if not (px > 0).all().all():
         raise ValueError("P1 and P2 must be positive")
-    d = px.diff().iloc[1:]
-    prev = px.shift(1).iloc[1:]
-    r = (d["P1"] - beta * d["P2"]) / (prev["P1"] + abs(beta) * prev["P2"])
-    r.name = "spread_return"
-    return r
+    px = px.assign(beta=beta)
+    return _per_dollar_returns(px)
 
 
 def _erc_weights(cov: np.ndarray, sigma: np.ndarray) -> np.ndarray:

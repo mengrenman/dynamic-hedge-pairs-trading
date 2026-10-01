@@ -32,7 +32,8 @@ the pairs? How much of it should be deployed when the pool is thin? How should p
 inside a holding window? Nine challengers, each changing one decision and leaving the other two at the
 default, are compared with notebook 11's allocation, and the notebook asks whether any of them beats it
 by more than the noise, and how large a difference the sample could have seen. A secondary question is
-whether the helper the package ships for this, `pairs.suggest_position_weights`, does what its name says.
+whether the helper the package shipped for this, `pairs.suggest_position_weights` (as of 2026-09-30; it was fixed after the
+first run, see Deviation 32), does what its name says.
 
 Everything below was fixed before any code in this notebook existed or any number from a challenger had
 been seen, in `notebooks/build/nb22_pairs_allocation_preregistration.md` (committed as `c8932a4`),
@@ -895,7 +896,7 @@ the simulator turns targets into shares at every decision close exactly as in §
 | A1 | `inv_vol` | $w_i \propto 1/\sigma_i$ |
 | A2 | `erc` | equal risk contributions under $\Sigma_f$, long-only (Spinu 2013), falling back to `inv_vol` and logging if the solve does not converge |
 | A3 | `leg_split` | $w_i \propto 1/\max(c(t_{1i}), c(t_{2i}))$, $c(t)$ the number of the formation's pairs containing ticker $t$ |
-| A4 | `shipped` | `suggest_position_weights(…, method="inv_var", max_weight=0.40)` on the formation-window residual $P_1 - \alpha - \beta P_2$, as shipped |
+| A4 | `shipped` | `suggest_position_weights(…, method="inv_var", max_weight=0.40, risk="price_units", cap="one_pass")` on the formation-window residual $P_1 - \alpha - \beta P_2$: the helper as shipped on 2026-09-30 (the helper was fixed after the first run, and these two options keep the behavior this notebook registered) |
 | A5 | `z_size` | `equal`, $m = \text{clip}(\lvert z\rvert/2, 1, 2)$ from the z-score on the decision row of the entry, fixed for the life of the trade |
 | B1 | `per_pair` | $A_f = n_f/20$ (notebook 11's dollars; a restatement, not tested) |
 | B2 | `vol_target` | $A_f = \text{clip}(M_f/s_f, 1/3, 3)$, $s_f = \sqrt{w'\Sigma_f w}$, $M_f$ the median of $s$ over earlier live formations that are not tracker-only; $A_f = 1$ for the first live formation |
@@ -917,7 +918,10 @@ formation and is logged below. `shipped` calls the package helper on each format
 with `pair_return_correlations` for its `corr_matrix` argument, and re-keys its `weight` column by pair
 label. Two properties of that helper are known now and are **not** corrected here: it weights by the variance
 of the residual's first difference in *price units*, which is not a risk per dollar, and it clips then
-renormalizes once, so its cap is not a cap.
+renormalizes once, so its cap is not a cap. (After the first run the package helper was fixed, to weight by
+risk per dollar and to hold its cap; the call below passes `risk="price_units"` and `cap="one_pass"`, the options
+that keep the behavior described here, so A4 is still the helper as shipped on 2026-09-30 and no number of the
+registered run changed. The Deviations section logs it.)
 """)
 code(r"""
 SPLITS = ["equal", "inv_vol", "inv_var_dollar", "erc", "leg_split", "shipped"]
@@ -931,7 +935,8 @@ def shipped_weights(ids):
         kf[f["pair"]] = pd.DataFrame({"resid": resid})
         labels.append(f"{f['pair'][0]}/{f['pair'][1]}")
     assert len(set(labels)) == len(labels), "a pair appears twice in one formation"
-    out = suggest_position_weights(kf, pair_return_correlations(kf), method="inv_var", max_weight=SHIPPED_CAP)
+    out = suggest_position_weights(kf, pair_return_correlations(kf), method="inv_var", max_weight=SHIPPED_CAP,
+                                   risk="price_units", cap="one_pass")
     wmap = dict(zip(out["pair"], out["weight"]))
     return np.array([wmap[l] for l in labels])
 
@@ -1011,7 +1016,7 @@ smallest where one ticker is a leg of most pairs: 3.80 in 2017-12-29, where 19 o
 2011-07-01, where 16 do. The `shipped` split is the most concentrated on average (2.826 in §10.4). Its effective number
 is 1.00 in 2017-12-29, with 20 pairs and no same-underlying pair, 1.22 in 2022-07-01, 1.32 in 2023-06-30 and 1.47 in
 2011-07-01. A split capped at 0.40 per pair could not give an effective number below `1 / 0.40`, so these formations
-show that the helper's cap is not a cap, one of the two properties registered as known in advance.
+show that the cap of the helper as shipped on 2026-09-30 was not a cap, one of the two properties registered as known in advance.
 """)
 
 md(r"""
@@ -3706,11 +3711,12 @@ md(r"""### 14.4 What the price units cost, with the helper's clip taken apart fr
 The pre-registration calls the gap between `shipped` and `inv_var_dollar` "what the price units cost". `shipped` does two
 things to the weights that `inv_var_dollar` does not: it weights by the variance of the residual's first difference in
 price units, and it clips at 0.40 and renormalizes once. This cell runs the two by three, on the full pool at full
-deployment: weights on price units or on risk per dollar, each with no clip, the helper's one-pass clip, and a real 0.40
-cap (water-filling: clip, redistribute the excess over the pairs still under the cap, repeat; with one or two pairs no cap
-can hold, and the split is equal). The price-unit weights before the clip are the helper's own `inv_var_weight` column,
-and the cell asserts that one clip of them is the shipped split and that the risk-per-dollar column without a clip is the
-registered diagnostic book. Gaps use the registered bootstrap. None is in the test family.
+deployment: weights on price units or on risk per dollar, each with no clip, the one-pass clip of the helper as shipped,
+and a real 0.40 cap (water-filling: clip, redistribute the excess over the pairs still under the cap, repeat; with one or
+two pairs no cap can hold, and the split is equal). The price-unit weights before the clip are the `inv_var_weight` column
+of the helper as shipped on 2026-09-30 (a call with `risk="price_units"`; under the default `risk="per_dollar"` that column
+is per dollar), and the cell asserts that one clip of them is the shipped split and that the risk-per-dollar column without
+a clip is the registered diagnostic book. Gaps use the registered bootstrap. None is in the test family.
 """)
 
 code(r"""
@@ -3724,7 +3730,7 @@ def _by_formation(w, fn):
             o.loc[ids] = fn(w.loc[ids].to_numpy())
     return o
 
-def clip_once(v, cap=SHIPPED_CAP):                    # the helper's rule: clip at the cap, renormalize once
+def clip_once(v, cap=SHIPPED_CAP):                    # the shipped helper's rule (cap="one_pass"): clip at the cap, renormalize once
     c = np.clip(v, 0.0, cap)
     return c / c.sum()
 
@@ -3741,7 +3747,7 @@ def real_cap(v, cap=SHIPPED_CAP):                     # a cap that holds: water-
         w[free] *= (1.0 - cap * (~free).sum()) / w[free].sum()
     return w
 
-# the helper's own unclipped price-unit weights (its inv_var_weight column), through the same call as A4
+# the shipped helper's unclipped price-unit weights (its inv_var_weight column under risk="price_units"), through the same call as A4
 PH_PU = pd.Series(np.nan, index=POOLS["full"]["ids"], dtype=float)
 for d, ids in PH_IDS.items():
     if not ids:
@@ -3751,7 +3757,8 @@ for d, ids in PH_IDS.items():
         f = FOLDS[i]
         kf[f["pair"]] = pd.DataFrame({"resid": f["form"]["P1"] - f["alpha"] - f["beta"] * f["form"]["P2"]})
         labels.append(f"{f['pair'][0]}/{f['pair'][1]}")
-    out = suggest_position_weights(kf, pair_return_correlations(kf), method="inv_var", max_weight=SHIPPED_CAP)
+    out = suggest_position_weights(kf, pair_return_correlations(kf), method="inv_var", max_weight=SHIPPED_CAP,
+                                   risk="price_units", cap="one_pass")
     m = dict(zip(out["pair"], out["inv_var_weight"]))
     PH_PU.loc[ids] = [m[l] for l in labels]
 assert np.allclose(_by_formation(PH_PU, clip_once).to_numpy(), WEIGHTS["full"]["shipped"].to_numpy(), rtol=0, atol=1e-12), \
@@ -3815,6 +3822,66 @@ interval excludes zero, so this sample establishes the cost of neither the price
 the two books are not close: the median total-variation distance between their weight vectors is 0.409, the top pair
 differs in 10 of 18 formations (in 2017-12-29 the helper puts 1.000 on CB/SYK and `inv_var_dollar` 0.282), and their
 daily returns correlate at 0.739.
+""")
+
+md(r"""**The fixed helper on the same footing (post hoc, added after the helper was fixed on 2026-10-01).** After the first
+run `suggest_position_weights` was changed to weight by the variance of the spread return per dollar and to hold its cap
+by water-filling, which are the two repairs separated above. The next cell calls the fixed helper, with its defaults and
+`max_weight=0.40`, on each formation's frozen-hedge frames and the formation-window closes, and runs the book it gives
+through the same pooled-Sharpe and registered-bootstrap code as the rows above. It is not a challenger, enters no test
+and no outcome label, and the registered A4 above is unchanged.
+""")
+
+code(r"""
+assert GATES_PASSED
+# POST HOC, NOT TESTED (added after the helper was fixed, 2026-10-01): the fixed helper's own book, defaults and a 0.40 cap
+PH_FIX = pd.Series(np.nan, index=POOLS["full"]["ids"], dtype=float)
+for d, ids in PH_IDS.items():
+    if not ids:
+        continue
+    kf, labels, px = {}, [], {}
+    for i in ids:
+        f = FOLDS[i]
+        P1, P2 = f["form"]["P1"], f["form"]["P2"]
+        kf[f["pair"]] = pd.DataFrame({"alpha": f["alpha"], "beta": f["beta"], "resid": P1 - f["alpha"] - f["beta"] * P2}, index=P1.index)
+        labels.append(f"{f['pair'][0]}/{f['pair'][1]}")
+        for t, ser in zip(f["pair"], (P1, P2)):                    # one column per ticker; a ticker in several pairs has one price series
+            if t in px:
+                common = px[t].index.intersection(ser.index)
+                assert np.array_equal(px[t].loc[common].to_numpy(), ser.loc[common].to_numpy()), f"{t} has two price series in {d.date()}"
+                px[t] = px[t].combine_first(ser)
+            else:
+                px[t] = ser
+    assert len(set(labels)) == len(labels), "a pair appears twice in one formation"
+    out = suggest_position_weights(kf, prices=pd.DataFrame(px), max_weight=SHIPPED_CAP)          # per-dollar risk, iterative cap: the defaults
+    # the helper's per-dollar variance is the one the notebook computes on the pair's formation frame (sample variance, own rows)
+    for i, l in zip(ids, labels):
+        assert np.isclose(out.set_index("pair").loc[l, "var_per_dollar"], FOLDS[i]["r_form"].var(ddof=1), rtol=1e-9, atol=0.0), l
+    wmap = dict(zip(out["pair"], out["weight"]))
+    PH_FIX.loc[ids] = [wmap[l] for l in labels]
+    assert abs(sum(wmap.values()) - 1.0) < 1e-12 and max(wmap.values()) <= max(SHIPPED_CAP, 1.0 / len(ids)) + 1e-12, d
+PH_FIXB = pbook(PH_FIX)
+_fx = eval_D(PH_FIXB, BASE)
+_eff_fix = float(np.mean([1 / (PH_FIX.loc[PH_IDS[d]] ** 2).sum() for d in EVF]))
+_dw = max(float(np.abs(PH_FIX.loc[PH_IDS[d]].to_numpy() - PH_V[("risk per dollar", "real 0.40 cap")].loc[PH_IDS[d]].to_numpy()).max()) for d in EVF)
+print(f"POST HOC, NOT TESTED: the fixed helper (per-dollar risk, iterative 0.40 cap) pooled net Sharpe {_fx['sr_chal']:.3f} against the baseline's "
+      f"{_fx['sr_comp']:.3f} on the evaluation span, D {_fx['D']:+.3f}   95% [{_fx['lo95']:+.3f}, {_fx['hi95']:+.3f}]   "
+      f"99% [{_fx['lo99']:+.3f}, {_fx['hi99']:+.3f}]; effective number of pairs {_eff_fix:.3f}; "
+      f"largest weight gap to the risk-per-dollar real-cap row above {_dw:.3f}")
+""")
+
+md(r"""The fixed helper's book is the `risk per dollar / real 0.40 cap` row of the table above: the cell asserts that the
+helper's per-dollar variance is the sample variance of the pair's formation returns that the notebook computes, and
+its weights are within 0.000 of that row's (the row takes each $\sigma_i$ on the formation's common sessions with ddof 0,
+the helper on the pair's own sessions with ddof 1). Its pooled net Sharpe is 0.305 against the baseline's 0.514, so $D$ is
+-0.209 (99% [-0.653, +0.106]), with 5.005 effective pairs against the shipped helper's 2.826. The two repairs move the
+helper's point estimate from $D$ -0.408 to -0.209 and its pooled net Sharpe from 0.106 to 0.305, and the book is still
+below equal dollars in point estimate, with a 99% interval that includes zero and reaches below -0.10: on this sample the
+repaired helper is not shown to match equal dollars and not shown to be worse. Read with the rows above, the cap carries
+the repair and the change of risk measure does not add to it (a real 0.40 cap on the price-unit weights gives 0.353
+against 0.305 here), though this section did not test that gap. It is one sample of 17 formations, post hoc, outside the
+test family and without an outcome label, and the fix to the helper does not rest on this number: it makes the helper do
+what its documentation says.
 """)
 
 md(r"""### 14.5 How much of each pooled D is the scale a rule puts on each formation, and is C3's its leverage?
@@ -4055,7 +4122,9 @@ contains the helper's clip, which binds in 15 of the 18 evaluation formations wi
 cap would have given the price-unit weights a pooled net Sharpe of 0.353 against the helper's 0.106 (§14.4, post hoc). Every
 99% interval there includes zero, so neither cost is established, but the two books are not close (a median weight
 distance of 0.409, a different top pair in 10 of 18 formations). The notebook reports this and does not change the
-helper; a fix is left to a separate change.
+helper's registered result. The helper was fixed after this run (2026-10-01; Deviation 32), A4 here is the helper as
+shipped on 2026-09-30, and the fixed helper's own book is a post hoc line at the end of §14.4: pooled net Sharpe 0.305
+against the baseline's 0.514, $D$ -0.209, 99% [-0.653, +0.106].
 
 Five of seven forecasts hold. Forecast 1 holds by design. Forecast 2 fails: the largest $|D|$ was A4's -0.408, not
 B2's or C3's. Forecast 7 fails: realized volatility exceeded the formation forecast in 20.0% of the 225 evaluation
@@ -4240,6 +4309,16 @@ DEVIATIONS += [
     "correctly, and several readings of tables and figures (section 8's 95% intervals, section 10's cost and hold-out "
     "orderings, section 13's descriptions, and the assessment's wording of what is established) were rewritten to match the "
     "tables.",
+    "The package helper was fixed after the first run (2026-10-01): `suggest_position_weights` now weights by the variance of "
+    "the spread return per dollar (`risk=\"per_dollar\"`, with the closes passed as `prices=`) and holds its cap by "
+    "water-filling (`cap=\"iterative\"`). A4 calls it with the options that keep the behavior it was registered under, "
+    "`risk=\"price_units\"` and `cap=\"one_pass\"`, so A4 is still the helper as shipped on 2026-09-30 and its weights and "
+    "every registered number are unchanged (the registered outputs of the re-executed notebook were compared with the first "
+    "run's). One post hoc line was added to section 14.4 afterwards: the fixed helper's own book, called with its defaults and "
+    "`max_weight=0.40` on each formation's frozen-hedge frames and formation-window closes, with its pooled evaluation-span "
+    "net Sharpe and its 95% and 99% intervals of D against the baseline on the registered bootstrap index matrix. It is "
+    "labeled post hoc, is not a challenger and not tested, enters no rule and no outcome label, and the count of six post hoc "
+    "analyses is unchanged because it extends 14.4.",
 ]
 if any(PRIM[n]["undefined"] for n in TESTED):
     DEVIATIONS.append("Formations with an undefined Sharpe (no trade in the formation) among the tested: "
