@@ -14,7 +14,7 @@ Public entry points (lazy-loaded):
                 estimate_halflife(), test_spread_stationarity(),
                 summarize_spread_stationarity_joblib(),
                 pair_return_correlations(), portfolio_diversification_score(),
-                suggest_position_weights(),
+                suggest_position_weights(), spread_returns(), allocation_weights(),
                 cusum_beta_stability(), rolling_beta_drift(),
                 summarize_hedge_ratio_stability(),
                 roll_spread(), realized_variance_signature(), epps_correlation(),
@@ -22,6 +22,7 @@ Public entry points (lazy-loaded):
 - Strategies:   estimate_halflife_window(), zscore_from_spread(),
                 generate_pair_signals(), session_masks(), evaluate_pair_signals(),
                 market_impact_bps(), decompose_spread_pnl(), turnover_and_fees(),
+                simulate_pair_book(),
                 CircuitBreakerConfig, apply_circuit_breaker(),
                 assign_sector_etf(), trading_time_factor(), etf_residuals(), ou_fit(),
                 s_score(), bang_bang_update(), positions_from_state()
@@ -71,6 +72,9 @@ __all__ = [
     "pair_return_correlations",
     "portfolio_diversification_score",
     "suggest_position_weights",
+    "spread_returns",
+    "allocation_weights",
+    "ERCConvergenceError",
     "cusum_beta_stability",
     "rolling_beta_drift",
     "summarize_hedge_ratio_stability",
@@ -95,6 +99,7 @@ __all__ = [
     "market_impact_bps",
     "decompose_spread_pnl",
     "turnover_and_fees",
+    "simulate_pair_book",
     # strategies (circuit breaker)
     "CircuitBreakerConfig",
     "apply_circuit_breaker",
@@ -163,6 +168,9 @@ _LAZY_MAP = {
     "pair_return_correlations": ("pairs.stats.portfolio", "pair_return_correlations"),
     "portfolio_diversification_score": ("pairs.stats.portfolio", "portfolio_diversification_score"),
     "suggest_position_weights": ("pairs.stats.portfolio", "suggest_position_weights"),
+    "spread_returns": ("pairs.stats.portfolio", "spread_returns"),
+    "allocation_weights": ("pairs.stats.portfolio", "allocation_weights"),
+    "ERCConvergenceError": ("pairs.stats.portfolio", "ERCConvergenceError"),
     "cusum_beta_stability": ("pairs.stats.stability", "cusum_beta_stability"),
     "rolling_beta_drift": ("pairs.stats.stability", "rolling_beta_drift"),
     "summarize_hedge_ratio_stability": ("pairs.stats.stability", "summarize_hedge_ratio_stability"),
@@ -187,6 +195,7 @@ _LAZY_MAP = {
     "market_impact_bps": ("pairs.strategies.evaluate", "market_impact_bps"),
     "decompose_spread_pnl": ("pairs.strategies.spread_accounting", "decompose_spread_pnl"),
     "turnover_and_fees": ("pairs.strategies.spread_accounting", "turnover_and_fees"),
+    "simulate_pair_book": ("pairs.strategies.book", "simulate_pair_book"),
     # strategies (circuit breaker)
     "CircuitBreakerConfig": ("pairs.strategies.circuit_breaker", "CircuitBreakerConfig"),
     "apply_circuit_breaker": ("pairs.strategies.circuit_breaker", "apply_circuit_breaker"),
@@ -263,6 +272,9 @@ if TYPE_CHECKING:  # pragma: no cover
         pair_return_correlations,
         portfolio_diversification_score,
         suggest_position_weights,
+        spread_returns,
+        allocation_weights,
+        ERCConvergenceError,
     )
     from .stats.stability import (
         cusum_beta_stability,
@@ -285,6 +297,7 @@ if TYPE_CHECKING:  # pragma: no cover
     )
     from .strategies.evaluate import evaluate_pair_signals, market_impact_bps
     from .strategies.spread_accounting import decompose_spread_pnl, turnover_and_fees
+    from .strategies.book import simulate_pair_book
     from .strategies.circuit_breaker import CircuitBreakerConfig, apply_circuit_breaker
     from .strategies.avellaneda_lee import (
         assign_sector_etf,

@@ -23,6 +23,7 @@ GALLERY = {
     "nb12_first_decade":  ("pairs_trading_12_daily_cross_sectional",     "The edge is in the first decade", 0),
     "nb16_revaluation":   ("pairs_trading_16_kalman_pnl_accounting_day_lake", "book / tradable / revaluation cumulative curves", 0),
     "nb21_cost_cliff":    ("pairs_trading_21_intraday_desk_alphas",      "Net Sharpe against a flat per-side cost", 0),
+    "nb22_allocation_verdict": ("pairs_trading_22_pairs_allocation_day_lake", "# README-FIGURE: nb22_allocation_verdict", 0),
 }
 
 

@@ -2,6 +2,7 @@
 from .signals import estimate_halflife_window, zscore_from_spread, generate_pair_signals, session_masks
 from .evaluate import evaluate_pair_signals, market_impact_bps
 from .spread_accounting import decompose_spread_pnl, turnover_and_fees
+from .book import simulate_pair_book
 from .avellaneda_lee import (
     assign_sector_etf,
     trading_time_factor,
@@ -21,6 +22,7 @@ __all__ = [
     "market_impact_bps",
     "decompose_spread_pnl",
     "turnover_and_fees",
+    "simulate_pair_book",
     "assign_sector_etf",
     "trading_time_factor",
     "etf_residuals",

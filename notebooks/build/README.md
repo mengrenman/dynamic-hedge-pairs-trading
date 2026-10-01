@@ -21,6 +21,22 @@ diffed and reviewed like source:
 | `build_minute_data_notebook.py` | `../pairs_trading_18_minute_data.ipynb` | scratch (needs the local minute lake; cold run ≈ 3 min; caches `cache/min_sessions.parquet`, `min_screen.parquet`, `min_candidates.parquet`, `min_candidates_1m.parquet`) |
 | `build_intraday_backtest_notebook.py` | `../pairs_trading_19_intraday_backtest.ipynb` | scratch (reads notebook 18's caches or rebuilds them; cold run ≈ 10 min; caches fitted fold states as `cache/min_wf_<hedge>_<freq>.pkl` and the chosen design as `cache/min_design.json`) |
 | `build_intraday_portfolio_notebook.py` | `../pairs_trading_20_intraday_portfolio.ipynb` | scratch (reads notebook 19's design and caches; cold run ≈ 5 min; caches `cache/min_holdout_<hedge>_<freq>.pkl`) |
+| `build_pairs_allocation_notebook.py` | `../pairs_trading_22_pairs_allocation_day_lake.ipynb` | its pre-registration, `nb22_pairs_allocation_preregistration.md`, which the notebook reproduces verbatim (needs the caches of notebooks 09, 10, 11 and 14: `cache/day_market_bars.parquet`, `day_rule_bh_dual.parquet`, `day_scaled_by_formation.pkl` and `cost_per_ticker_window.parquet` (notebook 14's measured costs; no builder in this repository writes that file under that name, so keep it), and reads no lake; cold run ≈ 45 s and 1.6 GB, reading only the tickers the pool trades; caches `cache/alloc_folds.pkl`, `alloc_books.pkl` and `alloc_results.pkl`; smoke switch `ALLOC_SMOKE`, below) |
+
+**Notebook 22 and its smoke switch.** `ALLOC_SMOKE=1` is an environment variable read by the executed notebook (the builder ignores
+it) and switches on a reduced run for debugging: a thinned copy of notebook 11's distance pool (`day_rule_distance_top20.parquet`) in
+place of the registered `bh_dual` pool, draw counts divided by ten, and caches prefixed `alloc_smoke_`, so the real `alloc_*` files are
+never touched. It executes in place, so build to a copy and run that (the notebook resolves `cache/` from its own directory, so the copy
+belongs in `notebooks/`), then delete it:
+
+```bash
+python notebooks/build/build_pairs_allocation_notebook.py --out notebooks/nb22_smoke.ipynb
+ALLOC_SMOKE=1 python notebooks/build/execute.py notebooks/nb22_smoke.ipynb
+```
+
+Never set it for the registered run: the registered counts are asserted only in full mode, and the committed notebook has to come from
+a full run. The validation gates run on the registered pool in both modes, and every cell that builds a challenger asserts that they
+passed, but `execute.py` runs on after a cell error, so read its exit status and look at the first error cell, not the last.
 
 **Renumbering.** `renumber.py` moves the whole series in one atomic pass — file renames via
 `git mv`, plus every `pairs_trading_NN` / `nbNN` / `notebook NN` reference in the builders, both
@@ -63,9 +79,9 @@ Notes
   cells propagates to nb04 by re-running the builder; the cells it rewrites are asserted on content, so
   the script fails loudly if nb02 drifts.
 - The lake notebooks read local Polygon-derived parquet lakes, not the network, and treat them as
-  read-only. The day-lake notebooks (06–08) use `~/local/parquet_lake/day_adj` unless `DAY_LAKE` says
-  otherwise; the minute-bar notebooks (09–11) use `~/local/parquet_lake/minute_adj` unless `MINUTE_LAKE`
-  says otherwise.
+  read-only. The day-lake notebooks (08–17 and 22) use `~/local/parquet_lake/day_adj` unless `DAY_LAKE` says
+  otherwise (notebook 22 reads only the caches those notebooks wrote); the minute-bar notebooks (18–21) use
+  `~/local/parquet_lake/minute_adj` unless `MINUTE_LAKE` says otherwise.
 - Run each series in order on a cold cache. Notebook 11 needs notebook 10's `day_rule_*.parquet` and
   raises if they are missing; notebooks 19 and 13 rebuild notebook 18's caches if missing, but 11 also
   wants 10's `min_design.json` (it falls back to the design recorded in its own text).

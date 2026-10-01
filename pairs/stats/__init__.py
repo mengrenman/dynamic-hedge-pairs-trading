@@ -33,6 +33,9 @@ from .portfolio import (
     pair_return_correlations,
     portfolio_diversification_score,
     suggest_position_weights,
+    spread_returns,
+    allocation_weights,
+    ERCConvergenceError,
 )
 from .stability import (
     cusum_beta_stability,
@@ -59,6 +62,9 @@ __all__ = [
     "pair_return_correlations",
     "portfolio_diversification_score",
     "suggest_position_weights",
+    "spread_returns",
+    "allocation_weights",
+    "ERCConvergenceError",
     "cusum_beta_stability",
     "rolling_beta_drift",
     "summarize_hedge_ratio_stability",

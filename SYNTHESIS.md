@@ -1,6 +1,6 @@
 # What twenty years of this data established
 
-Twenty-one notebooks, two parquet lakes, 2006–2025 US equities. `README.md` lists what the
+Twenty-two notebooks, two parquet lakes, 2006–2025 US equities. `README.md` lists what the
 repository contains; `HANDOFF.md` says how to run it and what will bite you. This document is the
 argument: organized by claim, not by notebook.
 
@@ -181,6 +181,94 @@ by about 1.7 to 2.3 times in five of six book-and-blend cases. The turnover-matc
 null standard deviations, through the test period) and says nothing net: it pays the same cost per traded dollar (2.73 against 2.85 bps),
 and its lower net Sharpe comes from half the P&L volatility. The hold-out was displayed three times (the first full run, the rebuild, the
 amended run), so the verdicts are a confirmatory read of an amended universe, not an untouched test; nineteen deviations are logged.
+
+### Notebook 22: allocating capital across the pool
+
+Notebook 22 is the third pre-registered study and the first to leave the signals alone. It takes notebook 11's book as given (287
+pair-folds over 39 semi-annual formations, 30 of them live, with the same signals, hedges and positions in every book, so that only the
+share counts differ) and asks what the capital should have been doing: how to split it across the pairs, how much to deploy when the
+pool is thin, and how to rebalance inside a holding window. Nine standard rules, each changing one decision, were tried against notebook
+11's default of equal dollars reset to constant dollars at every close, on a fund of constant capital ($200,000), under a registration
+committed as `c8932a4` before any code existed. A new leg-level simulator had to reproduce notebook 11 and notebook 14 on the baseline
+first, and did: 40 of 40 gate lines, to the dollar.
+
+**No challenger is adopted, and the default was not beaten at this sample size.** By the registered rule, sizing by z-score (pooled
+Sharpe difference D −0.014, 99% interval [−0.093, +0.078]) and freezing the entry shares (D −0.023, [−0.078, +0.027]) are *no material
+difference*. Inverse volatility, equal risk contribution, the shared-leg split, the package's `suggest_position_weights`, volatility
+targeting, the rolling re-estimate (against inverse volatility) and capital reuse are *undetermined*, and none is *worse*. Every pooled D
+has a negative point estimate, from −0.408 for the package helper to −0.010, but no 99% interval excludes zero and Holm rejects nothing
+(smallest p 0.0714, adjusted 0.6427), and for the four split rules and volatility targeting the negative sign carries little information: 76.5% of 1,000 arbitrary splits of this
+pool have a negative D as well, and volatility targeting's permutation null has a mean D of −0.027 against its observed −0.028. The width of those
+intervals is the finding. At most 17 evaluation formations inform a paired
+test (13 for the shared-leg split, 11 for capital reuse); one three-pair formation (2008-07-01) carries 0.455 of the baseline's variance, which makes the effective number of formations
+4.2; and the standard deviation of the per-formation Sharpe difference is between 0.375 and 1.201 for the four split rules. At the
+strictest Holm step the test reaches 80% power only for an effect of about one such standard deviation, and an effect of 0.10 was within
+reach of one rule (`frozen`, 0.069). So "allocation does not matter for this book" is said of two rules and of no others. For the seven
+the defensible sentence is that the sample could not place them, which is different from saying they make no difference. The baseline's
+pooled net Sharpe on the evaluation span is 0.514.
+
+**The risk model forecast pairs and not formations.** Within a formation, the median rank correlation between a pair's formation-window
+volatility and its realized volatility is 0.886 (12 formations). Across formations, the forecast volatility of the book against the
+baseline's realized volatility correlates −0.064 (17 formations), so volatility targeting carries the registered qualifier that the risk
+model did not forecast. Forecast 7, that realized volatility would exceed the formation-window forecast in more than 60% of pair-folds,
+failed at 20.0% (45 of 225 pair-folds, and above one at the median in 8 of 24 formations). Post hoc, the share is low whether or not the
+formation window holds 2008–09 or 2020 (5.7% of the 87 pair-folds whose window does, 29.0% of the 138 whose window does not), so the shortfall is not
+confined to the formation years 2010 and 2021. Volatility had already fallen inside the two-year window (its last 126 rows were below the earlier rows
+in 87.1% of pair-folds), so the two-year sigma was a stale level, and against those last 126 rows the trading window realized more in 56.9%; the 42.0%
+that iid draws from the formation window would give ignores that decay and is the wrong yardstick. The pair-folds are not independent draws either (179
+of the 225 sit in nine formations of 19 or 20 pairs, and a cluster bootstrap over the 24 formations puts the share at 0.098 to 0.333, 95%). Five of the seven
+forecasts hold, one of them by design; forecasts 2 and 7 fail.
+
+**Where the split rules' negative estimates come from: mostly the same-underlying pairs, described on one sample and not established.** The volatility-weighted rules and
+the helper put 0.774, 0.870 and 0.700 of their weight on the same-underlying pairs (IVV/SPY, SPY/VOO and their like, whose spreads are about 45
+times less volatile per dollar than an ordinary pair's) in the seven evaluation formations that mix them with ordinary pairs, against 0.226 under
+equal weights (0.887, 0.935 and 0.850 against 0.613 when the seven tracker-only formations, where the weight is 1 under every split, are averaged
+in). In the baseline the 18 same-underlying pair-folds of the evaluation span earned $1,181 of $72,385. Holding those pairs at equal weight and
+applying the rule among the ordinary pairs only, on the same 24 formations and 3,022 sessions, gives a pooled D of −0.022 for inverse volatility
+(99% interval [−0.198, +0.108]), +0.028 for equal risk contribution and −0.121 for the helper, against −0.199, −0.219 and −0.408: the
+same-underlying pairs account for about nine-tenths of inverse volatility's deficit, all of equal risk contribution's and about seven-tenths of the
+helper's. In the two formations that carry 70.3% of the baseline's dollars, 2008-07-01 (BAC/CNX) and 2021-12-31 (the 18 BDX pair-folds, in effect one
+position in one stock), inverse volatility cuts the formation's volatility to about a fifth of the baseline's (0.215 and 0.223) at about the same
+formation Sharpe (1.375 to 1.407 and 2.843 to 2.735), the same skill on about a fifth of the dollars; equal risk contribution and the helper cut
+2021-12-31's volatility to about a seventeenth of the baseline's, with a lower Sharpe. So among ordinary pairs inverse volatility is indistinguishable
+from equal weights (D −0.031 on the ex-tracker pool, 99% [−0.223, +0.112], and −0.022 with the same-underlying pairs held at equal weight; both intervals
+include zero and reach beyond ±0.10), neither better nor shown to be worse, and by magnitude the helper keeps the largest point estimate of the four split
+rules once the same-underlying pairs are neutralized (−0.107 and −0.121), whatever the registered sign rule, which allows a sentence about the principle
+for inverse volatility and the rolling re-estimate only, says of it. Every interval includes zero, so this describes one sample and does not establish that
+any rule is better or worse. The ex-tracker values are on 17 formations and 2,142 sessions against 24 and 3,022, so the notebook sets them beside the full
+pool on the 17 formations both pools share: there the baseline's Sharpe is 0.608 with the same-underlying pairs and 0.561 without them, and the full pool's D
+is −0.239, −0.263 and −0.488 for inverse volatility, equal risk contribution and the helper against −0.031, +0.014 and −0.107 on the ex-tracker pool.
+
+**The shipped helper.** `suggest_position_weights` (A4) has a pooled net Sharpe of 0.106 against 0.514, D −0.408, 99% interval [−1.114,
++0.101], so it is *undetermined*, and it was left unchanged. Its effective number of pairs is 2.826 against 9.375 under equal weights,
+and 1.00 in one formation of 20 pairs, so its 0.40 cap is not a cap. It weights by price-unit variance and clips once at 0.40. The registered
+gap to weights ∝ 1/σ² on risk per dollar with no clip, D −0.009 (95% [−0.301, +0.327]), is not the cost of the price units, because the helper's clip binds
+in 15 of the 18 evaluation formations with two or more pairs and the diagnostic has none: price units alone cost −0.105 without a clip, the
+one-pass clip adds +0.096, and a real 0.40 cap would have given a pooled net Sharpe of 0.353 against the helper's 0.106. Every 99% interval
+includes zero, so neither cost is established, but the two books are not close (a median weight distance of 0.409). A fix is a separate
+change.
+
+**Capital reuse's negative D is not the capital it moves between formations.** Giving the baseline reuse's formation-level scale changes the pooled
+Sharpe by −0.0003. The deficit is inside formations, where reuse's Sharpe is below the baseline's in 8 of the 11 formations that inform its
+test (−0.177 of its −0.264 remains once each formation is rescaled to the baseline's volatility). Its exposure per unit of volatility is 1.345
+times the baseline's, and if every dollar-day of gross notional earned the baseline's pooled rate its Sharpe would be 0.693 against 0.513 for the baseline on the same footing, so the
+dollars it adds earned less: on the sessions of formations with more than three pairs, with two to five pairs held reuse's gross notional is
+4.244 times the baseline's and the baseline lost $14,404 (−3.758 basis points per dollar of gross notional-day), against 2.254 times where six or
+more are held and the baseline earned $48,711. It is one sample: a sign-flip null puts −0.264 at its 14.1% point.
+
+**What the gates established about notebook 11's own book**, whatever the challengers did. It resets every held position to constant
+dollars at each close (the shares change on 5,688 of 5,691 held rows that are not entry rows), so it is not sized once at entry. Its
+Sharpe and its dollar P&L imply different deployment rules: the $43,587 is $10,000 for every pair, while the Sharpe of 0.4019 divides by
+the number of pairs selected and so describes a fund that puts all of its capital into however many pairs the screen found. And the
+0.490 measured-cost Sharpe covers 251 of the 287 pair-folds, the ones that complete a round trip; on all 287 it is 0.483. §2's and §7's
+0.490 is the 251-fold figure. The rules that move capital between formations do pay for it (volatility targeting $11,329 of measured cost
+on a turnover of 28.0 times capital a year, reuse $17,785 on 32.1, against the baseline's $7,562 on 14.9), and in Sharpe terms measured
+cost is worth 0.053 to the baseline but about 0.10 to the volatility-weighted books, which run at a lower return volatility.
+
+2023–2025 was an exposed window here (notebooks 11, 14, 17 and 21 had already displayed it), used as a sign check with a Sharpe
+standard error of 0.62; it reverses the evaluation sign of four of the nine, about what a sign that agrees half the time under no effect
+would do. Thirty-one deviations and clarifications are logged, and the six post hoc analyses (two added after the first run, four after a
+second review of the notebook) enter no rule.
 
 ---
 
@@ -405,6 +493,19 @@ Strictly, in descending order of confidence:
    to a real minute-lake price, gave a fictitious P&L. Key by the (ticker, id) pair everywhere, cap returns and dividends against a
    sanity bound, and check the data an exclusion rule will judge: the leveraged-fund detector and the R² tracker test both judged
    that fund on garbage and passed it. All of it surfaced on the first full run, not in the design.
+9. **Restate the default before you try to beat it.** Notebook 22's first job was to reproduce notebook 11's numbers with a simulator
+   that could size any rule. Its design review had found, and the gates then confirmed, that the book's Sharpe and its dollars come from
+   different funds (one divides by the number of pairs found, the other is $10,000 per pair), that the book rebalances to constant
+   dollars every day, and that the 0.490 quoted for it covers 251 of 287 pair-folds. Every number reproduced, so nothing was overturned,
+   but each of those facts would have changed what a challenger was being compared with. Put the gates before the challengers, and
+   make them raise.
+10. **A null result comes in kinds, and only one licenses "it does not matter".** A pooled difference with a negative point estimate is
+    not evidence of harm when its interval includes zero, and an interval that fits inside the margin is a different result from one
+    that is merely wide. The registration's four labels keep these apart: two of nine rules are "no material difference" (the 99%
+    interval inside ±0.10), seven are "undetermined" (the interval reaches beyond the margin on at least one side) and none is "worse",
+    although all nine point estimates are negative (for the four split rules, so are 76.5% of arbitrary splits of this pool). At most 17 formations, one of them
+    carrying 0.455 of the baseline's variance, could not separate the seven from equal dollars, and reporting them as failures would have
+    misstated what was measured.
 
 Method findings that are real but narrower: a survivor-only universe can flip the *sign* of a
 Sharpe for a strategy that loses money either way (notebook 11 §9), so check dollar P&L alongside
@@ -461,11 +562,34 @@ A next pre-registration should also state its data-quality rules up front (the p
 corrupt-series exclusion, the instrument-type rule, and a split and class-share check ahead of the cap, which §9.5 could apply only to
 the P&L side) rather than add them after the first run, as notebook 21 had to (Deviations 1, 2, 5, 14 and 18).
 
+Notebook 22 was registered in a different shape: the same book, only the capital. It named the same-underlying pairs in advance (36 of
+287 pair-folds) and registered an ex-tracker pool beside the full one, and it still leaves five things for the next pre-registration:
+
+- **Many more formations than 17.** At a standard deviation of the per-formation Sharpe difference of 0.375 or more, 17 evaluation
+  formations cannot see a difference of 0.10, and one of them carries 0.455 of the baseline's variance. The seven undetermined rules
+  (inverse volatility, equal risk contribution, the shared-leg split, the shipped helper, volatility targeting, the rolling
+  re-estimate and capital reuse) need more independent draws of the pool than this book has. A shorter formation cadence means
+  re-running notebook 10's screen, which the registration ruled out of scope.
+- **The same-underlying pairs settled in the pool definition before a split is chosen.** Their spreads are about 45 times less
+  volatile per dollar, seven of the 24 evaluation formations hold nothing else, and the volatility-weighted splits tested put 0.70 to
+  0.87 of their weight on them in the seven formations that mix them with ordinary pairs. A same-sample counterfactual (post hoc) shows
+  the negative estimates of inverse volatility and equal risk contribution going once those pairs are held at equal weight, and about seven-tenths of
+  the helper's (which keeps −0.121, the largest of the four split rules), with intervals that still include zero and reach beyond ±0.10. The pool definition also has to say what a pair is: 18 of the 20 pairs of 2021-12-31 are one position in one stock.
+- **A formation-level forecast that passes before a deployment rule is tested.** Volatility targeting rests on the forecast volatility of
+  the whole book, which correlated −0.064 with what the baseline realized over 17 formations (pair-level: 0.886).
+- **A fix to `suggest_position_weights` as its own change,** with its two known properties (price-unit variance, a cap that is not a cap)
+  tested against equal dollars on a pool that has the previous item settled.
+- **A combination needs its own registration, and so does any rule that needs an expected return per pair.** Adoption was one change at
+  a time, and 287 pair-folds cannot estimate a return per pair (mean-variance, Kelly), so those were out of scope. 2023–2025 has now been
+  exposed in notebooks 11, 14, 17, 21 and 22 and cannot serve as an untouched hold-out.
+
 The measurement apparatus is the durable asset here: the cost measurement, the placebo nulls, the
 walk-forward harness, the clause table, and a test that checks the prose against the outputs.
 Pointing it at a new domain is cheaper than refining this one.
 
-A closing observation the record supports. Twenty-one notebooks of careful work produced zero clear
+A closing observation the record supports. Twenty-two notebooks of careful work produced zero clear
 edges, and nearly all the value realized came from **measuring things the design had assumed** —
-costs, survivorship, the spuriousness of the Kalman residual, what a hold-out can and cannot see.
+costs, survivorship, the spuriousness of the Kalman residual, what a hold-out can and cannot see,
+and, in the latest, what notebook 11's own book does with its capital (a daily reset, two deployment
+rules, a 0.490 that covers 251 of 287 pair-folds) before any allocation rule was tried against it.
 That ratio is not a sign something went wrong. It is what the work is.
