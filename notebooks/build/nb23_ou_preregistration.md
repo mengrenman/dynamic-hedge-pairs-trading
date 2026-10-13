@@ -643,3 +643,67 @@ amendment; neither contains data from this pool.
     formation transient is left out of the fit.
 12. **S1v:** the floor removes more pairs from the 2010-07-01 and 2010-12-31 universes than
     from any other, and S1v's pooled D against P is above S1's.
+
+---
+
+## Amendment 2 (2026-10-14, written before the first run on the registered pool)
+
+Added after reading Leung and Lu (2024), *Monte Carlo Simulation for Trading Under a Lévy-Driven
+Mean-Reverting Framework* (arXiv 2309.05512v2). Nothing in it is data from this pool, and no
+trading window of the registered pool has been read. Everything below is fixed.
+
+### B1. T5, a horizon-aware threshold by simulation
+
+Leung and Lu choose the entry level of a single trade cycle by Monte Carlo under the fitted
+model, exiting at the mean, with no costs and a long horizon. T5 is that method with the pair's
+measured cost, repeated trades, and this study's trading window:
+
+- For each pair-fold of the threshold family's pool, 2,000 paths of the cached trading-window
+  length n_i are simulated from the formation fit (μ_f, φ̃, σ_d, Gaussian innovations), started
+  from the last formation residual, with one `np.random.default_rng(2401)` stream in cached fold
+  order, separate from the model check's stream.
+- On every path the registered machine is run with the frozen-z rules of T4 except the entry
+  level: long when −4 < z ≤ −d, short when d ≤ z < 4, exit at the mean (`exit="level"`, level 0),
+  one-sided stop at 4, fills at the decision close, and the pair's round-trip cost c in s_f units
+  (the same c as T2) charged per completed round trip and per flip; a position open on the
+  path's last row is marked at the last value with no exit cost, as the ledger does.
+- The objective is the mean over paths of the net profit over the window, in s_f units per unit
+  position, summed over the window's trades. d is searched on the grid {0.25, 0.50, …, 3.75}
+  (15 points); the maximizer is refined by the vertex of the quadratic through the best grid
+  point and its two neighbors, clipped to [0.25, 3.99]; at a grid edge the edge is taken and
+  counted. If the objective is ≤ 0 at every grid point the pair-fold stays flat and is counted.
+- d_H* is then applied to the realized trading window with the same rules. T5 is compared with
+  T1, with the composite against the 272-pair-fold baseline like T2, T3 and T4. The Holm family
+  is six tests (T1, T2, T2r, T3, T4, T5), strictest step 0.0083; the paired test's 80% power at
+  that step is about one s.d. of δ_f with 17 formations.
+- Reported: the distribution of d_H* in units of s_f and of σ_d, beside e_P and T3's |d_L − μ_f|;
+  the simulated expected net profit at d_H* against T5's realized net profit on the same window,
+  per pair-fold, as the share of pair-folds below the simulated 10th percentile and above the
+  90th (the posterior-predictive reading of M3 applied to T5's own rule); and the count at a
+  grid edge or flat.
+
+### B2. M7, the shape of the innovations
+
+Whether the Lévy version of the model is worth anything on this pool turns on whether the AR(1)
+innovations are Gaussian. For each pair-fold: the skewness (`scipy.stats.skew`, `bias=False`)
+and excess kurtosis (`scipy.stats.kurtosis`, `fisher=True`, `bias=False`) of the fit residuals
+ε_t on the post-transient formation rows and on the trading-window fit rows, and the
+Jarque–Bera p-value on each. Reported: the pooled distributions (median, quartiles) of both
+statistics on both windows; the share of pair-folds with a Jarque–Bera p below 0.05 on each
+window (5% expected under the Gaussian model); for the trading window, the share of pair-folds
+whose excess kurtosis lies above the 97.5th percentile of the same statistic over the 200
+Gaussian null paths of that pair-fold; for the formation window, the asymptotic Gaussian
+standard errors √(6/n) and √(24/n) beside the medians. The same by formation and, separately,
+for the same-underlying pair-folds. No decision rests on M7; the notebook says beside its
+table whether a variance-gamma innovation model would be motivated.
+
+### B3. Forecasts added
+
+13. **T5 `horizon_mc`:** the median d_H* lies between e_P (0.7518) and the median |d_L − μ_f|
+    of T3; T5's outcome is "undetermined", not adopted, and its pooled D is negative; its
+    realized net profit falls below its own simulated 10th percentile in more than 30% of
+    pair-folds.
+14. **M7:** the median excess kurtosis of the post-transient formation innovations exceeds 1,
+    and the trading-window kurtosis exceeds its Gaussian null's 97.5th percentile in more than
+    half of the pair-folds (not informed by this pool; informed by what daily equity spreads
+    usually look like).
