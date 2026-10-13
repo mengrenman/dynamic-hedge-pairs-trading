@@ -537,3 +537,109 @@ on the simulator, not as predictions.
 
 `notebooks/pairs_trading_23_ornstein_uhlenbeck_day_lake.ipynb`, a day-lake study numbered after
 22 for the reason notebook 22 gave.
+
+---
+
+## Amendment 1 (2026-10-14, written after the build and before the first run on the registered pool)
+
+The code was built and audited against the file above on the smoke pool only; nothing below
+rests on a trading window of the registered pool or on any challenger. Everything in this
+amendment is fixed, as the file above is; the notebook's Deviations section records anything
+done differently from the file as amended.
+
+### A1. Gate G5's target was the book's error
+
+With the parameters printed under Leung and Li's Figure 2.10 (θ = 0.5388, μ = 16.6677,
+σ = 0.1599, r = r̂ = 0.05, c_s = c_b = 0.05, L = 0.4834), equations (2.45) and (2.55) give
+b_L = 0.5673 and d_L = 0.5048, not the printed 0.5570 and 0.4978. Three independent
+implementations agree (the package's, the author's own quadrature written from the theorems, and
+two solves that use none of the book's formulas); the printed pair is reproduced to four
+decimals only at r ≈ 0.214; and at the printed cost, 1.8 stationary standard deviations, the
+example's round trip loses money, so the caption cannot be what produced the figure. G5's first
+clause is replaced by: `leung_li_levels` agrees to 1e-8 with an independent from-scratch
+quadrature solver at the registered inputs and at two cases with a profitable entry interval
+(the c / s = 0.005 case and the pair-unit case of the G5 cell); the registered printed numbers
+are printed beside the registered inputs and not gated; their reproduction at r = 0.214 is
+printed as a cross-check. The no-stop and Brownian-limit clauses stand.
+
+### A2. Two counts, and the bad-row rule's effect
+
+The bad-row rule as registered (one leg moves more than 40% in a session while the other moves
+less than 5%) does not catch the HLT row it was written for: that move is −29.4% and HLT's rows
+0 and 1 lie inside the skipped first 100 rows in any case, so "six HLT pair-folds of
+2018-12-31" is void. Applied as written, the rule drops 67 volatility-product spike rows
+(TVIX, UVXY, FAS and others, mostly 2018-02-05 to 02-08) from 32 pair-folds' post-transient
+fits and moves one pair-fold (UVXY/WMT, 2018-06-29) outside (0, 1). The rule stays as
+registered. The registered counts are corrected: 14 pair-folds have a post-transient φ̃
+outside (0, 1) without the rule and **15 with it**; the threshold family's pool is therefore
+**272** pair-folds. The notebook asserts both numbers and prints the rows the rule drops.
+
+### A3. The threshold family's pool
+
+A pair-fold removed under the clause above leaves the pool of every book in the threshold
+family, the family's own baseline included, so that the books hold the same pairs on the same
+windows and the comparisons stay like-for-like. Notebook 22's baseline on all 287 pair-folds is
+reproduced by G1 and printed beside every table as `baseline_full`; the 574 evaluation round
+trips and the 0.514 Sharpe are its figures, and the 272-pair-fold baseline's are printed beside
+them. The primary tests and the outcomes read every threshold book against the 272-pair-fold
+baseline.
+
+### A4. T4, Palomar's threshold
+
+Added to the threshold family, after reading Palomar (2025), *Portfolio Optimization*, Chapter
+15, §15.5.2: the parametric optimal threshold for a Gaussian z-score, s* = argmax_s (1 − Φ(s)) s,
+which has the unique solution **e_P = 0.7518**, with exit at the mean. On the frozen OU z:
+long when −4 < z ≤ −e_P, short when e_P ≤ z < 4; a long exits when z ≥ 0 and a short when
+z ≤ 0 (`exit="level"`, level 0; a flip occurs only if the opposite entry holds on the exit row);
+stop 4, one-sided. Compared with T1, and with the baseline as its composite, like T2 and T3. His
+nonparametric variant (an empirical trading frequency smoothed on the formation window with a
+penalty λ) is not run: it is an in-sample fit with a free parameter, which notebooks 04 and 05
+showed is noise on this pool. The Holm family is now five tests (T1, T2, T2r, T3, T4), strictest
+step 0.01; the paired test's 80% power at that step is about 0.95 s.d. of δ_f with 17
+formations. T4's trips, the distribution of its holding times and its flips are reported with
+the others.
+
+### A5. M6, the shape of the drift
+
+Added to the model check, after the survey of nonlinear mean-reverting processes the author
+was shown: whether the speed of reversion depends on the size of the deviation. On the trading
+windows of the evaluation pair-folds of the threshold family's pool, every (z_t, ΔX_{t+1} / s_f)
+pair with z_t = (X_t − μ_f) / s_f from the formation fit is pooled and binned by z_t with fixed
+edges (−∞, −3, −2, −1.5, −1, −0.5, 0, 0.5, 1, 1.5, 2, 3, ∞). Reported per bin: the count, the
+mean of ΔX_{t+1} / s_f, the mean of the linear OU prediction −(1 − φ̃) z_t, and the 2.5th–97.5th
+percentiles of the bin mean over the simulated null paths (the same 200 draws). The summary
+statistic is the ratio of the outer slope to the inner slope, each the OLS slope of ΔX / s_f on
+z_t over the observations with |z_t| > 1.5 and with |z_t| ≤ 1 respectively, observed against
+its null distribution. The same is printed for the hold-out and, separately, for the
+same-underlying pair-folds. No decision rests on M6.
+
+### A6. S1v, the speed ranking with a variance floor
+
+Added as a sensitivity of the selection family with no outcome, after Palomar's §15.7.3 (an
+optimum mean-reverting portfolio maximizes a reversion-speed proxy subject to a floor on the
+spread variance). S1v ranks the universe as S1 does after removing every pair whose cost per
+unit of scale, c / s_f with c = 2 × 5 bps × (P1 + |β| P2) / 10⁴ at the formation-close prices
+(a flat cost, so that no cost cell is needed for ranking) and s_f the post-transient formation
+s.d., exceeds **0.05**. P is unchanged. S1v's pairs, its pooled D against P with the shared
+bootstrap interval, its paired δ_f, and the number of pairs the floor removes per formation are
+reported beside S1's.
+
+### A7. What has been seen since registration
+
+The build's agents computed, on the registered pool, formation-window quantities only: the
+post-transient fits (the 14 / 15 and 272 / 273 counts above, the rows the bad-row rule drops,
+the median post-transient φ̃ used by D1) and the baseline book for G1. The author read Palomar's
+Chapter 15 and a survey of nonlinear mean-reverting models between registration and this
+amendment; neither contains data from this pool.
+
+### A8. Forecasts added
+
+10. **T4 `palomar`:** e_P lies between the median e* of T2 and the median |d_L − μ_f| of T3; T4
+    completes more evaluation round trips than T1 (by construction) and more than the 272-pool
+    baseline; its outcome is "undetermined" or "worse", not adopted, and its pooled D against
+    the baseline is negative.
+11. **M6:** the outer-to-inner slope ratio lies inside the null's 2.5th–97.5th percentile band
+    on the evaluation span: no evidence that reversion is faster at large deviations once the
+    formation transient is left out of the fit.
+12. **S1v:** the floor removes more pairs from the 2010-07-01 and 2010-12-31 universes than
+    from any other, and S1v's pooled D against P is above S1's.
