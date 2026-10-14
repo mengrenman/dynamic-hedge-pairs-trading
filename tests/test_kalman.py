@@ -187,3 +187,64 @@ class TestCausalByDefault:
         _, _, _, ps = _kalman_dynamic_hedge("P1", "P2", df, q=1e-5, em_iters=3, mode="smooth", return_params=True)
         for k in ("F", "Q", "R", "last_state_mean", "last_state_cov"):
             assert np.allclose(pf[k], ps[k]), k
+
+
+class TestIndefiniteNoiseCovariance:
+    """EM can return a transition covariance with a negative eigenvalue; pykalman filters with it
+    silently, so the package must refuse it."""
+
+    def _constant_hedge_logs(self, n=60, seed=13):
+        # log prices with a constant hedge ratio, so the true Q is zero; with the noise scales set
+        # relative to the OLS residual variance r0 (the log-price convention), EM drives Q indefinite
+        rng = np.random.default_rng(seed)
+        idx = pd.date_range("2020-01-01", periods=n, freq="B")
+        x = np.log(50) + 0.02 * rng.standard_normal(n).cumsum()
+        y = 1.0 + 0.8 * x + 0.05 * rng.standard_normal(n)
+        X = np.column_stack([x, np.ones(n)])
+        r0 = float(np.var(y - X @ np.linalg.lstsq(X, y, rcond=None)[0]))
+        return pd.DataFrame({"P1": y, "P2": x}, index=idx), r0
+
+    def test_case_is_indefinite_under_raw_pykalman(self):
+        # guards the fixture: if a pykalman release stops producing the bad Q, the test below
+        # would pass for the wrong reason
+        from pykalman import KalmanFilter
+        df, r0 = self._constant_hedge_logs()
+        n = len(df)
+        H = np.zeros((n, 1, 2)); H[:, 0, 0] = df["P2"].to_numpy(); H[:, 0, 1] = 1.0
+        kf = KalmanFilter(transition_matrices=np.eye(2), observation_matrices=H,
+                          initial_state_mean=np.zeros(2), initial_state_covariance=np.eye(2) * 1e6,
+                          transition_covariance=np.eye(2) * 1e-5 * r0,
+                          observation_covariance=np.array([[r0]]))
+        Q = kf.em(df["P1"].to_numpy().reshape(-1, 1), n_iter=5).transition_covariance
+        assert np.linalg.eigvalsh((Q + Q.T) / 2).min() < 0
+
+    def test_em_fit_with_indefinite_q_raises(self):
+        df, r0 = self._constant_hedge_logs()
+        with pytest.raises(ValueError, match="transition_covariance Q is not positive definite"):
+            _kalman_dynamic_hedge("P1", "P2", df, q=1e-5 * r0, r=r0, em_iters=5, return_params=True)
+
+    def test_same_data_without_em_fits(self):
+        # the check is on what EM learns; the user-supplied q and r are already validated positive
+        df, r0 = self._constant_hedge_logs()
+        _, _, states, _ = _kalman_dynamic_hedge("P1", "P2", df, q=1e-5 * r0, r=r0, em_iters=0)
+        assert states is not None and np.isfinite(states["beta"]).all()
+
+    def test_joblib_wrapper_propagates(self):
+        df, r0 = self._constant_hedge_logs()
+        data = pd.concat({"A": df["P1"], "B": df["P2"]}, names=["ticker", "datetime"]).to_frame("close")
+        with pytest.raises(ValueError, match="not positive definite"):
+            kalman_dynamic_hedge_joblib(data, pairs=[("A", "B")], q=1e-5 * r0, r=r0, em_iters=5,
+                                        n_workers=1, show_progress=False)
+
+    @pytest.mark.parametrize("Q, R, what", [
+        (np.array([[1e-5, 0.0], [0.0, -1e-7]]), np.array([[1.0]]), "transition_covariance Q"),
+        (np.array([[1e-5, 2e-5], [2e-5, 1e-5]]), np.array([[1.0]]), "transition_covariance Q"),  # positive diagonal, indefinite
+        (np.zeros((2, 2)), np.array([[1.0]]), "transition_covariance Q"),                       # semidefinite is not enough
+        (np.eye(2) * 1e-5, np.array([[0.0]]), "observation_covariance R"),
+        (np.eye(2) * 1e-5, np.array([[np.nan]]), "observation_covariance R"),
+    ])
+    def test_filter_kf_on_new_rejects_bad_frozen_params(self, Q, R, what):
+        from pairs.models.kalman import filter_kf_on_new
+        df = _make_aligned_df()
+        with pytest.raises(ValueError, match=what):
+            filter_kf_on_new(df["P1"], df["P2"], frozen={"F": np.eye(2), "Q": Q, "R": R})

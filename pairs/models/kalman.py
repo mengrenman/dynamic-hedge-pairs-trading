@@ -59,6 +59,24 @@ def _align_pair_multiindex(data: pd.DataFrame, k1: str, k2: str) -> pd.DataFrame
     df = pd.concat([s1.rename("P1"), s2.rename("P2")], axis=1).dropna()
     return df.astype(np.float64)
 
+def _check_noise_covariances(Q, R, context: str) -> None:
+    """Raise ``ValueError`` unless Q (transition) and R (observation) are finite and positive definite.
+
+    pykalman does not check either matrix. An indefinite Q is not a model: the filtered state
+    covariance itself goes indefinite, and ``loglikelihood`` still returns a finite number, so
+    nothing downstream notices. The test is on the symmetric part (EM's Q is symmetric only to
+    rounding) and is strict: the smallest eigenvalue must be above zero, with no tolerance.
+    """
+    for name, M in (("transition_covariance Q", Q), ("observation_covariance R", R)):
+        M = np.atleast_2d(np.asarray(M, dtype=np.float64))
+        if not np.all(np.isfinite(M)):
+            raise ValueError(f"{context}: {name} has non-finite entries: {M.tolist()}")
+        eig = np.linalg.eigvalsh((M + M.T) / 2.0)
+        if eig.min() <= 0:
+            raise ValueError(
+                f"{context}: {name} is not positive definite (eigenvalues {eig.tolist()}); "
+                "the filter would run but its hedge and likelihood are meaningless.")
+
 def _kalman_dynamic_hedge(
     k1: str,
     k2: str,
@@ -98,6 +116,22 @@ def _kalman_dynamic_hedge(
     beta, where the diffuse prior starts at zero and takes ~20 bars to converge -- but it is not
     what the signature implies. Pass ``em_vars=("transition_covariance",
     "observation_covariance")`` to learn only Q and R and keep the prior.
+
+    **``em_iters > 0`` can return a Q that is not a covariance, and this function raises when it
+    does.** pykalman's M-step does not constrain the learned transition covariance, so EM can
+    leave Q with a negative eigenvalue. pykalman then filters without complaint: the state
+    covariance goes indefinite and ``loglikelihood`` returns a finite but meaningless number.
+    The learned Q and R are therefore checked after EM, and a ``ValueError`` is raised if either
+    is not positive definite. There is no warn-and-continue mode and no clipping: a repaired
+    matrix would be a modeling choice nobody made. How often it happens (measured 2026-10-13):
+    on notebook 22's 287 formation windows, price levels with ``q=1e-5, r=1`` gave none, while
+    log prices with ``q=1e-5*r0, r=r0`` (r0 the OLS residual variance) gave 110-116, the count
+    moving with nothing more than the ddof of r0; 30 of those log fits also returned R <= 0.
+    Levels are not immune: notebook 05's ``q=1e-6`` model gave 9 of 680 fits. A constant hedge,
+    where the true Q is zero, triggers it easily. Only the parameters EM returns are checked; an
+    intermediate EM iterate can go indefinite and recover (on the log run above, about 180 of
+    287 fits did at some iteration <= 5). Note that :func:`pairs.walk_forward_backtest` catches exceptions from ``fit_fn``, so
+    under that driver the error becomes a skipped fold with a ``UserWarning``, not a stop.
     """
     if df is None or len(df) < 5:
         return k1, k2, None, None
@@ -130,6 +164,8 @@ def _kalman_dynamic_hedge(
 
     if em_iters and em_iters > 0:
         kf = kf.em(y, n_iter=em_iters, **({"em_vars": list(em_vars)} if em_vars else {}))
+        _check_noise_covariances(kf.transition_covariance, kf.observation_covariance,
+                                 f"Kalman EM fit for ({k1}, {k2}) after em_iters={em_iters}")
 
     if mode == "smooth":
         state_means, state_covs = kf.smooth(y)
@@ -349,6 +385,12 @@ def filter_kf_on_new(
     """
     Continue a trained Kalman filter on aligned Series P1_new/P2_new.
 
+    ``frozen["Q"]`` and ``frozen["R"]`` must be positive definite; a ``ValueError`` is raised
+    otherwise. Parameters fitted by this module's EM are checked when they are fitted, so this
+    catches the ones that were not: fitted before the check existed, loaded from a cache, or
+    built by hand. ``continue_kalman_on_window`` and ``continue_kalman_for_pairs_joblib`` pass
+    through here and inherit the check.
+
     Returns:
       - states DataFrame indexed by datetime with ['alpha','beta','y_hat','resid']
       - last_state dict: {'mean': (2,), 'cov': (2,2)} at the end of this window
@@ -370,6 +412,7 @@ def filter_kf_on_new(
     F = np.asarray(frozen["F"], dtype=np.float64)
     Q = np.asarray(frozen["Q"], dtype=np.float64)
     R = np.asarray(frozen["R"], dtype=np.float64)
+    _check_noise_covariances(Q, R, "filter_kf_on_new: frozen parameters")
 
     init_mean, init_covm = _coerce_last_state(last_state, init_cov)
     if last_state is not None:
